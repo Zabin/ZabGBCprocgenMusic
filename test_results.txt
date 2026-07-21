@@ -1,0 +1,34 @@
+[PASS] T1.1 ROM size is exactly 32768 bytes  (got 32768)
+[PASS] T1.2 Title bytes match DRIFTUNE
+[PASS] T1.3 GBC compatibility flag set
+[PASS] T1.4 Cart type is ROM ONLY (no SRAM/battery, MSTR-001 C2)
+[PASS] T1.5 Header checksum valid
+[PASS] T2.1 Master sound power bit set (NR52 bit7)  (NR52=0xf1)
+[PASS] T2.2 Channel 1 (pulse A) reports active in NR52  (NR52=0xf1)
+[PASS] T2.3 Boot preset: TEMPO_IDX at known-good value
+[PASS] T2.4 Boot preset: OCTAVE_IDX at known-good value
+[PASS] T2.5 Boot preset: SCALE_IDX at known-good value
+[PASS] T3.1 CUR_DEGREE_PA changes over time (engine is walking, not frozen)  (distinct degrees seen: [0, 3, 4, 5, 6, 7])
+[PASS] T3.2 NOTE_TIMER_PA counts down and reloads repeatedly (generation cadence is live)  (distinct timer values seen: 30)
+[PASS] T3.3 Channel 1 still reports active after sustained play
+[PASS] T4.1 D-pad Up steps TEMPO_IDX  (0xc000: 4 -> 5)
+[PASS] T4.1 D-pad Up steps TEMPO_IDX — no other parameter changed
+[PASS] T4.2 D-pad Down steps TEMPO_IDX (back down)  (0xc000: 5 -> 4)
+[PASS] T4.2 D-pad Down steps TEMPO_IDX (back down) — no other parameter changed
+[PASS] T4.3 D-pad Right steps OCTAVE_IDX  (0xc001: 1 -> 2)
+[PASS] T4.3 D-pad Right steps OCTAVE_IDX — no other parameter changed
+[PASS] T4.4 D-pad Left steps OCTAVE_IDX (back down)  (0xc001: 2 -> 1)
+[PASS] T4.4 D-pad Left steps OCTAVE_IDX (back down) — no other parameter changed
+[PASS] T4.5 A steps SCALE_IDX  (0xc002: 0 -> 1)
+[PASS] T4.5 A steps SCALE_IDX — no other parameter changed
+[PASS] T4.6 B steps DENSITY_IDX  (0xc003: 0 -> 1)
+[PASS] T4.6 B steps DENSITY_IDX — no other parameter changed
+[PASS] T4.7 Start steps CHMIX_IDX  (0xc004: 0 -> 1)
+[PASS] T4.7 Start steps CHMIX_IDX — no other parameter changed
+[PASS] T5.1 Setup: parameters actually drifted from preset before reset  (drifted=(6, 2, 1))
+[PASS] T5.2 Select restores TEMPO_IDX to preset
+[PASS] T5.3 Select restores OCTAVE_IDX to preset
+[PASS] T5.4 Select restores SCALE_IDX to preset
+[PASS] T5.5 Select restores CUR_DEGREE_PA to 0
+
+32 PASS, 0 FAIL

@@ -2,8 +2,8 @@
 
 ## Position
 
-- **Updated:** 2026-07-21 (run #11) — **Independent verification: IP-0006 VERIFIED, BL-0016 filed**
-- **Increment:** Foundation release bucket — **all 7 packages COMPLETE, 6/7 independently VERIFIED**, from-scratch increment.
+- **Updated:** 2026-07-21 (run #12) — **Tranche complete: all 7 packages independently VERIFIED, BL-0017 filed (Medium-High)**
+- **Increment:** Foundation release bucket — **all 7 packages COMPLETE and independently VERIFIED**, from-scratch increment. Ready for `10-integration-review`.
 - **Pipeline state:**
   - `01-vision`: ✅ MSTR-001 **v1.1** (amended: bad-zone must be autonomously recoverable, Select
     reframed as reset-and-randomize) + GDS-00 authored.
@@ -37,25 +37,29 @@
     **IP-0006 `VERIFIED`** ([VR-0006](../implementation/verification/VR-0006-minimal-visualizer.md),
     run #11 — independently confirmed the palette/bad-zone reaction via rendered pixels,
     correctly explaining an initially-confusing one-frame VBlank lag; filed `BL-0016`, `FR-1120`
-    overstates the shipped tempo-representation scope). IP-0007 self-tested in the same session
-    that authored it — the user's "accept single session limitations just this once" (run #5)
-    covered that continued work (run #6 is a direct continuation of the same session/exception,
-    not a fresh one). Independent verification of IP-0007 is still owed.
-  - `10-integration-review` / `11-release-readiness`: not reached — needs all 7 packages
-    independently `VERIFIED` first.
-- **Backlog:** 13 open entries (`BL-0001`, `BL-0005`...`BL-0007`, `BL-0010`...`BL-0013`, `BL-0015`,
-  `BL-0016`; `BL-0002`/`BL-0003`/`BL-0004`/`BL-0008`/`BL-0009`/`BL-0014` are `DONE`, pending
-  archiving at the next triage sweep) — none `NEEDS-USER`. `BL-0016` filed this run.
-- **Next step:** `09-package-verification` on `IP-0007` — the last package owed independent
-  verification. This session hasn't implemented it — independence holds. `10-integration-review`
-  follows immediately once it's `VERIFIED` (the full tranche will be done). Alongside that,
-  `06-feature-specification` owes the retroactive FS-100...FS-105 backfill (`BL-0006`/`BL-0012`),
-  and `03-architecture-design-synthesis`/`02-research-game-design`/`04-requirements-engineering`
-  owe reconciling GDS-03/GDS-07/R204/`FR-1090`/`FR-1120` against the shipped simplifications
-  (`BL-0013`, `BL-0016`).
-- **Open gates:** none blocking further pipeline *documentation* work (FS backfill, GDS/FR
-  reconciliation can proceed anytime); independent verification of IP-0007 is the standing gate
-  before `10-integration-review`/`11-release-readiness` can be reached.
+    overstates the shipped tempo-representation scope), **IP-0007 `VERIFIED`** ([VR-0007](../implementation/verification/VR-0007-autonomous-recovery-and-randomize.md),
+    run #12 — independently confirmed the dissonance pull-toward-tonic mechanism (51/51 deltas
+    exactly `-1` following a DISSONANT onset); filed `BL-0017` (Medium-High): `OVERLOAD_THRESHOLD`
+    is mathematically unreachable, computed ceiling `~8.8` onsets/window vs. threshold `20` even
+    at max tempo+density — `FR-1100`/the overload-recovery logic are code-complete but permanently
+    dead under current constants). **All 7 packages now independently `VERIFIED`.**
+  - `10-integration-review`: ready to run — the full tranche is `VERIFIED`. `11-release-readiness`
+    follows once integration review is clean.
+- **Backlog:** 14 open entries (`BL-0001`, `BL-0005`...`BL-0007`, `BL-0010`...`BL-0013`, `BL-0015`,
+  `BL-0016`, `BL-0017`; `BL-0002`/`BL-0003`/`BL-0004`/`BL-0008`/`BL-0009`/`BL-0014` are `DONE`,
+  pending archiving at the next triage sweep) — none `NEEDS-USER`. `BL-0017` filed this run
+  (Medium-High, `SCHEDULED` — not deferred, given its severity).
+- **Next step:** `10-integration-review` on the full 7-package Foundation tranche — the standing
+  gate (independent verification of every package) is now satisfied. `BL-0017` (the
+  OVERLOAD-unreachability finding) should be weighed by that review, per its own disposition note.
+  Alongside that, `06-feature-specification` owes the retroactive FS-100...FS-105 backfill
+  (`BL-0006`/`BL-0012`), and
+  `03-architecture-design-synthesis`/`02-research-game-design`/`04-requirements-engineering` owe
+  reconciling GDS-03/GDS-07/R204/`FR-1090`/`FR-1120` against the shipped simplifications
+  (`BL-0013`, `BL-0016`); `07-implementation-planning` owes a remediation package for `BL-0017`
+  (a real code fix, not a doc reword).
+- **Open gates:** none — the tranche is fully `VERIFIED`. `BL-0017`'s eventual remediation package
+  will need G3 authorization when the pipeline reaches implementing it (not yet attempted).
 
 ## Run log
 
@@ -72,6 +76,7 @@
 | 9 | 2026-07-21 | iterate (same session, no gate hit) | `09-package-verification` | `IP-0004` | Continuing this fresh session. Re-derived `_emit_badzone_tick`, `SEMITONE_TABLE_DATA`, `DISSONANCE_WEIGHT_BY_IC`, the stale/overload bookkeeping, and `init_engine`'s zeroing of all bad-zone state from the tree. Rebuilt (32768 bytes, valid header) and re-ran the full suite: **60 PASS, 0 FAIL**. Per this skill's tunable-parameter rule, drove `SCALE_IDX` live to `3` (pentatonic — the suite's T8 fixture never leaves the boot preset, and dissonance scoring is scale-dependent via the semitone table): dissonance scores stayed in the theoretical 0-45 range across 2000 frames, bad-zone entry/exit still functioned correctly. Surfaced one new finding: `FR-1090`'s text still names an unbuilt `HIST_PA`/`PB`/`WV` ring buffer (confirmed absent from the tree by grep) — extends the existing `BL-0013` doc-coherence entry's scope from architecture-only up to the requirements layer (no functional defect). Wrote [VR-0004](../implementation/verification/VR-0004-bad-zone-detection.md), advanced `IP-0004` `COMPLETE`→`VERIFIED` on the Master Build Plan and `packages/INDEX.md`, folded the finding into `BL-0013` (no new ID). | `Next: 09-package-verification on IP-0005, in this same still-independent session. 10-integration-review follows once all 7 are VERIFIED. FS-100...FS-105 backfill (BL-0006/BL-0012) and GDS-03/GDS-07/R204/FR-1090 reconciliation (BL-0013, extended scope) remain unblocked, doable anytime.` |
 | 10 | 2026-07-21 | iterate (same session, no gate hit) | `09-package-verification` | `IP-0005` | Continuing this fresh session. `IP-0005` is an audit-only package (no new code — its DoD is confirming `init_engine`'s Select-reset coverage, built incrementally by IP-0002-0004, is complete). Independently cross-checked every WRAM field IP-0002-0004 introduced against `init_engine`'s body — no gaps. Rebuilt (32768 bytes, valid header) and re-ran the full suite: **60 PASS, 0 FAIL**. Per the package doc's own honestly-flagged gap (`BL-0014`) — pulse B/wave/noise's reset coverage was only implicitly exercised, never independently asserted on the exact reset frame — drove it live: let the engine run 400 frames to drift `CUR_DEGREE_PB`/`WV`/`NOISE_STEP_IDX`/LFSR state away from init values, pressed Select, confirmed all reset correctly on the exact frame (degrees to 0, timers freshly reloaded). One apparent inconsistency (`STALE_COUNT_PB`/`WV` reading `1` instead of `0`, unlike T8.7b's pulse-A `0`) investigated and explained: `IP-0007`'s independent per-channel `DIV`-seeded reseeding makes each channel's very-first post-reset step independently random, so one channel landing on "no movement" (stale=1) while another moves (stale=0) is expected per-channel variance, not a reset defect. Wrote [VR-0005](../implementation/verification/VR-0005-full-reset-scope.md), advanced `IP-0005` `COMPLETE`→`VERIFIED`, closed `BL-0014` `DONE`. | `Next: 09-package-verification on IP-0006, in this same still-independent session. 10-integration-review follows once all 7 are VERIFIED. FS-100...FS-105 backfill (BL-0006/BL-0012) and GDS-03/GDS-07/R204/FR-1090 reconciliation (BL-0013, extended scope) remain unblocked, doable anytime.` |
 | 11 | 2026-07-21 | iterate (same session, no gate hit) | `09-package-verification` | `IP-0006` | Continuing this fresh session. Read the new `visuals.py` in full — confirmed it's a genuinely read-only consumer (only writes `LCDC`/`BCPS`/`BCPD`/tilemap/tile-data, never engine-state or a PSG register). Rebuilt (32768 bytes, valid header) and re-ran the full suite: **60 PASS, 0 FAIL**. Went beyond T9's WRAM-only checks and independently drove the palette/bad-zone reaction via rendered pixels (`pb.screen.ndarray`) — first pass looked inverted (bit3-set frames showing the calm color and vice versa), investigated rather than assumed a defect, and correctly explained it as the expected one-frame VBlank palette-write-takes-effect-next-frame lag (every sample matched the *previous* frame's flag with zero exceptions across ~30 transitions) — not a ROM bug. Also found a real doc-coherence gap: `FR-1120` requires tempo representation but `visuals.py` never reads `TEMPO_IDX` (grep confirmed zero matches) — the package doc's own "Explicit non-scope" note already flags tempo-synced motion as unbuilt, so this is a known simplification, but `FR-1120`'s text doesn't reflect it (same pattern as `BL-0013`/`FR-1090`, one requirement over). Filed `BL-0016` (new ID, distinct requirement from `BL-0013`). Wrote [VR-0006](../implementation/verification/VR-0006-minimal-visualizer.md), advanced `IP-0006` `COMPLETE`→`VERIFIED`. | `Next: 09-package-verification on IP-0007 — the last package owed independent verification — in this same still-independent session. 10-integration-review follows immediately once it's VERIFIED. FS-100...FS-105 backfill (BL-0006/BL-0012) and GDS-03/GDS-07/R204/FR-1090/FR-1120 reconciliation (BL-0013, BL-0016) remain unblocked, doable anytime.` |
+| 12 | 2026-07-21 | iterate (same session, no gate hit) | `09-package-verification` | `IP-0007` | Continuing this fresh session — the last package owed independent verification. Confirmed the dissonant/stuck/overload override code, the `DIV`-reseeding, and both `JR`→`JP_NZ` fixes from the tree. Rebuilt (32768 bytes, valid header) and re-ran the full suite: **60 PASS, 0 FAIL**. Independently confirmed the dissonance pull-toward-tonic mechanism directly (not just T10's aggregate "eventually recovers"): sampled 8000 frames of `CUR_DEGREE_PA` changes split by whether the prior onset was DISSONANT-flagged — 51/51 such deltas were exactly `-1`, zero exceptions, vs. a mixed `{-1:98, 1:42}` unconditionally. Attempted to independently trigger OVERLOAD (bit2) by driving `DENSITY_IDX` to max and running 6000 frames — it never set. Computed the theoretical ceiling directly: even at the fastest tempo *and* max density simultaneously, the maximum possible onsets in one 32-frame window is `≈8.8`, well under `OVERLOAD_THRESHOLD=20` — meaning `FR-1100`/`IP-0007`'s own overload-recovery doubling logic are code-complete but structurally unreachable, not merely untuned as `BL-0005` vaguely already said. Filed `BL-0017` (new ID, Medium-High — a real functional gap, `SCHEDULED` for a remediation package via `07-implementation-planning`/`08-code-implementation`, not just a doc reword). Wrote [VR-0007](../implementation/verification/VR-0007-autonomous-recovery-and-randomize.md), advanced `IP-0007` `COMPLETE`→`VERIFIED`. **All 7 Foundation packages are now independently `VERIFIED`.** | `Next: 10-integration-review on the full 7-package tranche — the standing verification gate is satisfied. BL-0017 (OVERLOAD unreachable) should be weighed by that review. FS-100...FS-105 backfill (BL-0006/BL-0012), GDS/FR reconciliation (BL-0013/BL-0016), and BL-0017's remediation package remain unblocked/scheduled, doable anytime (BL-0017's actual implementation needs G3 when reached).` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

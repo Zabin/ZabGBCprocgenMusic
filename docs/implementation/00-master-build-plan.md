@@ -17,7 +17,7 @@ cheaper to recover from a `RETURNED` verification).
 | IP-0004 | Bad-zone detection (dissonance + stale + overload scoring, combined flag) | FEAT-1030 | **VERIFIED** ([IP-0004](packages/IP-0004-bad-zone-detection.md), 60/60 tests; [VR-0004](verification/VR-0004-bad-zone-detection.md), fresh-session independent verification) |
 | IP-0005 | Reset-to-preset (Select) | FEAT-1020 | **VERIFIED** ([IP-0005](packages/IP-0005-full-reset-scope.md), 60/60 tests; [VR-0005](verification/VR-0005-full-reset-scope.md), fresh-session independent verification — closed `BL-0014`) |
 | IP-0006 | Minimal visualizer (tile/palette reacting to NR52 + bad-zone flag) | FEAT-1040 | **VERIFIED** ([IP-0006](packages/IP-0006-minimal-visualizer.md), 60/60 tests; [VR-0006](verification/VR-0006-minimal-visualizer.md), fresh-session independent verification — `BL-0016` filed) |
-| IP-0007 | Autonomous bad-zone avoidance/recovery (no input required) + Select reframed as reset-and-randomize | FEAT-1030 (extended) | **COMPLETE** ([IP-0007](packages/IP-0007-autonomous-recovery-and-randomize.md), 60/60 tests; verification pending) |
+| IP-0007 | Autonomous bad-zone avoidance/recovery (no input required) + Select reframed as reset-and-randomize | FEAT-1030 (extended) | **VERIFIED** ([IP-0007](packages/IP-0007-autonomous-recovery-and-randomize.md), 60/60 tests; [VR-0007](verification/VR-0007-autonomous-recovery-and-randomize.md), fresh-session independent verification — `BL-0017` filed, Medium-High) |
 | IP-0008+ | Extended headless test coverage per package (rode along with each package above, not a separate late pass) | FEAT-1050 | ONGOING — 60/60 across T1-T10 |
 
 **MVP milestone reached 2026-07-21** (run #5): all six original Foundation-bucket packages
@@ -27,13 +27,17 @@ stress run confirming both entry into and self-recovery from a bad zone with no 
 through IP-0007 were self-tested in the same session that authored them (the user authorized
 "accept single session limitations just this once" for the MVP push, `BL-0012`) — independent
 verification via `09-package-verification` is owed for each, one per fresh session, same as
-`IP-0001` originally was before its own independent verification (`VR-0001`). **IP-0002 through
-IP-0006 are now independently `VERIFIED`** ([VR-0002](verification/VR-0002-pulse-b-and-wave-channel.md),
+`IP-0001` originally was before its own independent verification (`VR-0001`). **All 7 Foundation
+packages are now independently `VERIFIED`** ([VR-0002](verification/VR-0002-pulse-b-and-wave-channel.md),
 [VR-0003](verification/VR-0003-noise-channel-and-density.md),
 [VR-0004](verification/VR-0004-bad-zone-detection.md),
 [VR-0005](verification/VR-0005-full-reset-scope.md),
-[VR-0006](verification/VR-0006-minimal-visualizer.md), all the same genuinely fresh session) —
-IP-0007 remains owed.
+[VR-0006](verification/VR-0006-minimal-visualizer.md),
+[VR-0007](verification/VR-0007-autonomous-recovery-and-randomize.md), all the same genuinely
+fresh session, `IP-0001` verified separately per `VR-0001`). **The tranche is ready for
+`10-integration-review`.** One Medium-High finding surfaced (`BL-0017`, `OVERLOAD_THRESHOLD`
+mathematically unreachable) — a real functional gap, not merely doc-coherence, that should be
+weighed before/alongside the integration review.
 
 ## G5 gate (every stage-08 run)
 

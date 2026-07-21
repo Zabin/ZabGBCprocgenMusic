@@ -14,8 +14,8 @@ Kept in sync with `docs/pipeline/pipeline-journal.md`'s Position block and each 
 | 06 Feature Specification | FS-100...FS-105 planned, none formally authored — abbreviated per-package notes used instead for the MVP push (`BL-0006`/`BL-0012`) | ⛔ Planned (backfill scheduled) |
 | 07 Implementation Planning | Master Build Plan, TWBS (IP-0001...IP-0007) | ✅ Authored 2026-07-21 |
 | 08 Implementation | **MVP complete + extended** — IP-0001 `VERIFIED`; IP-0002-IP-0007 `COMPLETE` (4-channel generation, full input mapping, bad-zone detection with autonomous avoidance/recovery, Select reset-and-randomize, minimal visualizer). 60/60 tests, 8000+ frame stress run clean (bad-zone entry + self-recovery both observed). | ✅ All 7 Foundation-bucket packages COMPLETE |
-| 09 Verification | IP-0001 `VERIFIED` ([VR-0001](docs/implementation/verification/VR-0001-skeleton-and-single-channel-generation.md)). IP-0002-0007 self-tested, same-session per user-authorized exception (`BL-0012`) — independent verification still owed for each. | 🟡 1/7 independently verified |
-| 10 Integration Review | Not reached — needs all 7 packages independently `VERIFIED` first | ⛔ Not reached |
-| 11 Release Readiness | — | ⛔ Not reached |
+| 09 Verification | All 7 packages independently `VERIFIED` ([VR-0001](docs/implementation/verification/VR-0001-skeleton-and-single-channel-generation.md)-[VR-0007](docs/implementation/verification/VR-0007-autonomous-recovery-and-randomize.md)), each in a genuinely fresh session (`IP-0001` under a one-time user-accepted same-session exception, `BL-0004`, `IP-0002`-`IP-0007` fully independent). | ✅ 7/7 independently verified |
+| 10 Integration Review | [Foundation bucket review](docs/reviews/integration-review-foundation-bucket.md) — 2 findings (`BL-0019` High, `BL-0018` Low-Medium; `BL-0017` Medium-High carried forward from `VR-0007`). No Critical. | ⚠️ Reviewed — High finding open |
+| 11 Release Readiness | Not reached — recommend against advancing until `BL-0019` (channel-mix non-functional) is remediated and re-verified | ⛔ Not reached |
 
 See `docs/pipeline/backlog.md` for the live list of what each 🟡/🔴/⛔ actually needs next.

@@ -7,7 +7,7 @@ Kept in sync with `docs/pipeline/pipeline-journal.md`'s Position block and each 
 |---|---|---|
 | 00 Pipeline | Journal, backlog | ✅ Live (`docs/pipeline/`) |
 | 01 Vision | MSTR-001 v1.0, GDS-00 | ✅ Authored 2026-07-21 |
-| 02 Research | Restructured into a per-topic encyclopedia (`docs/research/encyclopedia/`) with real citations: R107-R110 (hardware), R201-R207 (procedural music/visualizer design), R301/R305 (tooling) authored; R101-R106/R208/R302-304/R306 remain `⛔ Planned` (deferred until the visualizer/other gaps are real, see `docs/research/INDEX.md`) | ✅ Authored/restructured 2026-07-21 |
+| 02 Research | Per-topic encyclopedia (`docs/research/encyclopedia/`) covering 27 cited topics: R107-R115 (hardware), R201-R207/R209-R218 (procedural music/visualizer/engine design), R301/R305/R307-R309 (tooling) authored; remaining topics (R101-R106/R112/R208/R302-304/R306) explicitly `⛔ Planned` with named "no gap yet" reasoning — see `docs/research/INDEX.md` | ✅ Authored/restructured 2026-07-21 |
 | 03 Architecture | GDS-00/01/03/07 authored; GDS-02/04/05/06/08/09/10 planned (`BL-0001`) | 🟡 Partial |
 | 04 Requirements | FR-1000...FR-1120, NFR-1000...NFR-1030 | ✅ Authored 2026-07-21 |
 | 05 Feature Decomposition | Feature Catalog v1 (FEAT-1000...FEAT-1050) | ✅ Authored 2026-07-21 |

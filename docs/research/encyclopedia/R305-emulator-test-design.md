@@ -54,6 +54,23 @@ parameter/reset checks) already implements every pattern above.
   preset/parameter combination expected to trigger that condition (per `09-package-verification`'s
   own rule about non-default-parameter driving), not rely on the default boot preset, which
   GDS-03 SS5 deliberately designs to be the *safest*, least-likely-to-trip-bad-zone combination.
+- **Long-duration playback testing**: `IP-0001`'s T3 already drives 400 consecutive frames as a
+  liveness check (NFR-1010's "thousands of frames, no hang" requirement is broader — T3 is a
+  minimal instance of the same idea, not yet the full thousands-of-frames run NFR-1010 describes).
+  Recommend a dedicated long-run suite (e.g. a T99-style final suite driving 10,000+ frames across
+  varied parameter combinations, checking only for hangs/crashes, not specific state) once more
+  channels exist to make a "does it survive a long varied run" check meaningful — not needed for
+  a single-channel engine where the state space is small enough that 400 frames already exercises
+  it.
+- **Regression testing with fixed seeds**: already the default mode (`LFSR_SEED` is a fixed
+  constant, R213) — every `test_rom.py` run is already a fixed-seed regression run by construction.
+  If `IP-0002`+ adopts R213's recommended `DIV`-based boot seeding, tests must explicitly
+  overwrite `LFSR_STATE` post-boot (as several already do for other WRAM fields) to keep this
+  property — a concrete implication flagged here so it isn't lost when that change lands.
+- **Hardware compatibility testing** (real GBC hardware, or cross-checking against SameBoy/BGB —
+  R309): not currently performed; MSTR-001 §4 names real-hardware certification a deliberate
+  non-goal at this vision's date. Cross-emulator checking (R309) remains available as a cheaper
+  partial substitute for genuinely surprising findings, not a required step.
 
 ## 6. Feature Mapping
 

@@ -27,12 +27,17 @@ replacement topic(s) at the top.
 | R105 | OAM, sprites & OAM DMA | R105-*.md | ⛔ Planned (Driftune has no sprites — author only if that changes) |
 | R106 | MBC/SRAM | R106-*.md | ⛔ Planned (MSTR-001 C2: no SRAM commitment at v1 — author only if that non-goal is revisited) |
 | R107 | Joypad register & dual-read settling | [encyclopedia/R107-joypad-input.md](encyclopedia/R107-joypad-input.md) | ✅ Authored 2026-07-21 |
-| R108 | APU channels & register map | [encyclopedia/R108-apu-sound-channels.md](encyclopedia/R108-apu-sound-channels.md) | ✅ Authored 2026-07-21 (this project's single most load-bearing hardware topic) |
+| R108 | APU channels & register map | [encyclopedia/R108-apu-sound-channels.md](encyclopedia/R108-apu-sound-channels.md) | ✅ Authored 2026-07-21 (this project's single most load-bearing hardware topic; covers user-list Phase 1 items 6-8 — APU overview, audio registers, pulse channel behavior) |
 | R109 | Cartridge header, checksums & boot requirements | [encyclopedia/R109-cartridge-header.md](encyclopedia/R109-cartridge-header.md) | ✅ Authored 2026-07-21 |
-| R110 | Interrupt model & ISR conventions | [encyclopedia/R110-interrupts-and-timing.md](encyclopedia/R110-interrupts-and-timing.md) | ✅ Authored 2026-07-21 |
+| R110 | Interrupt model & ISR conventions | [encyclopedia/R110-interrupts-and-timing.md](encyclopedia/R110-interrupts-and-timing.md) | ✅ Authored 2026-07-21 (covers user-list Phase 1 items 4-5 — interrupts/timers, VBlank timing) |
+| R111 | APU hardware quirks & DMG vs. CGB audio differences | [encyclopedia/R111-apu-hardware-quirks.md](encyclopedia/R111-apu-hardware-quirks.md) | ✅ Authored 2026-07-21 (user-list Phase 1 items 14-15) |
+| R112 | GBC hardware architecture overview / memory map & banking | R112-*.md | ⛔ Planned (user-list Phase 1 items 1, 3 — no gap yet: single 32KB bank, no MBC in use; R107-R111/R113 already cover the load-bearing hardware surface. Author only if bank-switching is ever revisited, MSTR-001 §4) |
+| R113 | Frame sequencer: envelope, length counter & sweep timing | [encyclopedia/R113-frame-sequencer-envelope-length-sweep.md](encyclopedia/R113-frame-sequencer-envelope-length-sweep.md) | ✅ Authored 2026-07-21 (user-list Phase 1 items 11-13) |
+| R114 | Wave channel programming | [encyclopedia/R114-wave-channel-programming.md](encyclopedia/R114-wave-channel-programming.md) | ✅ Authored 2026-07-21 (user-list Phase 1 item 9; Phase 5 item 58) |
+| R115 | Noise channel implementation | [encyclopedia/R115-noise-channel-implementation.md](encyclopedia/R115-noise-channel-implementation.md) | ✅ Authored 2026-07-21 (user-list Phase 1 item 10; Phase 5 item 59) |
 
 Superseded: [R100-gbc-sound-hardware.md](R100-gbc-sound-hardware.md) (content split into R108,
-with R107/R109/R110 newly split out and R100's own "Confirmed during IP-0001" section folded
+with R107/R109/R110-R115 newly split out and R100's own "Confirmed during IP-0001" section folded
 into R108 SS4).
 
 ## R200 — Procedural Music & Visualizer Design
@@ -47,6 +52,16 @@ into R108 SS4).
 | R206 | Button-to-musical-parameter mapping conventions | [encyclopedia/R206-button-parameter-mapping-conventions.md](encyclopedia/R206-button-parameter-mapping-conventions.md) | ✅ Authored 2026-07-21 |
 | R207 | GB-era chiptune composition & channel-usage idioms | [encyclopedia/R207-gb-chiptune-channel-idioms.md](encyclopedia/R207-gb-chiptune-channel-idioms.md) | ✅ Authored 2026-07-21 (surfaced a finding — see backlog) |
 | R208 | Palette & color design under CGB constraints for a non-game display | R208-*.md | ⛔ Planned (`IP-0006`/GDS-08 — R205 SS5 already sketches the restraint principle; deepen when the visualizer's real palette count is decided) |
+| R209 | Game Boy music driver survey (hUGEDriver, GBT Player, LSDJ, Nanoloop) | [encyclopedia/R209-gb-music-driver-survey.md](encyclopedia/R209-gb-music-driver-survey.md) | ✅ Authored 2026-07-21 (user-list Phase 2 items 16-21) |
+| R210 | Tracker music formats, sequencing techniques & real-time synthesis on GB | [encyclopedia/R210-tracker-formats-sequencing.md](encyclopedia/R210-tracker-formats-sequencing.md) | ✅ Authored 2026-07-21 (user-list Phase 2 items 22-24) |
+| R211 | Melody/chord/bass/countermelody/percussion/phrase/motif generation techniques | [encyclopedia/R211-melodic-harmonic-generation-techniques.md](encyclopedia/R211-melodic-harmonic-generation-techniques.md) | ✅ Authored 2026-07-21 (user-list Phase 3 items 26-33 — surfaced a research-gap, see backlog `BL-0010`) |
+| R212 | Musical form, tension/release & macro-level parameters (song structure, cadence, key modulation, time signature, tempo variation, dynamics) | [encyclopedia/R212-form-tension-and-macro-musical-parameters.md](encyclopedia/R212-form-tension-and-macro-musical-parameters.md) | ✅ Authored 2026-07-21 (user-list Phase 3 items 34-40 — same gap as R211, confirmed from the form angle) |
+| R213 | PRNGs, seed management & deterministic generation | [encyclopedia/R213-prng-seed-management.md](encyclopedia/R213-prng-seed-management.md) | ✅ Authored 2026-07-21 (user-list Phase 4 items 41-43) |
+| R214 | Rule-based/grammar/L-system/cellular-automata generation survey | [encyclopedia/R214-grammar-and-cellular-generation-survey.md](encyclopedia/R214-grammar-and-cellular-generation-survey.md) | ✅ Authored 2026-07-21 (user-list Phase 4 items 46-49, 51-52) |
+| R215 | Genetic algorithms, constraint solving, state machines & event scheduling (survey) | [encyclopedia/R215-constraint-and-scheduling-survey.md](encyclopedia/R215-constraint-and-scheduling-survey.md) | ✅ Authored 2026-07-21 (user-list Phase 4 items 53-56) |
+| R216 | Sound design techniques: timbre, arpeggio, vibrato, portamento & percussion synthesis | [encyclopedia/R216-sound-design-techniques.md](encyclopedia/R216-sound-design-techniques.md) | ✅ Authored 2026-07-21 (user-list Phase 5 items 57, 60-68) |
+| R217 | UX conventions for generative instruments (seed entry, presets, playback controls) | [encyclopedia/R217-ux-conventions-for-generative-instruments.md](encyclopedia/R217-ux-conventions-for-generative-instruments.md) | ✅ Authored 2026-07-21 (user-list Phase 7 items 81-88 — most already answered by existing decisions, see topic SS3) |
+| R218 | Inspiration & history survey (Eno/Koan, No Man's Sky, Spore, Rogue, live coding, bytebeat) | [encyclopedia/R218-inspiration-and-history-survey.md](encyclopedia/R218-inspiration-and-history-survey.md) | ✅ Authored 2026-07-21 (user-list Phase 10 items 105-110, 113-115; classic GB soundtracks/modern chiptune, items 111-112, covered by R207/R209) |
 
 Superseded: [R200-generative-music-design.md](R200-generative-music-design.md) (content split
 across R201-R204, R206-R207).
@@ -59,8 +74,11 @@ across R201-R204, R206-R207).
 | R302 | Python-assembler codegen patterns | R302-*.md | ⛔ Planned (no gap yet — `gbc_lib.py`'s label/fixup mechanism is simple; author if a future package needs it formalized) |
 | R303 | 2bpp tile encoding & palette data formats | R303-*.md | ⛔ Planned (`IP-0006` — no tile data exists yet) |
 | R304 | ROM validation | R304-*.md | ⛔ Planned (folded into R109 for now — split out if header validation grows more complex than the current checksum recompute) |
-| R305 | Emulator-based test design | [encyclopedia/R305-emulator-test-design.md](encyclopedia/R305-emulator-test-design.md) | ✅ Authored 2026-07-21 |
+| R305 | Emulator-based test design | [encyclopedia/R305-emulator-test-design.md](encyclopedia/R305-emulator-test-design.md) | ✅ Authored 2026-07-21 (extended to cover user-list Phase 9 items 101-104 — audio verification, fixed-seed regression, long-duration, hardware-compat testing) |
 | R306 | Toolchain portability | R306-*.md | ⛔ Planned (no portability need identified yet — single build target, single CI-less environment) |
+| R307 | Real-time audio engine architecture patterns | [encyclopedia/R307-realtime-audio-engine-architecture.md](encyclopedia/R307-realtime-audio-engine-architecture.md) | ✅ Authored 2026-07-21 (user-list Phase 6 items 69-80) |
+| R308 | CPU/RAM/ROM performance budgeting | [encyclopedia/R308-performance-budgeting.md](encyclopedia/R308-performance-budgeting.md) | ✅ Authored 2026-07-21 (user-list Phase 8 items 89-96) |
+| R309 | Emulator comparison & debugging tools (SameBoy, BGB) | [encyclopedia/R309-emulator-debugging-tools.md](encyclopedia/R309-emulator-debugging-tools.md) | ✅ Authored 2026-07-21 (user-list Phase 9 items 97-100) |
 
 Superseded: [R300-tooling-and-testing.md](R300-tooling-and-testing.md) (content split across
 R301, R305).

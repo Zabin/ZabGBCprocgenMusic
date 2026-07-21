@@ -34,10 +34,27 @@ packages are now independently `VERIFIED`** ([VR-0002](verification/VR-0002-puls
 [VR-0005](verification/VR-0005-full-reset-scope.md),
 [VR-0006](verification/VR-0006-minimal-visualizer.md),
 [VR-0007](verification/VR-0007-autonomous-recovery-and-randomize.md), all the same genuinely
-fresh session, `IP-0001` verified separately per `VR-0001`). **The tranche is ready for
-`10-integration-review`.** One Medium-High finding surfaced (`BL-0017`, `OVERLOAD_THRESHOLD`
-mathematically unreachable) — a real functional gap, not merely doc-coherence, that should be
-weighed before/alongside the integration review.
+fresh session, `IP-0001` verified separately per `VR-0001`). **`10-integration-review` completed**
+([report](../reviews/integration-review-foundation-bucket.md)) with 2 findings: `BL-0019` (High —
+channel-mix has no consumer) and `BL-0018` (Low-Medium — GDS-07 doc gap); `BL-0017` re-surfaced.
+Recommend against `11-release-readiness` until `BL-0019` is remediated and re-verified.
+
+## Technical Work Breakdown (TWBS) — Foundation-bucket remediation tranche
+
+See [`01-technical-work-breakdown.md`](01-technical-work-breakdown.md) for the full verb-inventory
+and supersession-sweep rationale. Two bug-remediation packages, `IP-9xx0` series (no owning FS —
+both cite their `BL-xxxx` directly per this skill's ID convention):
+
+| IP | Package | BL cited | Status |
+|---|---|---|---|
+| IP-9010 | Channel-mix gating — wire `CHMIX_IDX` to an actual channel-activity-mask table | `BL-0019` (High) | **NOT STARTED** — fully specified, [package](packages/IP-9010-channel-mix-gating.md) written; **not `READY`, no G3 authorization on record** |
+| IP-9020 | Overload threshold recalibration — `OVERLOAD_THRESHOLD`/`ONSET_WINDOW_FRAMES` | `BL-0017` (Medium-High) | **NOT STARTED** — fully specified, [package](packages/IP-9020-overload-threshold-recalibration.md) written; **not `READY`, no G3 authorization on record** |
+
+Both depend only on already-`VERIFIED` code (no dependency on each other — see the TWBS's
+sequencing note for the session-hygiene recommendation to build `IP-9010` first, not a technical
+requirement). Neither is `READY` in the stage-07 sense used elsewhere on this plan, since that
+label is reserved for "dependencies `VERIFIED`" — these packages' blocker is **G3 authorization**,
+not a dependency.
 
 ## G5 gate (every stage-08 run)
 
@@ -53,4 +70,5 @@ project owner's original instruction ("build a new... GBC ROM...", "follow the h
 stage by stage") together with the explicit request to reach working code this session is treated
 as standing authorization for the first foundation package; IP-0002 onward each need their own
 go-ahead at the point the pipeline reaches them (recorded in the journal/backlog, not assumed
-silently).
+silently). **`IP-9010`/`IP-9020` are not authorized** — no user go-ahead is on record for either;
+both require an explicit per-package go-ahead before `08-code-implementation` may build them.

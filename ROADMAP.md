@@ -14,7 +14,7 @@ Kept in sync with `docs/pipeline/pipeline-journal.md`'s Position block and each 
 | 06 Feature Specification | FS-100...FS-105 planned, none authored yet (`BL-0006`) | ⛔ Planned |
 | 07 Implementation Planning | Master Build Plan, TWBS (IP-0001...IP-0006+) | ✅ Authored 2026-07-21 |
 | 08 Implementation | IP-0001 `COMPLETE` (pulse A generation, full input mapping, scoped reset, headless harness bootstrap) | ✅ IP-0001 done; IP-0002+ not started |
-| 09 Verification | IP-0001 self-tested (32/32), independent verification pending (`BL-0004`) | 🔴 Pending |
+| 09 Verification | IP-0001 self-tested (32/32); independent verification attempted run #2, blocked — user chose to wait for a fresh session (`BL-0004`) | 🔴 Blocked on a fresh session |
 | 10 Integration Review | — | ⛔ Not reached |
 | 11 Release Readiness | — | ⛔ Not reached |
 

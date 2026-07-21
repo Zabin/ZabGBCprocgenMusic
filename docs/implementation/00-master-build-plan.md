@@ -12,7 +12,7 @@ cheaper to recover from a `RETURNED` verification).
 | IP | Package | Feature(s) | Status |
 |---|---|---|---|
 | IP-0001 | Skeleton build chain (`build_rom.py`) + minimal single-channel (pulse A) scale-constrained generation + joypad edge scaffolding + headless harness bootstrap (boot/header/hardware-init checks + first register-assertion tests) | FEAT-1000 (partial), FEAT-1010 (scaffold), FEAT-1050 (bootstrap) | **VERIFIED** ([VR-0001](verification/VR-0001-skeleton-and-single-channel-generation.md), 32/32 tests) |
-| IP-0002 | Extend generation to pulse B + wave channel (scale-constrained walk + wave-as-bass role) | FEAT-1000, FEAT-1010 | **COMPLETE** ([IP-0002](packages/IP-0002-pulse-b-and-wave-channel.md), 37/37 tests; verification pending, `BL-0012`) |
+| IP-0002 | Extend generation to pulse B + wave channel (scale-constrained walk + wave-as-bass role) | FEAT-1000, FEAT-1010 | **VERIFIED** ([IP-0002](packages/IP-0002-pulse-b-and-wave-channel.md), 60/60 tests; [VR-0002](verification/VR-0002-pulse-b-and-wave-channel.md), fresh-session independent verification) |
 | IP-0003 | Noise channel (Euclidean-gated hits) + density preset table wiring | FEAT-1000 | **COMPLETE** ([IP-0003](packages/IP-0003-noise-channel-and-density.md), 44/44 tests; verification pending) |
 | IP-0004 | Bad-zone detection (dissonance + stale + overload scoring, combined flag) | FEAT-1030 | **COMPLETE** ([IP-0004](packages/IP-0004-bad-zone-detection.md), 53/53 tests; verification pending) |
 | IP-0005 | Reset-to-preset (Select) | FEAT-1020 | **COMPLETE** ([IP-0005](packages/IP-0005-full-reset-scope.md) — delivered incrementally by IP-0002-0004, audited complete) |
@@ -24,10 +24,12 @@ cheaper to recover from a `RETURNED` verification).
 `COMPLETE`. **Extended same day** (run #6, `IP-0007`): the project owner directed that bad-zone
 recovery be autonomous, not Select-only — implemented and tested, 60/60 checks, an 8000+ frame
 stress run confirming both entry into and self-recovery from a bad zone with no input. IP-0002
-through IP-0007 are self-tested in the same session that authored them (the user authorized
+through IP-0007 were self-tested in the same session that authored them (the user authorized
 "accept single session limitations just this once" for the MVP push, `BL-0012`) — independent
-verification via `09-package-verification` is still owed for each, in a future session, same as
-`IP-0001` originally was before its own independent verification (`VR-0001`).
+verification via `09-package-verification` is owed for each, one per fresh session, same as
+`IP-0001` originally was before its own independent verification (`VR-0001`). **IP-0002 is now
+independently `VERIFIED`** ([VR-0002](verification/VR-0002-pulse-b-and-wave-channel.md), a
+genuinely fresh session) — IP-0003 through IP-0007 remain owed.
 
 ## G5 gate (every stage-08 run)
 

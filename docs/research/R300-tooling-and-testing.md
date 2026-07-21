@@ -1,5 +1,11 @@
 # R300 — Tooling & Verification Encyclopedia
 
+> **Superseded 2026-07-21** — split into per-topic files with citations under
+> `docs/research/encyclopedia/`: [R301](encyclopedia/R301-pyboy-headless-api.md) (PyBoy API,
+> version-pinned and re-confirmed against official docs),
+> [R305](encyclopedia/R305-emulator-test-design.md) (test design). Retained verbatim below, not
+> deleted.
+
 - **Owned by:** `02-research-tooling-and-testing` · **Status:** ✅ Authored, 2026-07-21 (grounds GDS-09, the verification harness)
 
 ## What's reused verbatim from the reference project

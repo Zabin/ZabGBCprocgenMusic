@@ -1,5 +1,12 @@
 # R100 — GBC Sound Hardware Encyclopedia
 
+> **Superseded 2026-07-21** — split into per-topic files with citations under
+> `docs/research/encyclopedia/`: [R107](encyclopedia/R107-joypad-input.md) (joypad, not originally
+> covered here), [R108](encyclopedia/R108-apu-sound-channels.md) (this file's own APU content,
+> re-grounded), [R109](encyclopedia/R109-cartridge-header.md) (header, not originally covered
+> here), [R110](encyclopedia/R110-interrupts-and-timing.md) (interrupts, not originally covered
+> here). Retained verbatim below, not deleted, per the pipeline's relocate-don't-delete discipline.
+
 - **Owned by:** `02-research-gbc-hardware` · **Status:** ✅ Authored, 2026-07-21 (grounds GDS-01/03/07)
 - **Grounds:** GDS-03 (channel-assignment architecture, input-mapping register targets),
   GDS-07 (WRAM mirror of engine state), the verification harness (register addresses to assert on).

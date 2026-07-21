@@ -1,5 +1,15 @@
 # R200 — Generative/Procedural Music Design Encyclopedia
 
+> **Superseded 2026-07-21** — split into per-topic files with real citations under
+> `docs/research/encyclopedia/`: [R201](encyclopedia/R201-algorithmic-composition-techniques.md)
+> (algorithmic composition), [R202](encyclopedia/R202-rhythm-tempo-generation.md) (rhythm/tempo),
+> [R203](encyclopedia/R203-voice-leading-density-control.md) (voice-leading/density),
+> [R204](encyclopedia/R204-bad-zone-detection-heuristics.md) (bad-zone metric, now grounded in
+> Helmholtz/psychoacoustic sources), [R205](encyclopedia/R205-generative-visualizer-conventions.md)
+> (visualizer), [R206](encyclopedia/R206-button-parameter-mapping-conventions.md) (input mapping),
+> [R207](encyclopedia/R207-gb-chiptune-channel-idioms.md) (GB chiptune channel roles — surfaced a
+> new finding, see backlog). Retained verbatim below, not deleted.
+
 - **Owned by:** `02-research-game-design` (re-scoped for this project: generative-*experience*
   design plays the role game design played for the reference project) · **Status:** ✅ Authored,
   2026-07-21 (grounds GDS-01/03/04)

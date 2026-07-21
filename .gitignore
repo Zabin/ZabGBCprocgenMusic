@@ -1,6 +1,5 @@
 __pycache__/
 *.pyc
-*.gbc
 *.gbc.ram
 *.gbc.sav
 test_shots/

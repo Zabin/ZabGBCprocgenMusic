@@ -22,10 +22,17 @@ Every frame:
    R100's cycle-budget note).
 3. The bad-zone score updates (on the same note-expiry cadence as generation, not every frame —
    GDS-03).
-4. The visualizer reads current engine state (tempo, per-channel activity via `NR52`, bad-zone
+4. The generation routine itself reacts to the bad-zone score it just computed — biasing its next
+   step toward the tonic when dissonant, forcing movement when stuck, spacing onsets out when
+   overloaded (`IP-0007`, GDS-03 §5) — so the system can climb back out **on its own**, without
+   requiring Select. Detection and recovery are both autonomous; the player never has to intervene
+   for the music to keep sounding intentional.
+5. The visualizer reads current engine state (tempo, per-channel activity via `NR52`, bad-zone
    flag) and updates its tile/palette animation on its own budget-appropriate cadence.
-5. Select, at any time, resets the generator to the known-good preset — usable whether or not the
-   bad zone is currently flagged (it's a "start over" control, not conditionally gated).
+6. Select, at any time, resets the generator to the known-good preset **and randomizes each
+   channel's melodic starting point** (`IP-0007`) — usable whether or not the bad zone is
+   currently flagged; it's a manual "start over, differently" control, not the only recovery path
+   and not conditionally gated on bad-zone state.
 
 There is no pause, no save, no exit. Turning the device off is the only "stop."
 

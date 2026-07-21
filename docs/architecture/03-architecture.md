@@ -145,6 +145,33 @@ next-note timer so playback resumes cleanly rather than picking up mid-note. Thi
 constant (GDS-07 gives it a WRAM/ROM home), not additional logic beyond "load these fixed values
 into the same fields normal generation writes."
 
+**Amended (`IP-0007`):** the project owner directed that Select be a *manual override*, not the
+*only* way out of a bad zone — the engine must detect **and act on** a bad zone on its own. Two
+changes follow from this:
+
+1. **Autonomous avoidance/recovery, every frame, independent of Select.** Each pitched channel's
+   note-generation routine (§1's `_emit_channel_gen`) checks `BAD_ZONE_FLAGS` before applying its
+   normal LFSR-picked step: if `DISSONANT` (bit0), the step is overridden to pull the channel's
+   scale degree toward the tonic (degree 0) — every channel gravitating toward the same pitch
+   class directly lowers the pairwise interval-based dissonance score, clearing bit0 within a few
+   note-onsets without any input. If `STUCK` (bit1) and the (possibly tonic-pulled) step is still
+   zero, a step is forced anyway, so a repeated note can't persist even at the tonic. If
+   `OVERLOAD` (bit2), every channel's (including noise's) next note-timer reload is doubled again
+   on top of its normal value, spacing onsets out until the rolling window count naturally drops.
+   This recovery is *reactive at the granularity of each channel's own note cadence* — it changes
+   what happens next, not what's already sounding — so it takes effect within roughly one note
+   duration per channel, not instantly.
+2. **Select is now reset *and* randomize.** The tempo/octave/scale/density/channel-mix indices
+   still reset to the fixed, deterministic known-good preset values (unchanged). Each channel's
+   LFSR seed, previously a fixed constant, is now derived from the free-running `DIV` register
+   (R213) XORed with a small fixed per-channel constant (to keep channels decorrelated from each
+   other even if `DIV` is read at the same value) — so pressing Select gives a genuinely different
+   melodic starting point each time, not the identical sequence every time, while still landing on
+   the same safe parameters. A Galois LFSR must never be seeded to 0 (it would stay there
+   forever); a zero result is forced to a fixed nonzero fallback. This same reseeding happens at
+   power-on too (one code path for both), which incidentally also resolves the `DIV`-seeding idea
+   named in `BL-0011`.
+
 ## §6 What this level deliberately does not decide
 
 - The exact tempo/octave/density/channel-mix preset **values** (§3) and dissonance/stale/overload

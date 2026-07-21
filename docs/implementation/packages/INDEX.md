@@ -12,3 +12,4 @@ Owned by `07-implementation-planning` (authoring), `08-*` peers (execution), `09
 | IP-0004 | [Bad-zone detection](IP-0004-bad-zone-detection.md) | COMPLETE (self-tested — verification pending) |
 | IP-0005 | [Full reset-to-preset across all channels/bad-zone state](IP-0005-full-reset-scope.md) | COMPLETE (self-tested — verification pending) |
 | IP-0006 | [Minimal visualizer](IP-0006-minimal-visualizer.md) | COMPLETE (self-tested — verification pending) |
+| IP-0007 | [Autonomous bad-zone avoidance/recovery + Select randomization](IP-0007-autonomous-recovery-and-randomize.md) | COMPLETE (self-tested — verification pending) |

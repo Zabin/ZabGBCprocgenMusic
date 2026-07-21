@@ -63,6 +63,7 @@ NR30 = 0x1A; NR31 = 0x1B; NR32 = 0x1C; NR33 = 0x1D; NR34 = 0x1E
 NR41 = 0x20; NR42 = 0x21; NR43 = 0x22; NR44 = 0x23
 NR50 = 0x24; NR51 = 0x25; NR52 = 0x26
 WAVE_RAM = 0xFF30  # 16 bytes, 0xFF30-0xFF3F (R114)
+DIV = 0x04  # free-running timer (R213 SS5) — used to randomize LFSR seeds on init/Select
 
 # ── Preset tables (data, GDS-03 SS3/SS6) ─────────────────────────────
 # 8 tempo steps: frames-per-note-step at 59.7fps ~ 60fps, spanning ~60-180 BPM quarter notes.
@@ -204,7 +205,7 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
     rom.DEC_A()
     rom.LD_nn_A(note_timer)
     rom.OR_A()
-    rom.JR_NZ(f'gt_done_{suffix}')
+    rom.JP_NZ(f'gt_done_{suffix}')
 
     rom.LD_A_nn(cur_degree)
     rom.LD_D_A()                       # D = old degree (IP-0004 stale-repetition comparison)
@@ -223,6 +224,34 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
     rom.ADD_HL_BC()
     rom.LD_A_HL()
     rom.LD_B_A()                       # B = signed delta
+
+    # IP-0007: autonomous bad-zone avoidance/recovery — no user input required (Select is now
+    # only a manual override, not the only way out). If DISSONANT, override the LFSR-picked delta
+    # with a deterministic pull toward the tonic (degree 0): every channel gravitating toward the
+    # same pitch class directly lowers the interval-based dissonance score each tick until it
+    # clears. If STUCK and the (possibly-overridden) delta is still 0, force a step so a repeated
+    # note can't persist even at the tonic.
+    rom.LD_A_nn(BAD_ZONE_FLAGS)
+    rom.BIT_b_A(0)
+    rom.JR_Z(f'gt_no_dis_{suffix}')
+    rom.LD_A_nn(cur_degree)
+    rom.OR_A()
+    rom.JR_Z(f'gt_dis_zero_{suffix}')
+    rom.LD_B_n(0xFF)                   # pull down toward tonic (-1)
+    rom.JR(f'gt_no_dis_{suffix}')
+    rom.label(f'gt_dis_zero_{suffix}')
+    rom.LD_B_n(0x00)                   # already at tonic — hold
+    rom.label(f'gt_no_dis_{suffix}')
+
+    rom.LD_A_nn(BAD_ZONE_FLAGS)
+    rom.BIT_b_A(1)
+    rom.JR_Z(f'gt_no_stuck_{suffix}')
+    rom.LD_A_B()
+    rom.OR_A()
+    rom.JR_NZ(f'gt_no_stuck_{suffix}')
+    rom.LD_B_n(0x01)                   # force movement to break the repeat
+    rom.label(f'gt_no_stuck_{suffix}')
+
     rom.LD_A_nn(cur_degree)
     rom.ADD_A_B()
     rom.AND_n(0x07)
@@ -280,6 +309,19 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
     rom.LD_A_HL()
     if tempo_mult == 2:
         rom.ADD_A_A()
+
+    # IP-0007: OVERLOAD recovery — space this channel's onsets out further (double the reload
+    # again) so the rolling onset-window count naturally drops below threshold on its own,
+    # without needing Select.
+    rom.LD_B_A()
+    rom.LD_A_nn(BAD_ZONE_FLAGS)
+    rom.BIT_b_A(2)
+    rom.JR_Z(f'gt_no_overload_slow_{suffix}')
+    rom.LD_A_B()
+    rom.ADD_A_A()
+    rom.LD_B_A()
+    rom.label(f'gt_no_overload_slow_{suffix}')
+    rom.LD_A_B()
     rom.LD_nn_A(note_timer)
 
     rom.label(f'gt_done_{suffix}')
@@ -295,7 +337,7 @@ def _emit_noise_gen(rom):
     rom.DEC_A()
     rom.LD_nn_A(NOTE_TIMER_NZ)
     rom.OR_A()
-    rom.JR_NZ('gt_done_nz')
+    rom.JP_NZ('gt_done_nz')
 
     rom.LD_A_nn(NOISE_STEP_IDX)
     rom.INC_A()
@@ -329,6 +371,17 @@ def _emit_noise_gen(rom):
     _ld_hl_label(rom, 'noise_step_table')
     rom.ADD_HL_BC()
     rom.LD_A_HL()
+
+    # IP-0007: OVERLOAD recovery, same mechanism as the pitched channels.
+    rom.LD_B_A()
+    rom.LD_A_nn(BAD_ZONE_FLAGS)
+    rom.BIT_b_A(2)
+    rom.JR_Z('gt_nz_no_overload_slow')
+    rom.LD_A_B()
+    rom.ADD_A_A()
+    rom.LD_B_A()
+    rom.label('gt_nz_no_overload_slow')
+    rom.LD_A_B()
     rom.LD_nn_A(NOTE_TIMER_NZ)
 
     rom.label('gt_done_nz')
@@ -454,10 +507,22 @@ def build_engine_asm(rom: ROM) -> dict:
     rom.LD_A_n(PRESET_SCALE_IDX); rom.LD_nn_A(SCALE_IDX)
     rom.LD_A_n(PRESET_DENSITY_IDX); rom.LD_nn_A(DENSITY_IDX)
     rom.LD_A_n(PRESET_CHMIX_IDX); rom.LD_nn_A(CHMIX_IDX)
-    for (_suffix, note_timer, cur_degree, lfsr_state, lfsr_seed, *_rest) in CHANNELS:
+    for (suffix, note_timer, cur_degree, lfsr_state, lfsr_seed, *_rest) in CHANNELS:
         rom.XOR_A(); rom.LD_nn_A(cur_degree)
         rom.LD_A_n(1); rom.LD_nn_A(note_timer)     # fire the first note on the very next tick
-        rom.LD_A_n(lfsr_seed); rom.LD_nn_A(lfsr_state)
+        # IP-0007: randomize each channel's melodic walk seed from the free-running DIV
+        # register (R213 SS5) XORed with a fixed per-channel constant (so channels still
+        # decorrelate from each other even on the rare frame DIV reads identically) — this is
+        # the "randomize" half of Select's reset/randomize role (GDS-03 SS5 amended). A Galois
+        # LFSR must never be seeded to 0 (it would stay 0 forever), so a zero result is forced
+        # to a fixed nonzero fallback.
+        rom.LDH_A_n(DIV)
+        rom.XOR_n(lfsr_seed)
+        rom.OR_A()
+        rom.JR_NZ(f'ie_seed_ok_{suffix}')
+        rom.LD_A_n(1)
+        rom.label(f'ie_seed_ok_{suffix}')
+        rom.LD_nn_A(lfsr_state)
     rom.XOR_A(); rom.LD_nn_A(NOISE_STEP_IDX)
     rom.LD_A_n(1); rom.LD_nn_A(NOTE_TIMER_NZ)
 

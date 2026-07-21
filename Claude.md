@@ -23,7 +23,7 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers)
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 56 checks across T1-T9
+                    sound registers + WRAM engine state) — 60 checks across T1-T10
 ```
 
 ### Data layout, WRAM map
@@ -45,9 +45,27 @@ battery commitment (MSTR-001 C2).
 | A | Next scale/mode |
 | B | Next density preset (noise-channel Euclidean pattern) |
 | Start | Next channel-mix preset (wired, not yet consumed) |
-| Select | Reset all channels + bad-zone state to the known-good preset (unconditional) |
+| Select | Reset all channels + bad-zone state to the known-good preset **and randomize each channel's melodic seed** (unconditional, manual override — not the only recovery path, see below) |
 
 All edge-triggered (rising edge only — holding does not repeat).
+
+### Autonomous bad-zone avoidance/recovery (IP-0007)
+
+The engine detects **and acts on** a bad zone every frame, without requiring Select (MSTR-001 C5
+amended v1.1). Select remains available as a manual "reset and randomize" override, but is no
+longer the only way out:
+
+- **Dissonant** → each pitched channel's next scale-degree step is overridden to pull toward the
+  tonic (degree 0) instead of the normal LFSR-picked delta, converging the channels toward the
+  same pitch class until the interval-based dissonance score drops back under threshold.
+- **Stuck** → if the (possibly tonic-pulled) step would still be zero, a step is forced anyway, so
+  a repeated note can't persist even at the tonic.
+- **Overloaded** → every channel's next note-timer reload is doubled again, spacing onsets out
+  until the rolling onset-window count naturally drops.
+
+Recovery acts at the granularity of each channel's own note cadence (it changes what plays next,
+not what's already sounding), so it takes effect within roughly one note duration per channel, not
+instantly — see `docs/architecture/03-architecture.md` §5's amendment for the full rationale.
 
 ## How to Change Things
 
@@ -91,14 +109,19 @@ per-channel `STALE_COUNT_*`, overload via the rolling onset window) — see
   recomputed every frame from the three pitched channels' current notes; per-channel `STALE_COUNT`
   tracks repeated notes; a rolling onset-window counter tracks overall channel activity rate; all
   three combine into `BAD_ZONE_FLAGS` bit3
+- The engine autonomously biases its own generation out of dissonant/stuck/overloaded states,
+  every frame, with no input required (confirmed: a long headless run enters a bad zone and
+  recovers from it on its own — `test_rom.py` T10)
 - Select unconditionally resets every channel's generation state and all bad-zone counters to the
-  known-good preset (major scale, mid tempo/octave, sparse density) — engine resumes playing
-  immediately on the same frame
+  known-good preset (major scale, mid tempo/octave, sparse density) **and randomizes each
+  channel's melodic seed from the `DIV` register** — engine resumes playing immediately on the
+  same frame, with a genuinely different starting point each press
 - Visualizer: LCD on, 4 tile indicators reflect `NR52`'s per-channel active bits every frame; BG
   palette swaps from calm (blue/green) to bad-zone (red) tones based on `BAD_ZONE_FLAGS` bit3
 
-**56/56 `test_rom.py` checks pass** (T1-T9). 6000+ frame stress run with continuous input churn
-completed with no hangs. See `docs/implementation/packages/` for each package's exact scope.
+**60/60 `test_rom.py` checks pass** (T1-T10). An 8000+ frame stress run with continuous input
+churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
+See `docs/implementation/packages/` for each package's exact scope.
 
 **Explicitly not built**: arpeggio/vibrato/chord progressions, session-length-adaptive drift,
 non-default preset tuning by ear, a proper `visuals.py` beyond the 4-tile/2-palette MVP — see

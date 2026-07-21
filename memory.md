@@ -2,12 +2,13 @@
 
 ## Current Build Status
 
-MVP (Foundation release bucket, `IP-0001`-`IP-0006`): 4-channel generative engine (pulse A/B,
-wave-as-bass, Euclidean-gated noise), full input mapping, bad-zone detection + full-state Select
-reset, minimal tile/palette visualizer. ROM builds at exactly 32768 bytes; **56/56 `test_rom.py`
-checks pass** (headless PyBoy 2.7.0, repo-relative paths — `python3 build_rom.py <out.gbc>` then
-`python3 test_rom.py` from the repo root). 6000+ frame stress run with continuous input churn:
-no hangs.
+MVP (Foundation release bucket, `IP-0001`-`IP-0007`): 4-channel generative engine (pulse A/B,
+wave-as-bass, Euclidean-gated noise), full input mapping, bad-zone detection with **autonomous
+avoidance/recovery** (no input required) + full-state Select reset-and-randomize, minimal
+tile/palette visualizer. ROM builds at exactly 32768 bytes; **60/60 `test_rom.py` checks pass**
+(headless PyBoy 2.7.0, repo-relative paths — `python3 build_rom.py <out.gbc>` then
+`python3 test_rom.py` from the repo root). 8000+ frame stress run with continuous input churn:
+no hangs, bad-zone entry and self-recovery both observed.
 
 ### Last verified working (PyBoy 2.7.0 headless test, 2026-07-21)
 
@@ -17,9 +18,14 @@ no hangs.
 - Noise channel: 16-step Euclidean pattern sized by `DENSITY_IDX`, gates short percussive hits
 - Bad-zone: `DISSONANCE_SCORE` recomputed every frame from 3 pitched-channel pairs; `STALE_COUNT_*`
   per channel; rolling onset-window overload counter; combined into `BAD_ZONE_FLAGS` bit3
+- Autonomous recovery (IP-0007): dissonant → next step pulled toward tonic; stuck → step forced;
+  overloaded → note-timer reload doubled again — all without input, confirmed self-healing over a
+  4000+ frame run (`test_rom.py` T10)
 - All 6 input controls edit exactly their own parameter index, edge-triggered; `DENSITY_IDX`
   measurably changes noise-onset rate end to end
-- Select resets every channel + all bad-zone counters to preset, unconditionally, same-frame
+- Select resets every channel + all bad-zone counters to preset, unconditionally, same-frame, AND
+  reseeds each channel's LFSR from `DIV` (0xFF04) XORed with a per-channel constant (zero-seed
+  guarded) — "reset and randomize," not the same fixed sequence every press
 - Visualizer: 4 tiles track `NR52`'s per-channel active bits; palette swaps calm/bad-zone colors
 
 ## WRAM Quick Reference (authoritative table: GDS-07 + IP-0002/0003/0004 addenda)

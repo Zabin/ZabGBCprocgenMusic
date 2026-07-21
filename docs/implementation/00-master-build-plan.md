@@ -17,14 +17,17 @@ cheaper to recover from a `RETURNED` verification).
 | IP-0004 | Bad-zone detection (dissonance + stale + overload scoring, combined flag) | FEAT-1030 | **COMPLETE** ([IP-0004](packages/IP-0004-bad-zone-detection.md), 53/53 tests; verification pending) |
 | IP-0005 | Reset-to-preset (Select) | FEAT-1020 | **COMPLETE** ([IP-0005](packages/IP-0005-full-reset-scope.md) — delivered incrementally by IP-0002-0004, audited complete) |
 | IP-0006 | Minimal visualizer (tile/palette reacting to NR52 + bad-zone flag) | FEAT-1040 | **COMPLETE** ([IP-0006](packages/IP-0006-minimal-visualizer.md), 56/56 tests; verification pending) |
-| IP-0007+ | Extended headless test coverage per package (rode along with each package above, not a separate late pass) | FEAT-1050 | ONGOING — 56/56 across T1-T9 |
+| IP-0007 | Autonomous bad-zone avoidance/recovery (no input required) + Select reframed as reset-and-randomize | FEAT-1030 (extended) | **COMPLETE** ([IP-0007](packages/IP-0007-autonomous-recovery-and-randomize.md), 60/60 tests; verification pending) |
+| IP-0008+ | Extended headless test coverage per package (rode along with each package above, not a separate late pass) | FEAT-1050 | ONGOING — 60/60 across T1-T10 |
 
-**MVP milestone reached 2026-07-21** (run #5): all six Foundation-bucket packages `COMPLETE`, the
-full 56-check suite green, a 6000+ frame stress run with continuous input churn showed no hangs.
-IP-0002 through IP-0006 are self-tested in the same session that authored them (the user
-authorized "accept single session limitations just this once" for this MVP push, `BL-0012`) —
-independent verification via `09-package-verification` is still owed for each, in a future
-session, same as `IP-0001` originally was before its own independent verification (`VR-0001`).
+**MVP milestone reached 2026-07-21** (run #5): all six original Foundation-bucket packages
+`COMPLETE`. **Extended same day** (run #6, `IP-0007`): the project owner directed that bad-zone
+recovery be autonomous, not Select-only — implemented and tested, 60/60 checks, an 8000+ frame
+stress run confirming both entry into and self-recovery from a bad zone with no input. IP-0002
+through IP-0007 are self-tested in the same session that authored them (the user authorized
+"accept single session limitations just this once" for the MVP push, `BL-0012`) — independent
+verification via `09-package-verification` is still owed for each, in a future session, same as
+`IP-0001` originally was before its own independent verification (`VR-0001`).
 
 ## G5 gate (every stage-08 run)
 

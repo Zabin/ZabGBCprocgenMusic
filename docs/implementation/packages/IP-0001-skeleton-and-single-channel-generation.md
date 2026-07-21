@@ -6,7 +6,7 @@
 | **Feature(s)** | FEAT-1000 (partial — pulse A only), FEAT-1010 (all 6 input controls, full mapping), FEAT-1020 (Select reset, scoped to fields that exist), FEAT-1050 (bootstrap: T1-T5) |
 | **Traces to** | FR-1000, FR-1010 (pulse A only), FR-1020-FR-1060 (full), FR-1070 (scoped), GDS-03 SS1-SS3/SS5, GDS-07 |
 | **Owner** | `08-code-implementation` |
-| **Status** | **COMPLETE** (G5 gate green — see below); **verification pending** (see Verification note) |
+| **Status** | **VERIFIED** ([VR-0001](../verification/VR-0001-skeleton-and-single-channel-generation.md), same-session exception user-accepted 2026-07-21) |
 | **Files touched** | `gbc_lib.py` (reused verbatim, no changes), `music_engine.py` (new), `input_map.py` (new), `build_rom.py` (new), `test_rom.py` (new) |
 | **Scope** | Sound hardware init (NR50/51/52, pulse A base registers); `init_engine`/reset-to-preset for the 5 parameter indices + pulse A's own state; `engine_tick`'s per-frame countdown + LFSR-driven scale-constrained walk + table-lookup note generation for pulse A only; `apply_input`'s full 6-control edge-triggered mapping (only `TEMPO_IDX`/`SCALE_IDX` audibly affect anything yet — `OCTAVE_IDX` does audibly affect pulse A; `DENSITY_IDX`/`CHMIX_IDX` are wired and tested for their own index behavior but have no consumer until IP-0002/0003) |
 | **Explicit non-scope** | Pulse B, wave, noise channels (IP-0002/0003); bad-zone scoring (IP-0004); visualizer (IP-0006) |

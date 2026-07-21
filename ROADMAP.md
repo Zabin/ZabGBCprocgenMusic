@@ -11,11 +11,11 @@ Kept in sync with `docs/pipeline/pipeline-journal.md`'s Position block and each 
 | 03 Architecture | GDS-00/01/03/07 authored; GDS-02/04/05/06/08/09/10 planned (`BL-0001`) | 🟡 Partial |
 | 04 Requirements | FR-1000...FR-1120, NFR-1000...NFR-1030 | ✅ Authored 2026-07-21 |
 | 05 Feature Decomposition | Feature Catalog v1 (FEAT-1000...FEAT-1050) | ✅ Authored 2026-07-21 |
-| 06 Feature Specification | FS-100...FS-105 planned, none authored yet (`BL-0006`) | ⛔ Planned |
-| 07 Implementation Planning | Master Build Plan, TWBS (IP-0001...IP-0006+) | ✅ Authored 2026-07-21 |
-| 08 Implementation | IP-0001 `COMPLETE` (pulse A generation, full input mapping, scoped reset, headless harness bootstrap) | ✅ IP-0001 done; IP-0002+ not started |
-| 09 Verification | IP-0001 self-tested (32/32); independent verification attempted run #2, blocked — user chose to wait for a fresh session (`BL-0004`) | 🔴 Blocked on a fresh session |
-| 10 Integration Review | — | ⛔ Not reached |
+| 06 Feature Specification | FS-100...FS-105 planned, none formally authored — abbreviated per-package notes used instead for the MVP push (`BL-0006`/`BL-0012`) | ⛔ Planned (backfill scheduled) |
+| 07 Implementation Planning | Master Build Plan, TWBS (IP-0001...IP-0006) | ✅ Authored 2026-07-21 |
+| 08 Implementation | **MVP complete** — IP-0001 `VERIFIED`; IP-0002-IP-0006 `COMPLETE` (4-channel generation, full input mapping, bad-zone detection, full reset, minimal visualizer). 56/56 tests, 6000+ frame stress run clean. | ✅ All 6 Foundation-bucket packages COMPLETE |
+| 09 Verification | IP-0001 `VERIFIED` ([VR-0001](docs/implementation/verification/VR-0001-skeleton-and-single-channel-generation.md)). IP-0002-0006 self-tested, same-session per user-authorized MVP exception (`BL-0012`) — independent verification still owed for each. | 🟡 1/6 independently verified |
+| 10 Integration Review | Not reached — needs all 6 packages independently `VERIFIED` first | ⛔ Not reached |
 | 11 Release Readiness | — | ⛔ Not reached |
 
 See `docs/pipeline/backlog.md` for the live list of what each 🟡/🔴/⛔ actually needs next.

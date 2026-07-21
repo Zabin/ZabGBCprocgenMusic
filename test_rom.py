@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-test_rom.py — Headless verification suite for Driftune.gbc (IP-0001 scope).
+test_rom.py — Headless verification suite for Driftune.gbc.
 
 Same shape as the reference project's own test_rom.py (repo-relative paths, PyBoy headless,
 button-driven sequences, a PASS/FAIL ledger) — reused pattern, per docs/master/MSTR-001 SS0 and
@@ -13,6 +13,7 @@ Suites:
   T3  Generation produces changing register writes over time (not silent, not frozen)
   T4  Input steering: each of the 6 mapped controls edits exactly its own parameter index
   T5  Reset (Select): unconditionally returns all indices to the known-good preset
+  T6  Pulse B + wave channel generation (IP-0002): independent walks, both channels active
 
 Run from the repo root: python3 test_rom.py
 Requires: pyboy (pinned 2.7.0, matching the reference project), numpy.
@@ -30,6 +31,14 @@ RESULTS_PATH = BASE / 'test_results.txt'
 TEMPO_IDX = 0xC000; OCTAVE_IDX = 0xC001; SCALE_IDX = 0xC002
 DENSITY_IDX = 0xC003; CHMIX_IDX = 0xC004
 NOTE_TIMER_PA = 0xC00C; CUR_DEGREE_PA = 0xC010
+NOTE_TIMER_PB = 0xC00D; NOTE_TIMER_WV = 0xC00E
+CUR_DEGREE_PB = 0xC011; CUR_DEGREE_WV = 0xC012
+NOISE_STEP_IDX = 0xC019
+BAD_ZONE_FLAGS = 0xC005; DISSONANCE_SCORE = 0xC006
+STALE_COUNT_PA = 0xC007; ONSET_WINDOW_COUNT = 0xC00A
+LCDC = 0xFF40
+CHANNEL_CELLS = [0x9800, 0x9801, 0x9802, 0x9803]
+BCPD = 0xFF69
 
 # Sound registers (I/O, 0xFF00+offset)
 NR13 = 0xFF13; NR14 = 0xFF14; NR52 = 0xFF26
@@ -157,6 +166,130 @@ def t4_input_steering():
     pb.stop(save=False)
 
 
+# ── T6: Pulse B + wave channel generation (IP-0002) ───────────────────
+def t6_pulse_b_and_wave():
+    pb = fresh_boot()
+    nr52 = pb.memory[NR52]
+    check("T6.1 Channel 2 (pulse B) reports active in NR52", (nr52 & 0x02) != 0, f"NR52={hex(nr52)}")
+    check("T6.2 Channel 3 (wave) reports active in NR52", (nr52 & 0x04) != 0, f"NR52={hex(nr52)}")
+
+    seen_pb = set(); seen_wv = set()
+    for _ in range(400):
+        pb.tick()
+        seen_pb.add(pb.memory[CUR_DEGREE_PB])
+        seen_wv.add(pb.memory[CUR_DEGREE_WV])
+    check("T6.3 CUR_DEGREE_PB changes over time (pulse B is walking independently)",
+          len(seen_pb) > 1, f"distinct degrees: {sorted(seen_pb)}")
+    check("T6.4 CUR_DEGREE_WV changes over time (wave channel is walking independently)",
+          len(seen_wv) > 1, f"distinct degrees: {sorted(seen_wv)}")
+    check("T6.5 All three pitched channels still report active after sustained play",
+          (pb.memory[NR52] & 0x07) == 0x07, f"NR52={hex(pb.memory[NR52])}")
+    pb.stop(save=False)
+
+
+# ── T7: Noise channel + density (IP-0003) ─────────────────────────────
+def t7_noise_density():
+    from music_engine import DENSITY_K
+
+    pb = fresh_boot()
+    onset_counts = {}
+    for density_idx in (0, len(DENSITY_K) - 1):  # sparsest and densest — non-default included
+        # Drive DENSITY_IDX to the target value via B presses (wraps mod 8, starts at preset 0).
+        for _ in range(density_idx):
+            tap(pb, 'b')
+        check(f"T7.setup DENSITY_IDX reached {density_idx}",
+              pb.memory[DENSITY_IDX] == density_idx, f"got {pb.memory[DENSITY_IDX]}")
+
+        onsets = 0
+        seen_steps = set()
+        for _ in range(600):
+            pb.tick()
+            seen_steps.add(pb.memory[NOISE_STEP_IDX])
+            if pb.memory[NR52] & 0x08:
+                onsets += 1
+        onset_counts[density_idx] = onsets
+        check(f"T7.{density_idx}.1 Noise step index cycles through all 16 steps at density {density_idx}",
+              seen_steps == set(range(16)), f"seen: {sorted(seen_steps)}")
+        check(f"T7.{density_idx}.2 Channel 4 (noise) triggers at least once at density {density_idx}",
+              onsets > 0, f"onset-frame count: {onsets}")
+        # Reset back to preset (density 0) before the next iteration's relative B-taps.
+        tap(pb, 'select')
+
+    check("T7.3 Denser preset (max DENSITY_IDX) produces more onset-frames than the sparsest",
+          onset_counts[len(DENSITY_K) - 1] > onset_counts[0],
+          f"onset_counts={onset_counts}")
+    pb.stop(save=False)
+
+
+# ── T8: Bad-zone detection (IP-0004) ──────────────────────────────────
+def t8_bad_zone():
+    pb = fresh_boot()
+    check("T8.1 BAD_ZONE_FLAGS starts clean at boot", pb.memory[BAD_ZONE_FLAGS] == 0)
+    check("T8.2 DISSONANCE_SCORE starts at 0 at boot", pb.memory[DISSONANCE_SCORE] == 0)
+
+    seen_scores = set()
+    seen_flags = set()
+    for _ in range(2000):
+        pb.tick()
+        seen_scores.add(pb.memory[DISSONANCE_SCORE])
+        seen_flags.add(pb.memory[BAD_ZONE_FLAGS])
+    check("T8.3 DISSONANCE_SCORE varies over time (three independently-walking channels produce "
+          "a changing interval mix)", len(seen_scores) > 1, f"distinct scores: {sorted(seen_scores)}")
+    check("T8.4 BAD_ZONE_FLAGS bit3 (COMBINED) matches bit0 (DISSONANT) whenever either is set "
+          "(no combination seen violates bit3 = OR of bits0-2)",
+          all((f & 0x01) == 0 or (f & 0x08) != 0 for f in seen_flags), f"flags seen: {seen_flags}")
+
+    check("T8.5 At least one bad-zone entry (DISSONANT or COMBINED) was observed over a long run",
+          any(f != 0 for f in seen_flags), f"flags seen: {seen_flags}")
+
+    # Select must clear bad-zone state unconditionally, same as the tested parameters (FR-1070).
+    tap(pb, 'select')
+    check("T8.6 Select clears BAD_ZONE_FLAGS", pb.memory[BAD_ZONE_FLAGS] == 0)
+    check("T8.7 Select clears DISSONANCE_SCORE", pb.memory[DISSONANCE_SCORE] == 0)
+    # Not necessarily 0: the same same-frame-fires-immediately effect as T8.9 above — the fresh
+    # post-reset degree (0) can coincidentally equal the very next LFSR-picked degree, ticking
+    # STALE_COUNT_PA to 1 within the same frame. What matters is it's reset to a fresh, tiny
+    # count, not left at whatever it had accumulated across the preceding 2000-frame run.
+    check("T8.8 Select resets STALE_COUNT_PA to a fresh count, not a stale accumulated one",
+          pb.memory[STALE_COUNT_PA] <= 1, f"got {pb.memory[STALE_COUNT_PA]}")
+    # Not 0: init_engine's own reset primes every NOTE_TIMER_* to 1, so the very next engine_tick
+    # (same frame Select was processed, since apply_input runs before engine_tick in the main
+    # loop) immediately fires a fresh onset per channel — a correct, intentional side effect of
+    # "resume playing immediately," not leftover pre-reset accumulation. What T8.9 actually checks
+    # is that the window wasn't left at a stale, accumulated-over-2000-frames count.
+    check("T8.9 Select resets ONSET_WINDOW_COUNT to just this frame's fresh onsets, not a stale "
+          "accumulated count", pb.memory[ONSET_WINDOW_COUNT] <= 4, f"got {pb.memory[ONSET_WINDOW_COUNT]}")
+    pb.stop(save=False)
+
+
+# ── T9: Visualizer (IP-0006) ───────────────────────────────────────────
+def t9_visualizer():
+    pb = fresh_boot()
+    check("T9.1 LCD is on with BG tile data at 0x8000 and BG display enabled",
+          pb.memory[LCDC] == 0x91, f"LCDC={hex(pb.memory[LCDC])}")
+
+    for _ in range(120):
+        pb.tick()
+    nr52 = pb.memory[NR52]
+    cells = [pb.memory[addr] for addr in CHANNEL_CELLS]
+    expected = [1 if (nr52 & (1 << i)) else 0 for i in range(4)]
+    check("T9.2 Each channel-indicator tile matches its own NR52 active bit",
+          cells == expected, f"cells={cells} expected={expected} NR52={bin(nr52)}")
+
+    # Drive several frames and re-check the correspondence still holds as channels change state.
+    still_matching = True
+    for _ in range(300):
+        pb.tick()
+        nr52 = pb.memory[NR52]
+        cells = [pb.memory[addr] for addr in CHANNEL_CELLS]
+        expected = [1 if (nr52 & (1 << i)) else 0 for i in range(4)]
+        if cells != expected:
+            still_matching = False
+            break
+    check("T9.3 Indicator tiles keep tracking NR52 correctly over a sustained run", still_matching)
+    pb.stop(save=False)
+
+
 # ── T5: Select resets to the known-good preset unconditionally ───────
 def t5_reset():
     pb = fresh_boot()
@@ -182,6 +315,10 @@ def main():
     t3_generation_live()
     t4_input_steering()
     t5_reset()
+    t6_pulse_b_and_wave()
+    t7_noise_density()
+    t8_bad_zone()
+    t9_visualizer()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

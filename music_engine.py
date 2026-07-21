@@ -1,15 +1,20 @@
 """
-music_engine.py — Driftune's real-time procedural generation engine (IP-0001 scope: pulse
-channel A only; pulse B/wave/noise land in IP-0002/IP-0003, bad-zone scoring in IP-0004).
+music_engine.py — Driftune's real-time procedural generation engine.
+
+IP-0001 scope: pulse channel A only. IP-0002 extends this to pulse B (independent melodic walk)
+and the wave channel (bass/timbre role per R207's chiptune-convention finding — a distinct
+octave anchor and half-rate tempo, not a second identical lead). Noise/density lands in IP-0003,
+bad-zone scoring in IP-0004.
 
 Owns every PSG register write (GDS-03 SS1's G1 write-scope rule). Preset tables are precomputed
 in Python at build time (same "compute once in Python, only cheap table lookups on-device"
 discipline the reference project's music.py used for freq()/note()) and emitted as ROM data;
 on-device logic is limited to a per-frame countdown and, on note-expiry, an 8-bit LFSR step plus
-a couple of table lookups (R100's cycle-budget note).
+a couple of table lookups (R100/R110's cycle-budget note).
 """
 
 from gbc_lib import ROM
+import math
 
 # ── WRAM addresses (GDS-07) ──────────────────────────────────────────
 TEMPO_IDX = 0xC000
@@ -18,12 +23,46 @@ SCALE_IDX = 0xC002
 DENSITY_IDX = 0xC003
 CHMIX_IDX = 0xC004
 NOTE_TIMER_PA = 0xC00C
+NOTE_TIMER_PB = 0xC00D
+NOTE_TIMER_WV = 0xC00E
 CUR_DEGREE_PA = 0xC010
-LFSR_STATE = 0xC016
+CUR_DEGREE_PB = 0xC011
+CUR_DEGREE_WV = 0xC012
+LFSR_STATE = 0xC016      # pulse A's own LFSR (IP-0001 name, kept for compatibility)
+LFSR_STATE_PB = 0xC017   # IP-0002: pulse B's independent LFSR
+LFSR_STATE_WV = 0xC018   # IP-0002: wave channel's independent LFSR
+NOISE_STEP_IDX = 0xC019  # IP-0003: 0-15, position in the 16-step Euclidean pattern
+NOTE_TIMER_NZ = 0xC00F   # reserved by GDS-07 SS3; IP-0003's noise-hit countdown
 
-# ── Sound registers (I/O offsets from 0xFF00, per R100) ─────────────
+# IP-0004: bad-zone state (GDS-07 SS2)
+BAD_ZONE_FLAGS = 0xC005      # bit0 DISSONANT, bit1 STUCK, bit2 OVERLOAD, bit3 COMBINED
+DISSONANCE_SCORE = 0xC006
+STALE_COUNT_PA = 0xC007
+STALE_COUNT_PB = 0xC008
+STALE_COUNT_WV = 0xC009
+ONSET_WINDOW_COUNT = 0xC00A
+ONSET_WINDOW_TICK_CTR = 0xC00B
+# Scratch bytes for dissonance_tick's own intermediate semitone values (not persisted meaning
+# across frames, just working storage during one tick's computation).
+SEMI_PA = 0xC01A
+SEMI_PB = 0xC01B
+SEMI_WV = 0xC01C
+
+# IP-0004 thresholds (GDS-03 SS4, R204 SS5) — first-guess placeholders, per BL-0005's own
+# deferred-tuning convention; the dissonance weight table itself is literature-grounded (R204),
+# these threshold *numbers* are not yet tuned by ear.
+DISSONANCE_THRESHOLD = 20      # ~60% of the 3-pair theoretical max (3 * 15 = 45)
+STALE_THRESHOLD = 8            # consecutive same-degree repeats (period-1 only, MVP scope)
+OVERLOAD_THRESHOLD = 20        # onset events within the ONSET_WINDOW_FRAMES window
+ONSET_WINDOW_FRAMES = 32
+
+# ── Sound registers (I/O offsets from 0xFF00, per R100/R108) ─────────
 NR10 = 0x10; NR11 = 0x11; NR12 = 0x12; NR13 = 0x13; NR14 = 0x14
+NR21 = 0x16; NR22 = 0x17; NR23 = 0x18; NR24 = 0x19
+NR30 = 0x1A; NR31 = 0x1B; NR32 = 0x1C; NR33 = 0x1D; NR34 = 0x1E
+NR41 = 0x20; NR42 = 0x21; NR43 = 0x22; NR44 = 0x23
 NR50 = 0x24; NR51 = 0x25; NR52 = 0x26
+WAVE_RAM = 0xFF30  # 16 bytes, 0xFF30-0xFF3F (R114)
 
 # ── Preset tables (data, GDS-03 SS3/SS6) ─────────────────────────────
 # 8 tempo steps: frames-per-note-step at 59.7fps ~ 60fps, spanning ~60-180 BPM quarter notes.
@@ -44,23 +83,78 @@ SCALE_SEMITONES = {
 }
 SCALES = ['major', 'minor', 'dorian', 'pentatonic']
 
+# IP-0004: semitone (mod 12, octave-independent) per (scale, degree) — 4 scales x 8 degrees,
+# for dissonance scoring (R204). Precomputed the same "compute once in Python" way as the note
+# frequency tables.
+SEMITONE_TABLE_DATA = [
+    SCALE_SEMITONES[scale_name][degree] % 12
+    for scale_name in SCALES
+    for degree in range(8)
+]
+
+# 7 interval-class weights (0=unison/octave .. 6=tritone), folding inversions together (a
+# standard pitch-class-set-theory simplification of R204's raw 12-entry proposal — m2/M7 both
+# fold to ic=1, etc.) — ordering/magnitudes still derived from R204's Helmholtz-roughness-cited
+# ordering: m2(ic1)/tritone(ic6) highest, P4/P5(ic5) lowest nonzero.
+DISSONANCE_WEIGHT_BY_IC = [0, 15, 11, 3, 2, 1, 13]
+
 # Reset-to-preset known-good state (GDS-03 SS5): major scale, mid tempo, mid octave, sparse
-# density/minimal channel-mix (both currently unused by IP-0001's single-channel scope, but the
-# indices are still reset so later packages' presets are already correct).
+# density/minimal channel-mix (density/channel-mix indices reset even though IP-0001/0002 don't
+# yet consume them for behavior, so later packages' presets are already correct).
 PRESET_TEMPO_IDX = 4
 PRESET_OCTAVE_IDX = 1
 PRESET_SCALE_IDX = 0
 PRESET_DENSITY_IDX = 0
 PRESET_CHMIX_IDX = 0
 
-# Small signed scale-degree deltas the LFSR-driven walk picks from (R200 SS1's "scale-constrained
+# Small signed scale-degree deltas the LFSR-driven walk picks from (R201's "scale-constrained
 # random walk" — weighted toward staying/small steps, indexed by the LFSR's low 2 bits).
 DELTA_TABLE = [0xFF, 0x00, 0x00, 0x01]  # -1, 0, 0, +1 (two's complement)
 
 # Galois LFSR feedback polynomial (8-bit, maximal-length taps) — deterministic given a fixed
-# seed (MSTR-001 C6: determinism as a testing tool, not a listening requirement).
+# seed (MSTR-001 C6: determinism as a testing tool, not a listening requirement). Each channel
+# gets its own seed so the three melodic walks decorrelate rather than moving in lockstep
+# (R203's voice-leading/masking-risk finding).
 LFSR_POLY = 0xB8
-LFSR_SEED = 0xA5
+LFSR_SEED_PA = 0xA5
+LFSR_SEED_PB = 0x5A
+LFSR_SEED_WV = 0x3C
+
+# ── Channel generation parameters (IP-0002/IP-0004) ──────────────────
+# name, note_timer, cur_degree, lfsr_state, lfsr_seed, freq_lo_reg, freq_hi_reg,
+# octave_delta (subtracted from OCTAVE_IDX, floored at 0), tempo_mult (note duration multiplier),
+# stale_count (IP-0004 repetition counter)
+CHANNELS = [
+    ('pa', NOTE_TIMER_PA, CUR_DEGREE_PA, LFSR_STATE,    LFSR_SEED_PA, NR13, NR14, 0, 1, STALE_COUNT_PA),
+    ('pb', NOTE_TIMER_PB, CUR_DEGREE_PB, LFSR_STATE_PB, LFSR_SEED_PB, NR23, NR24, 0, 1, STALE_COUNT_PB),
+    # Wave channel: bass/timbre role (R207 finding, BL-0008) — anchored one octave index lower
+    # (floored at 0) and half the note rate (tempo_mult=2), matching bass lines moving less often
+    # than melody. The wave-channel frequency formula is itself one octave lower than the pulse
+    # formula for an identical register value (R108/R114), so reusing the pulse note tables
+    # as-is on NR33/NR34 gives an *additional* free octave drop on top of the octave_delta below.
+    ('wv', NOTE_TIMER_WV, CUR_DEGREE_WV, LFSR_STATE_WV, LFSR_SEED_WV, NR33, NR34, -1, 2, STALE_COUNT_WV),
+]
+
+# ── Noise/density (IP-0003, R202/R115) ───────────────────────────────
+# 8 density steps: k onsets distributed across a fixed n=16-step grid (a 16th-note bar at the
+# current tempo) via Euclidean spacing (R202) — DENSITY_IDX selects k.
+DENSITY_K = [2, 3, 4, 5, 6, 8, 10, 12]
+NOISE_STEPS = 16
+
+# Per-tempo 16th-note step duration (quarter-note frames / 4, floor at 1 frame).
+NOISE_STEP_TABLE = [max(1, round(t / 4)) for t in TEMPO_TABLE]
+
+
+def _euclidean_pattern(k, n=NOISE_STEPS):
+    """k onsets spread as evenly as possible across n steps (R202's Toussaint-cited approach):
+    an onset at step i whenever floor(i*k/n) advances past the previous step's bucket."""
+    pattern = []
+    prev_bucket = -1
+    for i in range(n):
+        bucket = (i * k) // n
+        pattern.append(1 if bucket != prev_bucket else 0)
+        prev_bucket = bucket
+    return pattern
 
 
 def freq(hz):
@@ -78,12 +172,274 @@ def _note_table_bytes(scale_name, octave_idx):
     return out
 
 
+def _wave_table_bytes():
+    """16 bytes = 32 4-bit samples (R114), a simple sine-ish shape — high nibble played first.
+    A single precomputed shape is enough for IP-0002's MVP scope; more shapes (a switchable
+    timbre parameter) are an IP-0002+/backlog candidate (R114 SS5), not built here."""
+    samples = [round(7.5 + 7.5 * math.sin(2 * math.pi * i / 32)) for i in range(32)]
+    samples = [max(0, min(15, s)) for s in samples]
+    out = []
+    for i in range(0, 32, 2):
+        out.append((samples[i] << 4) | samples[i + 1])
+    return out
+
+
 def _ld_hl_label(rom, label):
     """LD HL, <label address> — gbc_lib's LD_HL_nn only accepts resolved ints, so a forward
     reference to a data-table label (defined later in this same emission pass) needs a manual
     16-bit fixup, the same mechanism ROM._abs() uses for CALL/JP targets."""
     rom.emit(0x21, 0, 0)
     rom.fixups.append((rom.pos - 2, label, 'abs16'))
+
+
+def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_lo, nr_freq_hi,
+                       octave_delta, tempo_mult, stale_count):
+    """One channel's note-generation routine: countdown -> (on expiry) LFSR-picked scale-degree
+    step -> table lookup -> register write -> timer reload -> IP-0004 stale/onset-window
+    bookkeeping. Parameterized so pulse A/B and the wave channel share one Python-level
+    implementation (GDS-03 SS1's "one job per file" applied at the routine level, not just the
+    file level) even though each emits its own SM83 bytes."""
+    rom.label(f'gen_tick_{suffix}')
+    rom.LD_A_nn(note_timer)
+    rom.DEC_A()
+    rom.LD_nn_A(note_timer)
+    rom.OR_A()
+    rom.JR_NZ(f'gt_done_{suffix}')
+
+    rom.LD_A_nn(cur_degree)
+    rom.LD_D_A()                       # D = old degree (IP-0004 stale-repetition comparison)
+
+    # LFSR step (inlined per-channel so each channel's state stays independent).
+    rom.LD_A_nn(lfsr_state)
+    rom.SRL_A()
+    rom.JR_NC(f'gt_noxor_{suffix}')
+    rom.XOR_n(LFSR_POLY)
+    rom.label(f'gt_noxor_{suffix}')
+    rom.LD_nn_A(lfsr_state)
+
+    rom.AND_n(0x03)
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'delta_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HL()
+    rom.LD_B_A()                       # B = signed delta
+    rom.LD_A_nn(cur_degree)
+    rom.ADD_A_B()
+    rom.AND_n(0x07)
+    rom.LD_nn_A(cur_degree)
+
+    # IP-0004 (R204 SS4b, MVP-scoped to period-1 repetition only — see BL note in the package
+    # doc): same degree as last onset -> increment STALE_COUNT; otherwise reset it to 0.
+    rom.CP_D()
+    rom.JR_NZ(f'gt_stale_reset_{suffix}')
+    rom.LD_A_nn(stale_count)
+    rom.INC_A()
+    rom.LD_nn_A(stale_count)
+    rom.JR(f'gt_stale_done_{suffix}')
+    rom.label(f'gt_stale_reset_{suffix}')
+    rom.XOR_A()
+    rom.LD_nn_A(stale_count)
+    rom.label(f'gt_stale_done_{suffix}')
+
+    # IP-0004: this is an onset event — count it toward the channel-overload window.
+    rom.LD_A_nn(ONSET_WINDOW_COUNT)
+    rom.INC_A()
+    rom.LD_nn_A(ONSET_WINDOW_COUNT)
+
+    # effective_octave = OCTAVE_IDX (+ octave_delta, floored at 0); table_idx = SCALE_IDX*4 + that
+    rom.LD_A_nn(SCALE_IDX)
+    rom.ADD_A_A(); rom.ADD_A_A()
+    rom.LD_B_A()
+    rom.LD_A_nn(OCTAVE_IDX)
+    if octave_delta == -1:
+        rom.OR_A()
+        rom.JR_Z(f'gt_oct0_{suffix}')
+        rom.DEC_A()
+        rom.label(f'gt_oct0_{suffix}')
+    rom.ADD_A_B()
+    rom.ADD_A_A()                      # *2 -> pointer-table byte offset
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'ptr_table')
+    rom.ADD_HL_BC()
+    rom.LD_E_HL(); rom.INC_HL(); rom.LD_D_HL()
+    rom.LD_H_D(); rom.LD_L_E()          # HL = the (scale, octave) note table's own address
+
+    rom.LD_A_nn(cur_degree)
+    rom.ADD_A_A()                      # *2 (2 bytes/entry)
+    rom.LD_C_A(); rom.LD_B_n(0)
+    rom.ADD_HL_BC()
+    rom.LD_A_HL(); rom.LDH_n_A(nr_freq_lo)
+    rom.INC_HL()
+    rom.LD_A_HL(); rom.LDH_n_A(nr_freq_hi)
+
+    # Reload the timer from the tempo table (doubled for a half-rate channel, e.g. the wave bass).
+    rom.LD_A_nn(TEMPO_IDX)
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'tempo_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HL()
+    if tempo_mult == 2:
+        rom.ADD_A_A()
+    rom.LD_nn_A(note_timer)
+
+    rom.label(f'gt_done_{suffix}')
+    rom.RET()
+
+
+def _emit_noise_gen(rom):
+    """Noise channel (IP-0003, R115/R202): a fixed 16-step Euclidean pattern, k selected by
+    DENSITY_IDX, gates short percussive noise hits. No LFSR/pitch walk — the noise channel has
+    no frequency register (R108/R115); its only generative axis here is onset timing."""
+    rom.label('gen_tick_nz')
+    rom.LD_A_nn(NOTE_TIMER_NZ)
+    rom.DEC_A()
+    rom.LD_nn_A(NOTE_TIMER_NZ)
+    rom.OR_A()
+    rom.JR_NZ('gt_done_nz')
+
+    rom.LD_A_nn(NOISE_STEP_IDX)
+    rom.INC_A()
+    rom.AND_n(0x0F)
+    rom.LD_nn_A(NOISE_STEP_IDX)
+
+    # pattern_table offset = DENSITY_IDX*16 + NOISE_STEP_IDX
+    rom.LD_B_A()                       # B = step_idx
+    rom.LD_A_nn(DENSITY_IDX)
+    rom.SLA_A(); rom.SLA_A(); rom.SLA_A(); rom.SLA_A()   # *16
+    rom.ADD_A_B()
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'noise_pattern_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HL()
+    rom.OR_A()
+    rom.JR_Z('gt_nz_no_hit')
+
+    rom.LD_A_n(0xF2); rom.LDH_n_A(NR42)   # volume 15, decreasing envelope, fast period (percussive)
+    rom.LD_A_n(0x41); rom.LDH_n_A(NR43)   # clock shift 4, 15-bit ("hiss") width, divisor 1
+    rom.LD_A_n(0xC0); rom.LDH_n_A(NR44)   # trigger, length disabled
+
+    # IP-0004: an actual noise hit (not just a step advance) is an onset event too.
+    rom.LD_A_nn(ONSET_WINDOW_COUNT)
+    rom.INC_A()
+    rom.LD_nn_A(ONSET_WINDOW_COUNT)
+
+    rom.label('gt_nz_no_hit')
+    rom.LD_A_nn(TEMPO_IDX)
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'noise_step_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HL()
+    rom.LD_nn_A(NOTE_TIMER_NZ)
+
+    rom.label('gt_done_nz')
+    rom.RET()
+
+
+def _emit_get_semitone(rom, cur_degree_addr, dest_addr):
+    """semitone = SEMITONE_TABLE[SCALE_IDX*8 + cur_degree], stored to dest_addr (IP-0004)."""
+    rom.LD_A_nn(SCALE_IDX)
+    rom.SLA_A(); rom.SLA_A(); rom.SLA_A()   # *8
+    rom.LD_B_A()
+    rom.LD_A_nn(cur_degree_addr)
+    rom.ADD_A_B()
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'semitone_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HL()
+    rom.LD_nn_A(dest_addr)
+
+
+def _emit_pairwise_dissonance(rom, semi_a_addr, semi_b_addr, suffix):
+    """Interval class (0-6, inversions folded) between two semitone scratch values, weighted
+    via DISSONANCE_WEIGHT_BY_IC and accumulated into DISSONANCE_SCORE (IP-0004, R204)."""
+    rom.LD_A_nn(semi_b_addr)
+    rom.LD_C_A()
+    rom.LD_A_nn(semi_a_addr)
+    rom.SUB_C()                        # A = semi_a - semi_b (mod 256)
+    rom.JR_NC(f'dt_nowrap_{suffix}')
+    rom.ADD_A_n(12)
+    rom.label(f'dt_nowrap_{suffix}')
+    rom.CP_n(7)                        # fold >6 to its complement (interval-class simplification)
+    rom.JR_C(f'dt_nofold_{suffix}')
+    rom.LD_B_A()
+    rom.LD_A_n(12)
+    rom.SUB_B()
+    rom.label(f'dt_nofold_{suffix}')
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'dissonance_weight_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HL()
+    rom.LD_B_A()
+    rom.LD_A_nn(DISSONANCE_SCORE)
+    rom.ADD_A_B()
+    rom.LD_nn_A(DISSONANCE_SCORE)
+
+
+def _emit_badzone_tick(rom):
+    """Recomputes DISSONANCE_SCORE (3 pitched-channel pairs), evaluates the STUCK condition
+    (any channel's STALE_COUNT over threshold), manages the rolling onset-overload window, and
+    combines all three into BAD_ZONE_FLAGS bit3 (IP-0004, GDS-03 SS4)."""
+    rom.label('badzone_tick')
+    rom.XOR_A(); rom.LD_nn_A(DISSONANCE_SCORE)
+
+    _emit_get_semitone(rom, CUR_DEGREE_PA, SEMI_PA)
+    _emit_get_semitone(rom, CUR_DEGREE_PB, SEMI_PB)
+    _emit_get_semitone(rom, CUR_DEGREE_WV, SEMI_WV)
+    _emit_pairwise_dissonance(rom, SEMI_PA, SEMI_PB, 'papb')
+    _emit_pairwise_dissonance(rom, SEMI_PA, SEMI_WV, 'pawv')
+    _emit_pairwise_dissonance(rom, SEMI_PB, SEMI_WV, 'pbwv')
+
+    # bit0 DISSONANT
+    rom.LD_A_nn(DISSONANCE_SCORE)
+    rom.CP_n(DISSONANCE_THRESHOLD + 1)
+    rom.JR_C('bz_not_dissonant')
+    rom.LD_A_nn(BAD_ZONE_FLAGS); rom.OR_n(0x01); rom.LD_nn_A(BAD_ZONE_FLAGS)
+    rom.JR('bz_dissonant_done')
+    rom.label('bz_not_dissonant')
+    rom.LD_A_nn(BAD_ZONE_FLAGS); rom.AND_n(0xFE); rom.LD_nn_A(BAD_ZONE_FLAGS)
+    rom.label('bz_dissonant_done')
+
+    # bit1 STUCK — any channel's STALE_COUNT over threshold
+    for stale_addr in (STALE_COUNT_PA, STALE_COUNT_PB, STALE_COUNT_WV):
+        rom.LD_A_nn(stale_addr)
+        rom.CP_n(STALE_THRESHOLD + 1)
+        rom.JR_NC('bz_stuck_yes')
+    rom.LD_A_nn(BAD_ZONE_FLAGS); rom.AND_n(0xFD); rom.LD_nn_A(BAD_ZONE_FLAGS)
+    rom.JR('bz_stuck_done')
+    rom.label('bz_stuck_yes')
+    rom.LD_A_nn(BAD_ZONE_FLAGS); rom.OR_n(0x02); rom.LD_nn_A(BAD_ZONE_FLAGS)
+    rom.label('bz_stuck_done')
+
+    # bit2 OVERLOAD — rolling window: evaluate + reset only when the window elapses
+    rom.LD_A_nn(ONSET_WINDOW_TICK_CTR)
+    rom.DEC_A()
+    rom.LD_nn_A(ONSET_WINDOW_TICK_CTR)
+    rom.OR_A()
+    rom.JR_NZ('bz_window_done')
+
+    rom.LD_A_nn(ONSET_WINDOW_COUNT)
+    rom.CP_n(OVERLOAD_THRESHOLD + 1)
+    rom.JR_C('bz_no_overload')
+    rom.LD_A_nn(BAD_ZONE_FLAGS); rom.OR_n(0x04); rom.LD_nn_A(BAD_ZONE_FLAGS)
+    rom.JR('bz_overload_done')
+    rom.label('bz_no_overload')
+    rom.LD_A_nn(BAD_ZONE_FLAGS); rom.AND_n(0xFB); rom.LD_nn_A(BAD_ZONE_FLAGS)
+    rom.label('bz_overload_done')
+
+    rom.XOR_A(); rom.LD_nn_A(ONSET_WINDOW_COUNT)
+    rom.LD_A_n(ONSET_WINDOW_FRAMES); rom.LD_nn_A(ONSET_WINDOW_TICK_CTR)
+    rom.label('bz_window_done')
+
+    # bit3 COMBINED = bit0 OR bit1 OR bit2
+    rom.LD_A_nn(BAD_ZONE_FLAGS)
+    rom.AND_n(0x07)
+    rom.JR_Z('bz_combined_clear')
+    rom.LD_A_nn(BAD_ZONE_FLAGS); rom.OR_n(0x08); rom.LD_nn_A(BAD_ZONE_FLAGS)
+    rom.JR('bz_combined_done')
+    rom.label('bz_combined_clear')
+    rom.LD_A_nn(BAD_ZONE_FLAGS); rom.AND_n(0xF7); rom.LD_nn_A(BAD_ZONE_FLAGS)
+    rom.label('bz_combined_done')
+    rom.RET()
 
 
 def build_engine_asm(rom: ROM) -> dict:
@@ -98,73 +454,39 @@ def build_engine_asm(rom: ROM) -> dict:
     rom.LD_A_n(PRESET_SCALE_IDX); rom.LD_nn_A(SCALE_IDX)
     rom.LD_A_n(PRESET_DENSITY_IDX); rom.LD_nn_A(DENSITY_IDX)
     rom.LD_A_n(PRESET_CHMIX_IDX); rom.LD_nn_A(CHMIX_IDX)
-    rom.XOR_A(); rom.LD_nn_A(CUR_DEGREE_PA)
-    rom.LD_A_n(1); rom.LD_nn_A(NOTE_TIMER_PA)  # fire the first note on the very next tick
-    rom.LD_A_n(LFSR_SEED); rom.LD_nn_A(LFSR_STATE)
-    rom.RET()
+    for (_suffix, note_timer, cur_degree, lfsr_state, lfsr_seed, *_rest) in CHANNELS:
+        rom.XOR_A(); rom.LD_nn_A(cur_degree)
+        rom.LD_A_n(1); rom.LD_nn_A(note_timer)     # fire the first note on the very next tick
+        rom.LD_A_n(lfsr_seed); rom.LD_nn_A(lfsr_state)
+    rom.XOR_A(); rom.LD_nn_A(NOISE_STEP_IDX)
+    rom.LD_A_n(1); rom.LD_nn_A(NOTE_TIMER_NZ)
 
-    # ── lfsr_step: Galois LFSR, one step, new state left in A ────────
-    rom.label('lfsr_step')
-    rom.LD_A_nn(LFSR_STATE)
-    rom.SRL_A()
-    rom.JR_NC('ls_noxor')
-    rom.XOR_n(LFSR_POLY)
-    rom.label('ls_noxor')
-    rom.LD_nn_A(LFSR_STATE)
+    # IP-0004: bad-zone state starts clean — no dissonance/stuck/overload carried across a reset.
+    rom.XOR_A()
+    rom.LD_nn_A(BAD_ZONE_FLAGS)
+    rom.LD_nn_A(DISSONANCE_SCORE)
+    rom.LD_nn_A(STALE_COUNT_PA)
+    rom.LD_nn_A(STALE_COUNT_PB)
+    rom.LD_nn_A(STALE_COUNT_WV)
+    rom.LD_nn_A(ONSET_WINDOW_COUNT)
+    rom.LD_A_n(ONSET_WINDOW_FRAMES)
+    rom.LD_nn_A(ONSET_WINDOW_TICK_CTR)
     rom.RET()
 
     # ── engine_tick: called once per frame from the main loop ────────
     rom.label('engine_tick')
-    rom.LD_A_nn(NOTE_TIMER_PA)
-    rom.DEC_A()
-    rom.LD_nn_A(NOTE_TIMER_PA)
-    rom.OR_A()
-    rom.JR_NZ('et_done')
-
-    # Time for the next note: step CUR_DEGREE_PA by an LFSR-picked signed delta.
-    rom.CALL('lfsr_step')
-    rom.AND_n(0x03)
-    rom.LD_C_A(); rom.LD_B_n(0)
-    _ld_hl_label(rom, 'delta_table')
-    rom.ADD_HL_BC()
-    rom.LD_A_HL()
-    rom.LD_B_A()                       # B = signed delta
-    rom.LD_A_nn(CUR_DEGREE_PA)
-    rom.ADD_A_B()
-    rom.AND_n(0x07)
-    rom.LD_nn_A(CUR_DEGREE_PA)
-
-    # table_idx = SCALE_IDX*4 + OCTAVE_IDX  (0-15)
-    rom.LD_A_nn(SCALE_IDX)
-    rom.ADD_A_A(); rom.ADD_A_A()
-    rom.LD_B_A()
-    rom.LD_A_nn(OCTAVE_IDX)
-    rom.ADD_A_B()
-    rom.ADD_A_A()                      # *2 -> pointer-table byte offset
-    rom.LD_C_A(); rom.LD_B_n(0)
-    _ld_hl_label(rom, 'ptr_table')
-    rom.ADD_HL_BC()
-    rom.LD_E_HL(); rom.INC_HL(); rom.LD_D_HL()
-    rom.LD_H_D(); rom.LD_L_E()          # HL = the (scale, octave) note table's own address
-
-    rom.LD_A_nn(CUR_DEGREE_PA)
-    rom.ADD_A_A()                      # *2 (2 bytes/entry)
-    rom.LD_C_A(); rom.LD_B_n(0)
-    rom.ADD_HL_BC()
-    rom.LD_A_HL(); rom.LDH_n_A(NR13)
-    rom.INC_HL()
-    rom.LD_A_HL(); rom.LDH_n_A(NR14)
-
-    # Reload NOTE_TIMER_PA from the tempo table.
-    rom.LD_A_nn(TEMPO_IDX)
-    rom.LD_C_A(); rom.LD_B_n(0)
-    _ld_hl_label(rom, 'tempo_table')
-    rom.ADD_HL_BC()
-    rom.LD_A_HL()
-    rom.LD_nn_A(NOTE_TIMER_PA)
-
-    rom.label('et_done')
+    for (suffix, *_rest) in CHANNELS:
+        rom.CALL(f'gen_tick_{suffix}')
+    rom.CALL('gen_tick_nz')
+    rom.CALL('badzone_tick')
     rom.RET()
+
+    for (suffix, note_timer, cur_degree, lfsr_state, _seed, nr_lo, nr_hi, oct_delta, tempo_mult,
+         stale_count) in CHANNELS:
+        _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_lo, nr_hi,
+                           oct_delta, tempo_mult, stale_count)
+    _emit_noise_gen(rom)
+    _emit_badzone_tick(rom)
 
     # ── Data tables ───────────────────────────────────────────────────
     rom.label('delta_table')
@@ -172,6 +494,22 @@ def build_engine_asm(rom: ROM) -> dict:
 
     rom.label('tempo_table')
     rom.emit(*TEMPO_TABLE)
+
+    rom.label('noise_step_table')
+    rom.emit(*NOISE_STEP_TABLE)
+
+    rom.label('noise_pattern_table')
+    for k in DENSITY_K:
+        rom.emit(*_euclidean_pattern(k))
+
+    rom.label('semitone_table')
+    rom.emit(*SEMITONE_TABLE_DATA)
+
+    rom.label('dissonance_weight_table')
+    rom.emit(*DISSONANCE_WEIGHT_BY_IC)
+
+    rom.label('wave_table')
+    rom.emit(*_wave_table_bytes())
 
     note_table_labels = []
     for si, scale_name in enumerate(SCALES):

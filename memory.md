@@ -2,32 +2,46 @@
 
 ## Current Build Status
 
-`IP-0001` scope only: pulse A channel generation, full input mapping, scoped Select reset,
-headless verification bootstrap. ROM builds at exactly 32768 bytes; **32/32 `test_rom.py`
+MVP (Foundation release bucket, `IP-0001`-`IP-0006`): 4-channel generative engine (pulse A/B,
+wave-as-bass, Euclidean-gated noise), full input mapping, bad-zone detection + full-state Select
+reset, minimal tile/palette visualizer. ROM builds at exactly 32768 bytes; **56/56 `test_rom.py`
 checks pass** (headless PyBoy 2.7.0, repo-relative paths — `python3 build_rom.py <out.gbc>` then
-`python3 test_rom.py` from the repo root).
+`python3 test_rom.py` from the repo root). 6000+ frame stress run with continuous input churn:
+no hangs.
 
 ### Last verified working (PyBoy 2.7.0 headless test, 2026-07-21)
 
-- Boot → sound hardware init → pulse A generating within ~90 frames (GBC boot-ROM logo time)
-- Scale-constrained LFSR-driven random walk on pulse A (major scale, `TEMPO_IDX=4`,
-  `OCTAVE_IDX=1` preset)
-- All 6 input controls edit exactly their own parameter index, edge-triggered
-- Select resets tested indices + pulse A state to preset, unconditionally
+- Boot → sound hardware init (all 4 channels) → visualizer init (LCD on) within ~90 frames
+- Pulse A/B independent scale-constrained LFSR walks (different seeds, decorrelated); wave
+  channel same mechanism, anchored an octave lower + half note-rate (bass role)
+- Noise channel: 16-step Euclidean pattern sized by `DENSITY_IDX`, gates short percussive hits
+- Bad-zone: `DISSONANCE_SCORE` recomputed every frame from 3 pitched-channel pairs; `STALE_COUNT_*`
+  per channel; rolling onset-window overload counter; combined into `BAD_ZONE_FLAGS` bit3
+- All 6 input controls edit exactly their own parameter index, edge-triggered; `DENSITY_IDX`
+  measurably changes noise-onset rate end to end
+- Select resets every channel + all bad-zone counters to preset, unconditionally, same-frame
+- Visualizer: 4 tiles track `NR52`'s per-channel active bits; palette swaps calm/bad-zone colors
 
-## WRAM Quick Reference (authoritative table: GDS-07)
+## WRAM Quick Reference (authoritative table: GDS-07 + IP-0002/0003/0004 addenda)
 
 | Range | Content |
 |---|---|
-| `0xC000`-`0xC004` | `TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX` |
-| `0xC005`-`0xC00B` | Bad-zone state (flags/scores/counters) — **not yet implemented, IP-0004** |
-| `0xC00C`-`0xC00F` | Per-channel note timers (pulse A live; B/wave/noise reserved) |
-| `0xC010`-`0xC012` | Per-channel current scale-degree (pulse A live; B/wave reserved) |
-| `0xC013`-`0xC015` | Per-channel history ring-buffer heads — **not yet implemented, IP-0004** |
-| `0xC016` | `LFSR_STATE` |
-| `0xC020`-`0xC037` | Per-channel history ring buffers — **not yet implemented, IP-0004** |
+| `0xC000`-`0xC004` | `TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX` (`CHMIX_IDX` wired, not yet consumed) |
+| `0xC005` | `BAD_ZONE_FLAGS` (bit0 DISSONANT, bit1 STUCK, bit2 OVERLOAD, bit3 COMBINED) |
+| `0xC006` | `DISSONANCE_SCORE` |
+| `0xC007`-`0xC009` | `STALE_COUNT_PA`/`PB`/`WV` |
+| `0xC00A`/`0xC00B` | `ONSET_WINDOW_COUNT` / `ONSET_WINDOW_TICK_CTR` |
+| `0xC00C`-`0xC00F` | `NOTE_TIMER_PA`/`PB`/`WV`/`NZ` |
+| `0xC010`-`0xC012` | `CUR_DEGREE_PA`/`PB`/`WV` |
+| `0xC016`-`0xC018` | `LFSR_STATE` (PA) / `LFSR_STATE_PB` / `LFSR_STATE_WV` |
+| `0xC019` | `NOISE_STEP_IDX` (0-15) |
+| `0xC01A`-`0xC01C` | `SEMI_PA`/`PB`/`WV` (dissonance-tick scratch, not persisted meaning across frames) |
 | `0xC050`-`0xC052` | `JOY_PREV`/`JOY_CUR`/`JOY_NEW` |
 | `0xC060` | `VBLANK_FLAG` |
+
+Unused/reserved from GDS-07 but not yet consumed: `0xC013`-`0xC015` (history ring-buffer heads —
+superseded by the simpler period-1-only `STALE_COUNT_*` design, see `IP-0004`'s package doc),
+`0xC020`-`0xC037` (ring buffers — same).
 
 ## Joypad Bit Map (JOY_CUR/JOY_NEW — active HIGH)
 
@@ -41,10 +55,17 @@ bit 3 = START    bit 7 = DOWN
 
 ## Sound register quick reference
 
-`NR52` (`0xFF26`) bit 7 = master power, bit 0 = channel-1(pulse A)-active — the only reliably
-readable "is audio happening" signal (see `docs/research/R100-gbc-sound-hardware.md`'s
-"Confirmed during IP-0001" section: `NR13`/`NR14`'s frequency bits are **write-only**, do not
-attempt to read them back in a test or from the future visualizer — read the WRAM mirror instead).
+`NR52` (`0xFF26`) bits 0-3 = channel 1-4 active — the only reliably readable "is audio happening"
+signal (frequency registers are write-only, confirmed empirically — see
+`docs/research/encyclopedia/R108-apu-sound-channels.md`). Noise channel has no frequency register
+at all (R108/R115) — only onset timing is generative for it.
+
+## Visualizer quick reference
+
+`LCDC` (`0xFF40`) = `0x91` (LCD on, BG tile data at `0x8000`, BG display on). 4 tile-indicator
+cells at `0x9800`-`0x9803` (BG tilemap top-left), one per channel, tile 0 = off / tile 1 = on.
+BG palette 0 swaps between calm (blue/green) and bad-zone (red) color sets via `BCPS`/`BCPD`
+every frame based on `BAD_ZONE_FLAGS` bit3.
 
 ## Emulator Test Command
 
@@ -58,4 +79,4 @@ pb.set_emulation_speed(0)
 (`build_rom()` helper), and deletes the built ROM at the end of a run — no manual cleanup needed.
 **Boot takes ~90 frames** before cartridge code starts running (GBC boot-ROM logo animation) —
 `test_rom.py`'s `BOOT_FRAMES` constant encodes this; any new test reading boot-time state must
-wait at least that long first (discovered the hard way during `IP-0001` — see its own package doc).
+wait at least that long first.

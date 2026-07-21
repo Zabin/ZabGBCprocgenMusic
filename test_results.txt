@@ -3,8 +3,8 @@
 [PASS] T1.3 GBC compatibility flag set
 [PASS] T1.4 Cart type is ROM ONLY (no SRAM/battery, MSTR-001 C2)
 [PASS] T1.5 Header checksum valid
-[PASS] T2.1 Master sound power bit set (NR52 bit7)  (NR52=0xf1)
-[PASS] T2.2 Channel 1 (pulse A) reports active in NR52  (NR52=0xf1)
+[PASS] T2.1 Master sound power bit set (NR52 bit7)  (NR52=0xf7)
+[PASS] T2.2 Channel 1 (pulse A) reports active in NR52  (NR52=0xf7)
 [PASS] T2.3 Boot preset: TEMPO_IDX at known-good value
 [PASS] T2.4 Boot preset: OCTAVE_IDX at known-good value
 [PASS] T2.5 Boot preset: SCALE_IDX at known-good value
@@ -30,5 +30,29 @@
 [PASS] T5.3 Select restores OCTAVE_IDX to preset
 [PASS] T5.4 Select restores SCALE_IDX to preset
 [PASS] T5.5 Select restores CUR_DEGREE_PA to 0
+[PASS] T6.1 Channel 2 (pulse B) reports active in NR52  (NR52=0xf7)
+[PASS] T6.2 Channel 3 (wave) reports active in NR52  (NR52=0xf7)
+[PASS] T6.3 CUR_DEGREE_PB changes over time (pulse B is walking independently)  (distinct degrees: [0, 1, 2, 5, 6, 7])
+[PASS] T6.4 CUR_DEGREE_WV changes over time (wave channel is walking independently)  (distinct degrees: [0, 1, 2, 3, 4, 5])
+[PASS] T6.5 All three pitched channels still report active after sustained play  (NR52=0xf7)
+[PASS] T7.setup DENSITY_IDX reached 0  (got 0)
+[PASS] T7.0.1 Noise step index cycles through all 16 steps at density 0  (seen: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+[PASS] T7.0.2 Channel 4 (noise) triggers at least once at density 0  (onset-frame count: 138)
+[PASS] T7.setup DENSITY_IDX reached 7  (got 7)
+[PASS] T7.7.1 Noise step index cycles through all 16 steps at density 7  (seen: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+[PASS] T7.7.2 Channel 4 (noise) triggers at least once at density 7  (onset-frame count: 563)
+[PASS] T7.3 Denser preset (max DENSITY_IDX) produces more onset-frames than the sparsest  (onset_counts={0: 138, 7: 563})
+[PASS] T8.1 BAD_ZONE_FLAGS starts clean at boot
+[PASS] T8.2 DISSONANCE_SCORE starts at 0 at boot
+[PASS] T8.3 DISSONANCE_SCORE varies over time (three independently-walking channels produce a changing interval mix)  (distinct scores: [0, 2, 4, 6, 13, 15, 18, 19, 22, 24, 26, 29, 30])
+[PASS] T8.4 BAD_ZONE_FLAGS bit3 (COMBINED) matches bit0 (DISSONANT) whenever either is set (no combination seen violates bit3 = OR of bits0-2)  (flags seen: {0, 9})
+[PASS] T8.5 At least one bad-zone entry (DISSONANT or COMBINED) was observed over a long run  (flags seen: {0, 9})
+[PASS] T8.6 Select clears BAD_ZONE_FLAGS
+[PASS] T8.7 Select clears DISSONANCE_SCORE
+[PASS] T8.8 Select resets STALE_COUNT_PA to a fresh count, not a stale accumulated one  (got 1)
+[PASS] T8.9 Select resets ONSET_WINDOW_COUNT to just this frame's fresh onsets, not a stale accumulated count  (got 3)
+[PASS] T9.1 LCD is on with BG tile data at 0x8000 and BG display enabled  (LCDC=0x91)
+[PASS] T9.2 Each channel-indicator tile matches its own NR52 active bit  (cells=[1, 1, 1, 0] expected=[1, 1, 1, 0] NR52=0b11110111)
+[PASS] T9.3 Indicator tiles keep tracking NR52 correctly over a sustained run
 
-32 PASS, 0 FAIL
+56 PASS, 0 FAIL

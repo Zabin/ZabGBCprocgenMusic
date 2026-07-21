@@ -2,8 +2,8 @@
 
 ## Position
 
-- **Updated:** 2026-07-21 (run #9) — **Independent verification: IP-0004 VERIFIED**
-- **Increment:** Foundation release bucket — **all 7 packages COMPLETE, 4/7 independently VERIFIED**, from-scratch increment.
+- **Updated:** 2026-07-21 (run #10) — **Independent verification: IP-0005 VERIFIED, BL-0014 closed**
+- **Increment:** Foundation release bucket — **all 7 packages COMPLETE, 5/7 independently VERIFIED**, from-scratch increment.
 - **Pipeline state:**
   - `01-vision`: ✅ MSTR-001 **v1.1** (amended: bad-zone must be autonomously recoverable, Select
     reframed as reset-and-randomize) + GDS-00 authored.
@@ -32,26 +32,26 @@
     run #8 — independently drove a mid-range density (`DENSITY_IDX=3`, k=5) the suite's own fixture
     never exercises, confirming monotonic onset scaling), **IP-0004 `VERIFIED`** ([VR-0004](../implementation/verification/VR-0004-bad-zone-detection.md),
     run #9 — independently drove a non-default scale (`SCALE_IDX=3`, pentatonic), surfaced a new
-    finding extending `BL-0013`'s scope up to `FR-1090`'s wording). IP-0005-IP-0007 self-tested in
-    the same session that authored them — the user's "accept single session limitations just this
-    once" (run #5) covered that continued work (run #6 is a direct continuation of the same
-    session/exception, not a fresh one). Independent verification of IP-0005-0007 is still owed.
+    finding extending `BL-0013`'s scope up to `FR-1090`'s wording), **IP-0005 `VERIFIED`** ([VR-0005](../implementation/verification/VR-0005-full-reset-scope.md),
+    run #10 — independently drifted and reset pulse B/wave/noise state, closing `BL-0014`).
+    IP-0006-IP-0007 self-tested in the same session that authored them — the user's "accept single
+    session limitations just this once" (run #5) covered that continued work (run #6 is a direct
+    continuation of the same session/exception, not a fresh one). Independent verification of
+    IP-0006-0007 is still owed.
   - `10-integration-review` / `11-release-readiness`: not reached — needs all 7 packages
     independently `VERIFIED` first.
-- **Backlog:** 13 open entries (`BL-0001`, `BL-0005`...`BL-0007`, `BL-0010`...`BL-0015`;
-  `BL-0002`/`BL-0003`/`BL-0004`/`BL-0008`/`BL-0009` are `DONE`, pending archiving at the next
-  triage sweep) — none `NEEDS-USER`. `BL-0013`'s scope extended this run (VR-0004 found `FR-1090`
-  also names the unbuilt ring buffer, not just GDS-03/GDS-07/R204) — no new ID needed, folded into
-  the existing entry.
-- **Next step:** `09-package-verification` on `IP-0005` (then `IP-0006`/`IP-0007` in turn). This
-  session still hasn't implemented any of IP-0005-0007 — independence holds. `10-integration-review`
-  follows once all 7 are `VERIFIED`. Alongside that, `06-feature-specification` owes the
-  retroactive FS-100...FS-105 backfill (`BL-0006`/`BL-0012`), and
+- **Backlog:** 12 open entries (`BL-0001`, `BL-0005`...`BL-0007`, `BL-0010`...`BL-0013`, `BL-0015`;
+  `BL-0002`/`BL-0003`/`BL-0004`/`BL-0008`/`BL-0009`/`BL-0014` are `DONE`, pending archiving at the
+  next triage sweep) — none `NEEDS-USER`. `BL-0014` closed this run.
+- **Next step:** `09-package-verification` on `IP-0006` (then `IP-0007`). This session still
+  hasn't implemented either — independence holds. `10-integration-review` follows once all 7 are
+  `VERIFIED`. Alongside that, `06-feature-specification` owes the retroactive FS-100...FS-105
+  backfill (`BL-0006`/`BL-0012`), and
   `03-architecture-design-synthesis`/`02-research-game-design`/`04-requirements-engineering` owe
   reconciling GDS-03/GDS-07/R204/`FR-1090` against the shipped simplifications (`BL-0013`,
   extended scope).
 - **Open gates:** none blocking further pipeline *documentation* work (FS backfill, GDS/FR
-  reconciliation can proceed anytime); independent verification of IP-0005-0007 is the standing
+  reconciliation can proceed anytime); independent verification of IP-0006-0007 is the standing
   gate before `10-integration-review`/`11-release-readiness` can be reached.
 
 ## Run log
@@ -67,6 +67,7 @@
 | 7 | 2026-07-21 | iterate (new session) | `09-package-verification` | `IP-0002` | Genuinely fresh session (no prior work on `IP-0002` in this session) — the standing independence gate was satisfied without needing a user waiver. Installed `pyboy` (not pre-installed in this fresh environment). Re-derived every DoD/checklist item from the tree: `_emit_channel_gen` parameterization, the `CHANNELS` table, the octave-floor guard, the half-rate reload, `_wave_table_bytes()`/Wave-RAM init. Ran the full suite independently: **60 PASS, 0 FAIL**. Per this skill's own rule on tunable parameters, drove the ROM live at a non-default value the shared test fixture never exercises — forced `OCTAVE_IDX` to `0` (the wave channel's octave-floor edge case) and confirmed `NOTE_TIMER_WV` reloads to exactly `60` (double pulse A's `30`), `NR52` still `0xFF` (all channels active, no corruption). Wrote [VR-0002](../implementation/verification/VR-0002-pulse-b-and-wave-channel.md), advanced `IP-0002` `COMPLETE`→`VERIFIED` on the Master Build Plan and `packages/INDEX.md`. No new findings. Pushed to `claude/iterate-pipeline-skill-04nvuc` and opened draft PR [#1](https://github.com/Zabin/ZabGBCprocgenMusic/pull/1) against `claude/gbc-procgen-music-rom-697ds8`; subscribed to its activity. | `Next: 09-package-verification on IP-0003. This session did not implement IP-0003 (or any of IP-0002-0007 — all implemented in the earlier run #1/3/4/5/6 session), so it remains independent for verifying the rest of the tranche too; no fresh reboot needed between packages, only between an implementation and its own verification. 10-integration-review follows once all 7 are VERIFIED. FS-100...FS-105 backfill (BL-0006/BL-0012) and GDS-03/GDS-07/R204 reconciliation (BL-0013) remain unblocked, doable anytime.` |
 | 8 | 2026-07-21 | iterate (same session as run #7, no gate hit) | `09-package-verification` | `IP-0003` | Continuing this fresh session (still hadn't implemented anything). Re-derived `_emit_noise_gen`, `DENSITY_K`/`_euclidean_pattern`/`NOISE_STEP_TABLE` from the tree, independently recomputed the Euclidean pattern for all 8 density levels in a Python REPL (each produces exactly `k` onsets/16 steps) and the step-duration table (`[15,12,10,8,8,6,6,5]`) — both match. Rebuilt (32768 bytes, valid header) and re-ran the full suite: **60 PASS, 0 FAIL**. `test_rom.py` T7 already drives `DENSITY_IDX` to both extremes; per this skill's tunable-parameter rule this run additionally drove a **mid-range** value (`DENSITY_IDX=3`, k=5) the suite's own fixture never touches — 357 active-frames/600, strictly between the extremes' 138/563, confirming monotonic scaling holds between the tested points, not just at them. Wrote [VR-0003](../implementation/verification/VR-0003-noise-channel-and-density.md), advanced `IP-0003` `COMPLETE`→`VERIFIED` on the Master Build Plan and `packages/INDEX.md`. No new findings. | `Next: 09-package-verification on IP-0004, in this same still-independent session. 10-integration-review follows once all 7 are VERIFIED. FS-100...FS-105 backfill (BL-0006/BL-0012) and GDS-03/GDS-07/R204 reconciliation (BL-0013) remain unblocked, doable anytime.` |
 | 9 | 2026-07-21 | iterate (same session, no gate hit) | `09-package-verification` | `IP-0004` | Continuing this fresh session. Re-derived `_emit_badzone_tick`, `SEMITONE_TABLE_DATA`, `DISSONANCE_WEIGHT_BY_IC`, the stale/overload bookkeeping, and `init_engine`'s zeroing of all bad-zone state from the tree. Rebuilt (32768 bytes, valid header) and re-ran the full suite: **60 PASS, 0 FAIL**. Per this skill's tunable-parameter rule, drove `SCALE_IDX` live to `3` (pentatonic — the suite's T8 fixture never leaves the boot preset, and dissonance scoring is scale-dependent via the semitone table): dissonance scores stayed in the theoretical 0-45 range across 2000 frames, bad-zone entry/exit still functioned correctly. Surfaced one new finding: `FR-1090`'s text still names an unbuilt `HIST_PA`/`PB`/`WV` ring buffer (confirmed absent from the tree by grep) — extends the existing `BL-0013` doc-coherence entry's scope from architecture-only up to the requirements layer (no functional defect). Wrote [VR-0004](../implementation/verification/VR-0004-bad-zone-detection.md), advanced `IP-0004` `COMPLETE`→`VERIFIED` on the Master Build Plan and `packages/INDEX.md`, folded the finding into `BL-0013` (no new ID). | `Next: 09-package-verification on IP-0005, in this same still-independent session. 10-integration-review follows once all 7 are VERIFIED. FS-100...FS-105 backfill (BL-0006/BL-0012) and GDS-03/GDS-07/R204/FR-1090 reconciliation (BL-0013, extended scope) remain unblocked, doable anytime.` |
+| 10 | 2026-07-21 | iterate (same session, no gate hit) | `09-package-verification` | `IP-0005` | Continuing this fresh session. `IP-0005` is an audit-only package (no new code — its DoD is confirming `init_engine`'s Select-reset coverage, built incrementally by IP-0002-0004, is complete). Independently cross-checked every WRAM field IP-0002-0004 introduced against `init_engine`'s body — no gaps. Rebuilt (32768 bytes, valid header) and re-ran the full suite: **60 PASS, 0 FAIL**. Per the package doc's own honestly-flagged gap (`BL-0014`) — pulse B/wave/noise's reset coverage was only implicitly exercised, never independently asserted on the exact reset frame — drove it live: let the engine run 400 frames to drift `CUR_DEGREE_PB`/`WV`/`NOISE_STEP_IDX`/LFSR state away from init values, pressed Select, confirmed all reset correctly on the exact frame (degrees to 0, timers freshly reloaded). One apparent inconsistency (`STALE_COUNT_PB`/`WV` reading `1` instead of `0`, unlike T8.7b's pulse-A `0`) investigated and explained: `IP-0007`'s independent per-channel `DIV`-seeded reseeding makes each channel's very-first post-reset step independently random, so one channel landing on "no movement" (stale=1) while another moves (stale=0) is expected per-channel variance, not a reset defect. Wrote [VR-0005](../implementation/verification/VR-0005-full-reset-scope.md), advanced `IP-0005` `COMPLETE`→`VERIFIED`, closed `BL-0014` `DONE`. | `Next: 09-package-verification on IP-0006, in this same still-independent session. 10-integration-review follows once all 7 are VERIFIED. FS-100...FS-105 backfill (BL-0006/BL-0012) and GDS-03/GDS-07/R204/FR-1090 reconciliation (BL-0013, extended scope) remain unblocked, doable anytime.` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

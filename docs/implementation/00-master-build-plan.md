@@ -15,7 +15,7 @@ cheaper to recover from a `RETURNED` verification).
 | IP-0002 | Extend generation to pulse B + wave channel (scale-constrained walk + wave-as-bass role) | FEAT-1000, FEAT-1010 | **VERIFIED** ([IP-0002](packages/IP-0002-pulse-b-and-wave-channel.md), 60/60 tests; [VR-0002](verification/VR-0002-pulse-b-and-wave-channel.md), fresh-session independent verification) |
 | IP-0003 | Noise channel (Euclidean-gated hits) + density preset table wiring | FEAT-1000 | **VERIFIED** ([IP-0003](packages/IP-0003-noise-channel-and-density.md), 60/60 tests; [VR-0003](verification/VR-0003-noise-channel-and-density.md), fresh-session independent verification) |
 | IP-0004 | Bad-zone detection (dissonance + stale + overload scoring, combined flag) | FEAT-1030 | **VERIFIED** ([IP-0004](packages/IP-0004-bad-zone-detection.md), 60/60 tests; [VR-0004](verification/VR-0004-bad-zone-detection.md), fresh-session independent verification) |
-| IP-0005 | Reset-to-preset (Select) | FEAT-1020 | **COMPLETE** ([IP-0005](packages/IP-0005-full-reset-scope.md) — delivered incrementally by IP-0002-0004, audited complete) |
+| IP-0005 | Reset-to-preset (Select) | FEAT-1020 | **VERIFIED** ([IP-0005](packages/IP-0005-full-reset-scope.md), 60/60 tests; [VR-0005](verification/VR-0005-full-reset-scope.md), fresh-session independent verification — closed `BL-0014`) |
 | IP-0006 | Minimal visualizer (tile/palette reacting to NR52 + bad-zone flag) | FEAT-1040 | **COMPLETE** ([IP-0006](packages/IP-0006-minimal-visualizer.md), 56/56 tests; verification pending) |
 | IP-0007 | Autonomous bad-zone avoidance/recovery (no input required) + Select reframed as reset-and-randomize | FEAT-1030 (extended) | **COMPLETE** ([IP-0007](packages/IP-0007-autonomous-recovery-and-randomize.md), 60/60 tests; verification pending) |
 | IP-0008+ | Extended headless test coverage per package (rode along with each package above, not a separate late pass) | FEAT-1050 | ONGOING — 60/60 across T1-T10 |
@@ -27,11 +27,12 @@ stress run confirming both entry into and self-recovery from a bad zone with no 
 through IP-0007 were self-tested in the same session that authored them (the user authorized
 "accept single session limitations just this once" for the MVP push, `BL-0012`) — independent
 verification via `09-package-verification` is owed for each, one per fresh session, same as
-`IP-0001` originally was before its own independent verification (`VR-0001`). **IP-0002, IP-0003,
-and IP-0004 are now independently `VERIFIED`** ([VR-0002](verification/VR-0002-pulse-b-and-wave-channel.md),
+`IP-0001` originally was before its own independent verification (`VR-0001`). **IP-0002 through
+IP-0005 are now independently `VERIFIED`** ([VR-0002](verification/VR-0002-pulse-b-and-wave-channel.md),
 [VR-0003](verification/VR-0003-noise-channel-and-density.md),
-[VR-0004](verification/VR-0004-bad-zone-detection.md), all the same genuinely fresh session) —
-IP-0005 through IP-0007 remain owed.
+[VR-0004](verification/VR-0004-bad-zone-detection.md),
+[VR-0005](verification/VR-0005-full-reset-scope.md), all the same genuinely fresh session) —
+IP-0006 and IP-0007 remain owed.
 
 ## G5 gate (every stage-08 run)
 

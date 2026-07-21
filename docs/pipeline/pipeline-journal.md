@@ -2,8 +2,8 @@
 
 ## Position
 
-- **Updated:** 2026-07-21 (run #13) — **10-integration-review complete: 2 findings (BL-0019 High, BL-0018 Low-Medium)**
-- **Increment:** Foundation release bucket — all 7 packages `VERIFIED`; integration-reviewed with a High finding open. **Not yet recommended for `11-release-readiness`.**
+- **Updated:** 2026-07-21 (run #14) — **Remediation packages authored: IP-9010/IP-9020, both await G3**
+- **Increment:** Foundation release bucket — all 7 packages `VERIFIED`, integration-reviewed. Remediation tranche (`IP-9010`/`IP-9020`) planned but not authorized. **Not yet recommended for `11-release-readiness`.**
 - **Pipeline state:**
   - `01-vision`: ✅ MSTR-001 **v1.1** (amended: bad-zone must be autonomously recoverable, Select
     reframed as reset-and-randomize) + GDS-00 authored.
@@ -54,25 +54,30 @@
     responsibility, not a separate finding).
   - `11-release-readiness`: **not reached — recommend against advancing** until `BL-0019` is
     remediated and re-verified, per the integration review's own verdict.
+  - `07-implementation-planning`: ✅ run this run — authored the pipeline's first remediation
+    tranche: [`01-technical-work-breakdown.md`](../implementation/01-technical-work-breakdown.md)
+    (verb-inventory + supersession-sweep for both), [`IP-9010`](../implementation/packages/IP-9010-channel-mix-gating.md)
+    (wires `CHMIX_IDX` to a real channel-activity-mask table, `BL-0019`) and
+    [`IP-9020`](../implementation/packages/IP-9020-overload-threshold-recalibration.md)
+    (recalibrates `OVERLOAD_THRESHOLD`/`ONSET_WINDOW_FRAMES`, `BL-0017`). Both fully specified,
+    **neither `READY`/authorized** — this project carries no G3 bootstrap carve-out.
 - **Backlog:** 16 open entries (`BL-0001`, `BL-0005`...`BL-0007`, `BL-0010`...`BL-0013`, `BL-0015`
   ...`BL-0019`; `BL-0002`/`BL-0003`/`BL-0004`/`BL-0008`/`BL-0009`/`BL-0014` are `DONE`, pending
-  archiving at the next triage sweep) — none `NEEDS-USER`. `BL-0018`/`BL-0019` filed this run
-  (both `SCHEDULED`, not deferred — `BL-0019` is High, correctness before it is deferred requires
-  the user's agreement, and none was sought since it wasn't deferred).
-- **Next step:** `07-implementation-planning` should author a remediation package for `BL-0019`
-  (channel-mix has no consumer — the review's headline finding) and, ideally in the same pass,
-  `BL-0017` (OVERLOAD threshold unreachable) — both are code-scoped fixes needing
-  `07`→`08`→`09` before `10-integration-review` can be meaningfully re-run and
-  `11-release-readiness` considered. Alongside that (unblocked, doc-only, can proceed anytime):
+  archiving at the next triage sweep) — none `NEEDS-USER` yet (see gate below — `IP-9010`/
+  `IP-9020`'s G3 authorization is about to be put to the user this run, not deferred silently).
+- **Next step:** GATED — see Open gates. Once authorized, `08-code-implementation` builds
+  `IP-9010` first (higher severity, per the TWBS's sequencing note), then `IP-9020`, each verified
+  via `09-package-verification` before the next starts; `10-integration-review` re-runs once both
+  are `VERIFIED`. Alongside that (unblocked, doc-only, can proceed anytime):
   `06-feature-specification` owes the retroactive FS-100...FS-105 backfill (`BL-0006`/`BL-0012`),
   and `03-architecture-design-synthesis`/`02-research-game-design`/`04-requirements-engineering`
   owe reconciling GDS-03/GDS-07/R204/`FR-1090`/`FR-1120`/GDS-07's missing addresses (`BL-0013`,
   `BL-0016`, `BL-0018`).
-- **Open gates:** `08-code-implementation`'s G3 authorization will apply once
-  `07-implementation-planning` has authored packages for `BL-0017`/`BL-0019` and the pipeline
-  reaches building them (not yet attempted — planning packages don't themselves need G3).
-  `11-release-readiness` GO is not being sought for this bucket yet, per the integration review's
-  own recommendation.
+- **Open gates:** **G3 authorization for `IP-9010` and `IP-9020`** — both fully specified,
+  neither authorized; this project carries no bootstrap carve-out, so an explicit per-package
+  go-ahead is required before `08-code-implementation` may build either. This run stops here to
+  ask. `11-release-readiness` GO is not being sought for this bucket yet either way, per the
+  integration review's own recommendation.
 
 ## Run log
 
@@ -91,6 +96,7 @@
 | 11 | 2026-07-21 | iterate (same session, no gate hit) | `09-package-verification` | `IP-0006` | Continuing this fresh session. Read the new `visuals.py` in full — confirmed it's a genuinely read-only consumer (only writes `LCDC`/`BCPS`/`BCPD`/tilemap/tile-data, never engine-state or a PSG register). Rebuilt (32768 bytes, valid header) and re-ran the full suite: **60 PASS, 0 FAIL**. Went beyond T9's WRAM-only checks and independently drove the palette/bad-zone reaction via rendered pixels (`pb.screen.ndarray`) — first pass looked inverted (bit3-set frames showing the calm color and vice versa), investigated rather than assumed a defect, and correctly explained it as the expected one-frame VBlank palette-write-takes-effect-next-frame lag (every sample matched the *previous* frame's flag with zero exceptions across ~30 transitions) — not a ROM bug. Also found a real doc-coherence gap: `FR-1120` requires tempo representation but `visuals.py` never reads `TEMPO_IDX` (grep confirmed zero matches) — the package doc's own "Explicit non-scope" note already flags tempo-synced motion as unbuilt, so this is a known simplification, but `FR-1120`'s text doesn't reflect it (same pattern as `BL-0013`/`FR-1090`, one requirement over). Filed `BL-0016` (new ID, distinct requirement from `BL-0013`). Wrote [VR-0006](../implementation/verification/VR-0006-minimal-visualizer.md), advanced `IP-0006` `COMPLETE`→`VERIFIED`. | `Next: 09-package-verification on IP-0007 — the last package owed independent verification — in this same still-independent session. 10-integration-review follows immediately once it's VERIFIED. FS-100...FS-105 backfill (BL-0006/BL-0012) and GDS-03/GDS-07/R204/FR-1090/FR-1120 reconciliation (BL-0013, BL-0016) remain unblocked, doable anytime.` |
 | 12 | 2026-07-21 | iterate (same session, no gate hit) | `09-package-verification` | `IP-0007` | Continuing this fresh session — the last package owed independent verification. Confirmed the dissonant/stuck/overload override code, the `DIV`-reseeding, and both `JR`→`JP_NZ` fixes from the tree. Rebuilt (32768 bytes, valid header) and re-ran the full suite: **60 PASS, 0 FAIL**. Independently confirmed the dissonance pull-toward-tonic mechanism directly (not just T10's aggregate "eventually recovers"): sampled 8000 frames of `CUR_DEGREE_PA` changes split by whether the prior onset was DISSONANT-flagged — 51/51 such deltas were exactly `-1`, zero exceptions, vs. a mixed `{-1:98, 1:42}` unconditionally. Attempted to independently trigger OVERLOAD (bit2) by driving `DENSITY_IDX` to max and running 6000 frames — it never set. Computed the theoretical ceiling directly: even at the fastest tempo *and* max density simultaneously, the maximum possible onsets in one 32-frame window is `≈8.8`, well under `OVERLOAD_THRESHOLD=20` — meaning `FR-1100`/`IP-0007`'s own overload-recovery doubling logic are code-complete but structurally unreachable, not merely untuned as `BL-0005` vaguely already said. Filed `BL-0017` (new ID, Medium-High — a real functional gap, `SCHEDULED` for a remediation package via `07-implementation-planning`/`08-code-implementation`, not just a doc reword). Wrote [VR-0007](../implementation/verification/VR-0007-autonomous-recovery-and-randomize.md), advanced `IP-0007` `COMPLETE`→`VERIFIED`. **All 7 Foundation packages are now independently `VERIFIED`.** | `Next: 10-integration-review on the full 7-package tranche — the standing verification gate is satisfied. BL-0017 (OVERLOAD unreachable) should be weighed by that review. FS-100...FS-105 backfill (BL-0006/BL-0012), GDS/FR reconciliation (BL-0013/BL-0016), and BL-0017's remediation package remain unblocked/scheduled, doable anytime (BL-0017's actual implementation needs G3 when reached).` |
 | 13 | 2026-07-21 | iterate (no gate hit) | `10-integration-review` | Foundation release bucket (`IP-0001`-`IP-0007`) | Confirmed all 7 packages `VERIFIED` on the Master Build Plan before starting. Ran the full-suite gate against the reviewed commit: 32768 bytes, valid header, 60/60. Exercised all 5 review dimensions: (1) interface consistency — traced `build_rom.py`'s full boot/per-frame call order and the `CHANNELS` shared-list interface, clean; (2) invariant sweep — ROM budget/VBlank-gating clean by construction and by read; **found `BL-0018`** (six WRAM addresses `IP-0002`/`IP-0003`/`IP-0004` added — `LFSR_STATE_PB`/`WV`, `NOISE_STEP_IDX`, `SEMI_PA`/`PB`/`WV` — never added to GDS-07, Low-Medium doc gap); (3) behavioral coherence — traced every `CHMIX_IDX` reference across the whole tree and **found `BL-0019`**: the Start-button channel-mix parameter is stepped/reset correctly but has zero consumers anywhere — no channel is ever gated on it, and `IP-0001`'s own package doc explicitly promised `IP-0002`/`0003` would wire it, a promise `IP-0003` kept for `DENSITY_IDX` but no package ever kept for `CHMIX_IDX`; none of the 7 independent VRs caught this since each audited only its own package (High severity — contradicts `FR-1000`/`FR-1010`'s text and `FEAT-1000`'s "delivered" status); (4) traceability coherence — Master Build Plan/packages-INDEX/verification-INDEX all consistent; `ROADMAP.md` found stale (still said "1/7 verified," "10 not reached") and corrected as part of this review's own named responsibility, not filed as a separate finding; (5) documentation coherence — `Claude.md`/`memory.md` both accurate, `Claude.md` already informally noted the channel-mix gap but it was never formally backlogged before now. Wrote [integration-review-foundation-bucket.md](../reviews/integration-review-foundation-bucket.md) (2 findings: `BL-0019` High, `BL-0018` Low-Medium; `BL-0017` re-surfaced not duplicated), updated `ROADMAP.md` and `docs/reviews/INDEX.md`. Verdict: recommend against `11-release-readiness` until `BL-0019` is remediated and re-verified. | `Next: 07-implementation-planning should author remediation packages for BL-0019 (channel-mix, High) and BL-0017 (OVERLOAD threshold, Medium-High) — both code-scoped, needing 07→08→09 before 10-integration-review can be meaningfully re-run and 11-release-readiness considered. FS-100...FS-105 backfill (BL-0006/BL-0012) and GDS-03/GDS-07/R204/FR-1090/FR-1120/BL-0018 reconciliation remain unblocked doc-only work, doable anytime.` |
+| 14 | 2026-07-21 | iterate | `07-implementation-planning` | `BL-0019`, `BL-0017` | Authored the pipeline's first remediation tranche: [`01-technical-work-breakdown.md`](../implementation/01-technical-work-breakdown.md) (verb-inventory for both — `IP-9010` owns the previously-unowned "apply" verb for channel-mix; `IP-9020` is a pure constant recalibration, no verb gap; supersession sweep confirmed clean for `IP-9010`, not applicable for `IP-9020`), `IP-9010` (channel-mix gating — new `CHMIX_MASKS` table + per-channel gating in `_emit_channel_gen`/`_emit_noise_gen`; flags a real design question for stage 08 to resolve explicitly: should an excluded channel's dissonance contribution still count toward bad-zone scoring), `IP-9020` (recalibrate `OVERLOAD_THRESHOLD`/`ONSET_WINDOW_FRAMES` so bit2 is reachable during realistic, not just theoretical-maximum, play — with an explicit warning against overcorrecting into spurious triggers at default settings). Updated the Master Build Plan, `packages/INDEX.md`, `ROADMAP.md`. Both packages fully specified but **not `READY`/authorized** — no G3 go-ahead on record for either, and this project has no bootstrap carve-out. | `GATE: G3 authorization needed for IP-9010 and IP-9020 before 08-code-implementation may build either. Stopping the iterate loop here to ask the user. Once authorized: 08-code-implementation builds IP-9010 first (higher severity), then IP-9020, each verified via 09-package-verification before the next starts; 10-integration-review re-runs once both are VERIFIED. FS-100...FS-105 backfill and GDS/FR/GDS-07-doc reconciliation (BL-0006/BL-0012/BL-0013/BL-0016/BL-0018) remain unblocked doc-only work in the meantime.` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

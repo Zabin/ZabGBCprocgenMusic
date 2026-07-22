@@ -65,6 +65,6 @@ authored).
 
 ## 7. Related Topics
 
-R108 (the WRAM mirror + NR52 this topic says the visualizer must read), R208 (CGB palette
-mechanics for whatever concrete palette count GDS-08 settles on), R110 (VBlank write-budget
-constraint favoring a template-based approach).
+R108 (the WRAM mirror + NR52 this topic says the visualizer must read), R208 (now authored — CGB
+palette mechanics plus a new accessibility finding on the shipped calm/bad-zone palette's
+luminance gap), R110 (VBlank write-budget constraint favoring a template-based approach).

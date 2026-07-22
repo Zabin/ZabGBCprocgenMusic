@@ -2,19 +2,19 @@
 
 ## Position
 
-- **Updated:** 2026-07-22 (run #15) — **User-directed research/architecture push: R100 tier closed out**
+- **Updated:** 2026-07-22 (run #16) — **User-directed research/architecture push: R200 tier closed out**
 - **Increment:** Foundation release bucket unchanged (all 7 `VERIFIED`, integration-reviewed, `IP-9010`/`IP-9020` still await G3 — not being re-asked this run per explicit user direction). New thread this run: user directed closing out all open research topics and revisiting top-tier hierarchy (vision/architecture), adjusting vision as new research warrants.
 - **Pipeline state:**
   - `01-vision`: ✅ MSTR-001 **v1.1** (amended: bad-zone must be autonomously recoverable, Select
     reframed as reset-and-randomize) + GDS-00 authored.
-  - `02-research-*`: 🟡 34-topic encyclopedia. **R100 tier (hardware) fully closed out this run**
-    (R101-R115 all `✅`, run #15) — R102/R103/R104 grounded the already-shipped `visuals.py`
-    VBlank-gating/LCDC/palette design now that `IP-0006`'s deferral trigger fired; R101/R105/R106
-    confirmed their "no gap yet" reasoning with real citations rather than staying bare rows; R112
-    ties the whole address space together. R200/R300 tiers still have `⛔ Planned` rows open:
-    R208 (palette/color design conventions), R302/R303/R304/R306 (codegen patterns, tile
-    encoding, ROM validation split, toolchain portability) — next in this run's queue per the
-    user's "all open research topics" direction.
+  - `02-research-*`: 🟡 35-topic encyclopedia. **R100 tier (hardware) fully closed out run #15**
+    (R101-R115 all `✅`). **R200 tier (design) now also fully closed out** (R208, the last
+    `⛔ Planned` R2xx row, authored run #16) — confirms the shipped `visuals.py` calm/bad-zone
+    palette follows real warning-color convention, but surfaces a new accessibility finding
+    (`BL-0021`: the calm/bad luminance gap is real but narrow, ~27%, worth widening or
+    supplementing with a non-color signal). R300 tier still has 4 `⛔ Planned` rows open (R302
+    codegen patterns, R303 tile encoding, R304 ROM validation, R306 toolchain portability) — next
+    in this run's queue.
   - `03-architecture-design-synthesis`: 🟡 GDS-00/01/03/07 authored (GDS-01/03 amended this run
     for autonomous recovery + Select randomization); GDS-02/04/05/06/08/09/10 remain `⛔ Planned`
     (`BL-0001`). Shipped code deviates from two GDS-03/GDS-07/R204 details in documented,
@@ -68,20 +68,21 @@
     [`IP-9020`](../implementation/packages/IP-9020-overload-threshold-recalibration.md)
     (recalibrates `OVERLOAD_THRESHOLD`/`ONSET_WINDOW_FRAMES`, `BL-0017`). Both fully specified,
     **neither `READY`/authorized** — this project carries no G3 bootstrap carve-out.
-- **Backlog:** 17 open entries (`BL-0001`, `BL-0005`...`BL-0007`, `BL-0010`...`BL-0013`, `BL-0015`
-  ...`BL-0020`; `BL-0002`/`BL-0003`/`BL-0004`/`BL-0008`/`BL-0009`/`BL-0014` are `DONE`, pending
-  archiving at the next triage sweep) — `BL-0020` (new, filed by `00-intake` between runs)
-  dispositioned `SCHEDULED` this run, riding `03-architecture-design-synthesis` later in this same
-  run. `IP-9010`/`IP-9020`'s G3 authorization remains an open gate but is **not being re-asked
-  this run** — the user explicitly redirected attention to research/architecture work instead;
-  the gate stays recorded, not silently dropped.
+- **Backlog:** 18 open entries (`BL-0001`, `BL-0005`...`BL-0007`, `BL-0010`...`BL-0013`, `BL-0015`
+  ...`BL-0021`; `BL-0002`/`BL-0003`/`BL-0004`/`BL-0008`/`BL-0009`/`BL-0014` are `DONE`, pending
+  archiving at the next triage sweep). `BL-0020` `SCHEDULED` (rides `03-architecture-design-synthesis`
+  later this run). `BL-0021` (new, accessibility finding on the shipped calm/bad-zone palette's
+  narrow luminance gap) `SCHEDULED` for a future `visuals.py`-touching package, not urgent enough
+  to jump ahead of `BL-0019`/`BL-0017`. `IP-9010`/`IP-9020`'s G3 authorization remains an open gate
+  but is **not being re-asked this run** — the user explicitly redirected attention to
+  research/architecture work instead; the gate stays recorded, not silently dropped.
 - **Next step (mid-run — user-directed research/architecture push in progress):** continue this
-  run's queue: `02-research-game-design` (R208), `02-research-tooling-and-testing`
-  (R302/R303/R304/R306) — closing every remaining `⛔ Planned` research row — then `01-vision`
-  (review whether the now-complete encyclopedia warrants a MSTR-001/GDS-00 amendment), then
-  `03-architecture-design-synthesis` (`BL-0020`'s combinable-schemes question, plus the standing
-  `BL-0013`/`BL-0018` reconciliation debt). Separately, still unblocked whenever picked up:
-  `06-feature-specification`'s FS-100...FS-105 backfill (`BL-0006`/`BL-0012`).
+  run's queue: `02-research-tooling-and-testing` (R302/R303/R304/R306, the last `⛔ Planned`
+  research rows) — then `01-vision` (review whether the now-complete 35-topic encyclopedia
+  warrants a MSTR-001/GDS-00 amendment), then `03-architecture-design-synthesis` (`BL-0020`'s
+  combinable-schemes question, plus the standing `BL-0013`/`BL-0018` reconciliation debt).
+  Separately, still unblocked whenever picked up: `06-feature-specification`'s FS-100...FS-105
+  backfill (`BL-0006`/`BL-0012`).
 - **Open gates:** **G3 authorization for `IP-9010` and `IP-9020`** remains open from run #14 —
   not re-asked this run per the user's explicit redirection, not resolved either. A genuinely new
   gate (Vision-level tension, a fresh `NEEDS-USER`) could still stop this run's research/
@@ -106,6 +107,7 @@
 | 13 | 2026-07-21 | iterate (no gate hit) | `10-integration-review` | Foundation release bucket (`IP-0001`-`IP-0007`) | Confirmed all 7 packages `VERIFIED` on the Master Build Plan before starting. Ran the full-suite gate against the reviewed commit: 32768 bytes, valid header, 60/60. Exercised all 5 review dimensions: (1) interface consistency — traced `build_rom.py`'s full boot/per-frame call order and the `CHANNELS` shared-list interface, clean; (2) invariant sweep — ROM budget/VBlank-gating clean by construction and by read; **found `BL-0018`** (six WRAM addresses `IP-0002`/`IP-0003`/`IP-0004` added — `LFSR_STATE_PB`/`WV`, `NOISE_STEP_IDX`, `SEMI_PA`/`PB`/`WV` — never added to GDS-07, Low-Medium doc gap); (3) behavioral coherence — traced every `CHMIX_IDX` reference across the whole tree and **found `BL-0019`**: the Start-button channel-mix parameter is stepped/reset correctly but has zero consumers anywhere — no channel is ever gated on it, and `IP-0001`'s own package doc explicitly promised `IP-0002`/`0003` would wire it, a promise `IP-0003` kept for `DENSITY_IDX` but no package ever kept for `CHMIX_IDX`; none of the 7 independent VRs caught this since each audited only its own package (High severity — contradicts `FR-1000`/`FR-1010`'s text and `FEAT-1000`'s "delivered" status); (4) traceability coherence — Master Build Plan/packages-INDEX/verification-INDEX all consistent; `ROADMAP.md` found stale (still said "1/7 verified," "10 not reached") and corrected as part of this review's own named responsibility, not filed as a separate finding; (5) documentation coherence — `Claude.md`/`memory.md` both accurate, `Claude.md` already informally noted the channel-mix gap but it was never formally backlogged before now. Wrote [integration-review-foundation-bucket.md](../reviews/integration-review-foundation-bucket.md) (2 findings: `BL-0019` High, `BL-0018` Low-Medium; `BL-0017` re-surfaced not duplicated), updated `ROADMAP.md` and `docs/reviews/INDEX.md`. Verdict: recommend against `11-release-readiness` until `BL-0019` is remediated and re-verified. | `Next: 07-implementation-planning should author remediation packages for BL-0019 (channel-mix, High) and BL-0017 (OVERLOAD threshold, Medium-High) — both code-scoped, needing 07→08→09 before 10-integration-review can be meaningfully re-run and 11-release-readiness considered. FS-100...FS-105 backfill (BL-0006/BL-0012) and GDS-03/GDS-07/R204/FR-1090/FR-1120/BL-0018 reconciliation remain unblocked doc-only work, doable anytime.` |
 | 14 | 2026-07-21 | iterate | `07-implementation-planning` | `BL-0019`, `BL-0017` | Authored the pipeline's first remediation tranche: [`01-technical-work-breakdown.md`](../implementation/01-technical-work-breakdown.md) (verb-inventory for both — `IP-9010` owns the previously-unowned "apply" verb for channel-mix; `IP-9020` is a pure constant recalibration, no verb gap; supersession sweep confirmed clean for `IP-9010`, not applicable for `IP-9020`), `IP-9010` (channel-mix gating — new `CHMIX_MASKS` table + per-channel gating in `_emit_channel_gen`/`_emit_noise_gen`; flags a real design question for stage 08 to resolve explicitly: should an excluded channel's dissonance contribution still count toward bad-zone scoring), `IP-9020` (recalibrate `OVERLOAD_THRESHOLD`/`ONSET_WINDOW_FRAMES` so bit2 is reachable during realistic, not just theoretical-maximum, play — with an explicit warning against overcorrecting into spurious triggers at default settings). Updated the Master Build Plan, `packages/INDEX.md`, `ROADMAP.md`. Both packages fully specified but **not `READY`/authorized** — no G3 go-ahead on record for either, and this project has no bootstrap carve-out. | `GATE: G3 authorization needed for IP-9010 and IP-9020 before 08-code-implementation may build either. Stopping the iterate loop here to ask the user. Once authorized: 08-code-implementation builds IP-9010 first (higher severity), then IP-9020, each verified via 09-package-verification before the next starts; 10-integration-review re-runs once both are VERIFIED. FS-100...FS-105 backfill and GDS/FR/GDS-07-doc reconciliation (BL-0006/BL-0012/BL-0013/BL-0016/BL-0018) remain unblocked doc-only work in the meantime.` |
 | 15 | 2026-07-22 | iterate (user-directed: prioritize top-tier hierarchy + all open research; route around the still-open G3 gate rather than re-asking) | `02-research-gbc-hardware` | R101, R102, R103, R104, R105, R106, R112 (all seven remaining `⛔ Planned` R100-tier rows) | User directed this run to close out every open research topic and revisit vision/architecture as new findings warrant, explicitly instructing the manager not to re-ask the still-open `IP-9010`/`IP-9020` G3 question. Ran real `WebSearch` research per topic (Pan Docs CPU instruction timing, PPU mode/VRAM-OAM access rules, LCDC/STAT bit layout, CGB BCPS/BCPD palette protocol, OAM/DMA, MBC/SRAM, whole-address-space memory map). R102/R103/R104's stated deferral trigger (`IP-0006` shipping) has fired — grounded the already-shipped `visuals.py` VBlank-gating/LCDC-config/palette-write pattern against the real hardware contract for the first time (previously correct by inspection only, per `10-integration-review`'s Dimension 2). R101/R105/R106 confirmed their "no gap yet" reasoning still holds, now with real citations instead of a bare index row. R112 ties the whole address space together as an orientation map, cross-referencing every other R1xx topic. Light cross-links added to R109/R110. **The entire R100 tier is now closed out** (R101-R115 all `✅`). Also triaged `BL-0020` (filed by `00-intake` between runs #14 and #15) — dispositioned `SCHEDULED`, riding this run's later `03-architecture-design-synthesis` step. | `Next: continue this run's queue — 02-research-game-design (R208), 02-research-tooling-and-testing (R302/R303/R304/R306), then 01-vision (review whether the now-larger encyclopedia warrants amendment), then 03-architecture-design-synthesis (BL-0020, BL-0013, BL-0018). IP-9010/IP-9020's G3 gate remains open but unasked this run, per explicit user direction.` |
+| 16 | 2026-07-22 | iterate (user-directed, same run as #15) | `02-research-game-design` | R208 (last remaining `⛔ Planned` R2xx row) | Continuing the user-directed research push. Ran real `WebSearch` research on color semiotics (red-for-warning/green-for-calm as near-universal UI convention) and pixel-art palette-restraint convention (Game Boy Color's own historical aesthetic), then checked the shipped `visuals.py` `CALM_PALETTE`/`BAD_PALETTE` design against both — confirmed the red/calm semantic and single-palette restraint both match real convention (not arbitrary choices). Went further and computed approximate perceived luminance for each palette's "on" color (`0.3R+0.59G+0.11B` on the 0-31 scale): `CALM` idx3 ≈21.7, `BAD` idx3 ≈15.9 — a real but narrow (~27%) gap. Cross-checked against red-green color-vision-deficiency accessibility convention (WebAIM, Colblindor) — the design isn't relying on hue alone (a genuine brightness difference exists), but the gap is narrow enough it may not read clearly at a glance under red-green CVD, and nothing (R205, GDS-03, the `IP-0006` package doc, or `VR-0006`'s hue-only pixel check) had evaluated this. Filed `BL-0021` (new, Low-Medium, accessibility/design-quality — no functional defect). **R200 tier (design research) now fully closed out** — R201-R218 all `✅`. | `Next: 02-research-tooling-and-testing (R302/R303/R304/R306) — the last research tier's remaining planned rows. Then 01-vision, then 03-architecture-design-synthesis (BL-0020/BL-0013/BL-0018). IP-9010/IP-9020's G3 gate remains open but unasked, per explicit user direction.` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

@@ -20,18 +20,18 @@ replacement topic(s) at the top.
 
 | ID | Topic | File | Status |
 |---|---|---|---|
-| R101 | SM83 instruction set & cycle costs | R101-*.md | ⛔ Planned (no gap yet — `gbc_lib.py`'s opcode emitters are simple and unambiguous; author if a future package needs cycle-exact timing) |
-| R102 | PPU modes, VBlank & VRAM/OAM access timing | R102-*.md | ⛔ Planned (no visuals yet — `IP-0006`) |
-| R103 | LCDC/STAT registers | R103-*.md | ⛔ Planned (`IP-0006`) |
-| R104 | CGB palette system (BCPS/BCPD, OCPS/OCPD, RGB15) | R104-*.md | ⛔ Planned (`IP-0006`) |
-| R105 | OAM, sprites & OAM DMA | R105-*.md | ⛔ Planned (Driftune has no sprites — author only if that changes) |
-| R106 | MBC/SRAM | R106-*.md | ⛔ Planned (MSTR-001 C2: no SRAM commitment at v1 — author only if that non-goal is revisited) |
+| R101 | SM83 instruction set & cycle costs | [encyclopedia/R101-sm83-instruction-set-and-cycle-costs.md](encyclopedia/R101-sm83-instruction-set-and-cycle-costs.md) | ✅ Authored 2026-07-22 (confirms no gap — `gbc_lib.py`'s opcode emitters stay simple; cycle-exact accounting not currently warranted, empirical stress-test evidence covers NFR-1010) |
+| R102 | PPU modes, VBlank & VRAM/OAM access timing | [encyclopedia/R102-ppu-modes-and-vram-oam-access-timing.md](encyclopedia/R102-ppu-modes-and-vram-oam-access-timing.md) | ✅ Authored 2026-07-22 (`IP-0006`'s trigger fired — grounds the shipped VBlank-gated `visuals.py` write pattern) |
+| R103 | LCDC/STAT registers | [encyclopedia/R103-lcdc-and-stat-registers.md](encyclopedia/R103-lcdc-and-stat-registers.md) | ✅ Authored 2026-07-22 (`IP-0006`'s trigger fired) |
+| R104 | CGB palette system (BCPS/BCPD, RGB15) | [encyclopedia/R104-cgb-palette-system.md](encyclopedia/R104-cgb-palette-system.md) | ✅ Authored 2026-07-22 (`IP-0006`'s trigger fired; grounds `visuals.py`'s `_emit_write_palette`/`rgb15`) |
+| R105 | OAM, sprites & OAM DMA | [encyclopedia/R105-oam-sprites-and-dma.md](encyclopedia/R105-oam-sprites-and-dma.md) | ✅ Authored 2026-07-22 (confirms no gap — Driftune has no sprites; records the real DMA/HRAM contract for if that ever changes) |
+| R106 | MBC/SRAM | [encyclopedia/R106-mbc-and-sram.md](encyclopedia/R106-mbc-and-sram.md) | ✅ Authored 2026-07-22 (confirms no gap — MSTR-001 C2's no-SRAM commitment stands; records what an MBC adoption would need) |
 | R107 | Joypad register & dual-read settling | [encyclopedia/R107-joypad-input.md](encyclopedia/R107-joypad-input.md) | ✅ Authored 2026-07-21 |
 | R108 | APU channels & register map | [encyclopedia/R108-apu-sound-channels.md](encyclopedia/R108-apu-sound-channels.md) | ✅ Authored 2026-07-21 (this project's single most load-bearing hardware topic; covers user-list Phase 1 items 6-8 — APU overview, audio registers, pulse channel behavior) |
 | R109 | Cartridge header, checksums & boot requirements | [encyclopedia/R109-cartridge-header.md](encyclopedia/R109-cartridge-header.md) | ✅ Authored 2026-07-21 |
 | R110 | Interrupt model & ISR conventions | [encyclopedia/R110-interrupts-and-timing.md](encyclopedia/R110-interrupts-and-timing.md) | ✅ Authored 2026-07-21 (covers user-list Phase 1 items 4-5 — interrupts/timers, VBlank timing) |
 | R111 | APU hardware quirks & DMG vs. CGB audio differences | [encyclopedia/R111-apu-hardware-quirks.md](encyclopedia/R111-apu-hardware-quirks.md) | ✅ Authored 2026-07-21 (user-list Phase 1 items 14-15) |
-| R112 | GBC hardware architecture overview / memory map & banking | R112-*.md | ⛔ Planned (user-list Phase 1 items 1, 3 — no gap yet: single 32KB bank, no MBC in use; R107-R111/R113 already cover the load-bearing hardware surface. Author only if bank-switching is ever revisited, MSTR-001 §4) |
+| R112 | GBC hardware architecture overview / memory map & banking | [encyclopedia/R112-gbc-memory-map-overview.md](encyclopedia/R112-gbc-memory-map-overview.md) | ✅ Authored 2026-07-22 (user-list Phase 1 items 1, 3 — confirms no gap: single 32KB bank, no MBC in use; ties R101/R104-R110/R112 together as one whole-address-space orientation map) |
 | R113 | Frame sequencer: envelope, length counter & sweep timing | [encyclopedia/R113-frame-sequencer-envelope-length-sweep.md](encyclopedia/R113-frame-sequencer-envelope-length-sweep.md) | ✅ Authored 2026-07-21 (user-list Phase 1 items 11-13) |
 | R114 | Wave channel programming | [encyclopedia/R114-wave-channel-programming.md](encyclopedia/R114-wave-channel-programming.md) | ✅ Authored 2026-07-21 (user-list Phase 1 item 9; Phase 5 item 58) |
 | R115 | Noise channel implementation | [encyclopedia/R115-noise-channel-implementation.md](encyclopedia/R115-noise-channel-implementation.md) | ✅ Authored 2026-07-21 (user-list Phase 1 item 10; Phase 5 item 59) |

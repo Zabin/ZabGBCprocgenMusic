@@ -1,9 +1,10 @@
 # MSTR-001 — Program Vision: Driftune
 
-- **Document ID:** MSTR-001 · **Version:** 1.1 · **Status:** ✅ Authored (from-scratch increment
+- **Document ID:** MSTR-001 · **Version:** 1.2 · **Status:** ✅ Authored (from-scratch increment
   — no shipped ROM exists yet; this vision is the origin of the project, not a restatement of
   existing code)
-- **Date:** 2026-07-21 (v1.0); 2026-07-21 (v1.1 — see §8) · **Owned by:** `01-vision` skill
+- **Date:** 2026-07-21 (v1.0); 2026-07-21 (v1.1 — see §8); 2026-07-22 (v1.2 — see §8) · **Owned
+  by:** `01-vision` skill
 - **Derived from:** the project owner's initial instruction (2026-07-21): build a standalone GBC
   ROM whose primary purpose is real-time procedurally-generated chiptune music, with
   music-reactive visuals, player-steerable generation parameters, and a "bad zone" detection +
@@ -75,8 +76,8 @@ Python-pipeline approach generalizes beyond one game to a structurally different
 
 | # | Commitment | Notes |
 |---|---|---|
-| C1 | The ROM is **CGB-color**, single-bank at present, with a **valid header** (correct logo, checksum, GBC compatibility flag). Single-bank is the current shape, not a permanent ceiling — see the non-goals in §4. | Mirrors the reference project's `gbc_lib.py:set_header` convention; same header-writing code is reused. |
-| C2 | **Cart type and save behavior are deliberately minimal at v1.0**: no SRAM/battery-save commitment is made yet. If a later increment wants to persist a favorite seed/parameter preset across power-off, that is new scope entering through `00-intake`, not assumed here. | Keeps the first increment's scope to the generation/visual/input problem, not a save-game problem. |
+| C1 *(amended v1.2)* | The ROM is **CGB-color**, with a **valid header** (correct logo, checksum, GBC compatibility flag). Cart shape (single-bank vs. MBC/bank-switched) is **not fixed by this vision** — it is an open question for dedicated research (hardware feasibility, build-chain impact) before `03-architecture-design-synthesis` commits to one, not a ceiling assumed for convenience. | Mirrors the reference project's `gbc_lib.py:set_header` convention; same header-writing code is reused for whatever cart type is eventually chosen. |
+| C2 *(amended v1.2)* | **Cart type and save behavior are not decided by this vision.** Whether Driftune persists any state across power-off (a favorite seed, a style preference, a collection of discovered pieces) is an open question for dedicated hardware/UX research, not a foreclosed non-goal. A concrete save design still enters through the normal pipeline (research grounding → architecture → requirements) before it's built — this clause only removes the prior blanket "no save" commitment, it does not commit to a save design either. | Superseded framing: v1.0/v1.1 read "no SRAM/battery-save commitment is made yet," which the project owner has since named as an arbitrary decision mistaken for a firm one — corrected here, not silently. |
 | C3 | The build is the **modular Python assembler chain** — `gbc_lib.py` (reused verbatim) plus this project's own modules — reproducible from source with no external assembler, exactly as `build_rom.py` does in the reference project. | See §0 provenance table. |
 | C4 | **Input steers live generation parameters**, not song selection or menu navigation. The concrete D-pad/face-button → parameter mapping is **not decided here** — it is this vision's explicit delegation to `03-architecture-design-synthesis`, which must propose one concrete mapping (not a menu of options) before requirements are written against it. | Directly requested by the project owner as an architecture-stage deliverable, not a vision-stage guess. |
 | C5 *(amended v1.1)* | **A "bad zone" exists and is recoverable — autonomously, by the generator itself, not only by the player.** The generator must be able to reach a state that is musically bad by some concrete, measurable definition, and it must detect that state **and act on it**, biasing its own generation back toward a good state without requiring input. **Select remains available as a manual override** — it deterministically returns the generator to a known-good starting state (and, as of v1.1, randomizes each channel's melodic starting point too — "reset and randomize," not "the only way out"). The exact detection metric and recovery mechanism are **not decided here** — delegated to `03-architecture-design-synthesis`/`04-requirements-engineering`, same pattern as C4. | Directly requested by the project owner (v1.0: the mechanic must exist and be testable; v1.1: "if you are already able to detect bad zones, avoid them or navigate naturally out of them... Select is only for the user to reset/randomize if they want to"). |
@@ -90,12 +91,68 @@ Python-pipeline approach generalizes beyond one game to a structurally different
 Not commitments against forever — just explicitly *not* promised **yet**, same convention as the
 reference project's own non-goals list: real-hardware certification (emulator verification is the
 gate, same as the reference project) · a traditional win condition, score, or fail state in the
-player-facing sense (the "bad zone" is a musical state, not a game-over) · SRAM/battery save of
-any kind (C2) · localization/text content of any kind (the ROM has no narrative text) ·
-multiplayer/link-cable features · bank-switched ROM growth beyond one bank (revisit only if the
-generation engine's data/code genuinely outgrows 32KB) · MIDI/external-hardware sync or export ·
-reuse of any of the reference project's game-specific content (tiles, tilemaps, world layout,
-melody) — only its generic assembler code and its process are reused, per §0.
+player-facing sense (the "bad zone" is a musical state, not a game-over) · localization/text
+content of any kind (the ROM has no narrative text) · multiplayer/link-cable features ·
+MIDI/external-hardware sync or export · reuse of any of the reference project's game-specific
+content (tiles, tilemaps, world layout, melody) — only its generic assembler code and its process
+are reused, per §0.
+
+**Removed at v1.2** (were listed here in v1.0/v1.1, now explicitly reopened, not decided either
+way — see §8's amendment rationale and §9 below): *SRAM/battery save of any kind* and *bank-switched
+ROM growth beyond one bank*. Neither is now a non-goal — both are open questions this vision
+defers to dedicated research before any architecture commitment is made.
+
+## §9 Future direction — under active research (added v1.2)
+
+The project owner has supplied a substantially larger ambition for what Driftune's musical and
+presentational identity could become than §1-§4 currently commit to: a recognizable but evolving
+musical character spanning many genre references (ambient, chiptune, electronic/dance families,
+jazz/blues, classical/orchestral/folk, synthwave, experimental, and hybrids of these), style
+evolution/drift/blending over a session or across sessions, a fuller harmonic/melodic/rhythmic
+vocabulary (motif development, harmonic progression, song-form structure — intro/build/peak/
+breakdown/ending — rather than only continuous undifferentiated texture), an explicit emotional/
+energy model, a visual identity that evolves alongside the music (theme/palette changes, mood- and
+style-reactive visuals, not only tempo/activity-reactive), and a longer-arc listener relationship
+(favorites, a sense of returning/discovered pieces, a personal collection) — see the project
+owner's full 22-section topic list, preserved verbatim in the pipeline journal's run log for this
+amendment.
+
+**This is recorded here as direction, not as new binding commitments.** Per the project owner's
+own correction (2026-07-22): *"This is exactly why this type of research is needed, arbitrary
+decisions have been mistaken for firm decisions... It should educate the vision through research
+in these areas."* Nothing in this §9 is architecture, requirements, or code — each topic cluster
+is a standing instruction to the owning `02-research-*` skill(s) to investigate feasibility on
+real GBC hardware within whatever cart/save shape §3 C1/C2 eventually settle on, and to report
+back findings this vision (or `03-architecture-design-synthesis`, for design-level questions) can
+then decide against — never to be silently designed around without that research pass. Named
+research threads this section opens (not exhaustive, refined as research actually runs):
+
+- **Musical identity & diversity** (§§3-4 of the topic list): is a recognizable, evolving
+  "signature sound" achievable across multiple genre references on 4 GBC PSG channels, and which
+  referenced genres are realistically expressible at all (a house/techno four-on-the-floor pulse
+  is plausible with the existing noise-channel Euclidean machinery; full jazz voice-leading or
+  orchestral texture may not be, on this hardware, without real research to say so either way) —
+  routes to `02-research-game-design`.
+- **Style evolution, structure, and the emotional/energy model** (§§5, 8-13 of the topic list):
+  what SM83-tractable techniques exist for phrase/motif development, song-form structure, and a
+  drifting-over-time style/energy state — this overlaps and extends the already-open `BL-0010`
+  research gap (no cheap technique yet found for composed musical form) — routes to
+  `02-research-game-design`.
+- **Visual evolution & audio-visual synchronization** (§§15-17 of the topic list): what a
+  richer, evolving visual identity (beyond the current 4-tile/2-palette MVP) costs in ROM/VRAM
+  budget and VBlank time, and what synchronization techniques (beat/structural/mood-mapped) are
+  practical — routes to `02-research-game-design` (convention/technique) and
+  `02-research-gbc-hardware` (VRAM/OAM/palette budget reality).
+- **Cart shape & persistence** (the C1/C2 reopening above, and §§14, 18-19 of the topic list —
+  procedural identity, favorites, collection, sharing): what MBC options exist for a GBC cart,
+  what bank-switching costs the build/test chain, and what a real SRAM/battery-save design would
+  need to support "returning to a favorite piece" — routes to `02-research-gbc-hardware`
+  (MBC/SRAM hardware facts) and `02-research-tooling-and-testing` (multi-bank build/verify
+  chain impact).
+
+No timeline or increment commitment is made for any of this — §9 is a durable record of ambition
+and its open research threads, revisited whenever `01-vision` runs a consistency check, not a
+promise about the next package built.
 
 ## §5 Quality bar
 
@@ -130,3 +187,4 @@ radius enumerated (artifact → owning skill).
 |---|---|---|---|---|
 | 2026-07-21 | 1.0 | Initial authoring — project origin. | Project owner's initial instruction to harvest the reference project's pipeline/toolchain and build a new procgen-music-first GBC ROM. | Grounds `docs/architecture/00-vision.md` (GDS-00) and everything downstream. |
 | 2026-07-21 | 1.1 | Amended C5: the bad-zone mechanic must be autonomously self-correcting, not only Select-recoverable; Select's role reframed as "reset and randomize," a manual override rather than the sole recovery path. | Project owner: "If you are already able to detect bad zones, avoid them or navigate naturally out of them. The Select button is only for the user to reset/randomize if they want to." | GDS-01 §"the loop" (item 4, new), GDS-03 §5 (amended — the autonomous-recovery mechanism and Select's randomize behavior), `IP-0007` (implementation, already shipped and tested at the time this amendment was recorded — the code preceded this doc update in the same session, corrected here per the pipeline's own discipline that vision changes are recorded even when implementation moved first under direct user instruction). |
+| 2026-07-22 | 1.2 | Amended C1/C2: removed the "single-bank at present"/"no SRAM save" framing as fixed non-goals, reopened both as explicit research questions (§9 added). Recorded a large (22-section) future-direction topic list the project owner supplied, spanning musical identity/diversity, style evolution, song structure, emotional/energy model, visual evolution, and longer-arc listener relationship (favorites/collection) — not adopted as binding commitments, but named as standing research threads for the owning `02-research-*` skills. | Project owner, verbatim: "This is exactly why this type of research is needed, arbitrary decisions have been mistaken for firm decisions... It should educate the vision through research in these areas. Do not limit to a single bank ceiling. Do not discount saves." Direct correction of the v1.0/v1.1 framing, which had closed off cart-shape and save-behavior questions without a research basis for doing so. | GDS-00 (matching update to its own non-goal framing, this run), `strategic-assumptions-register.md` A5 (single-32KB-bank assumption reopened, no longer treated as comfortably confirmed), new research topics owed to `02-research-game-design`/`02-research-gbc-hardware`/`02-research-tooling-and-testing` per §9's own routing (none authored yet — this amendment only opens the threads), `03-architecture-design-synthesis` (must not assume single-bank/no-save when it eventually reaches cart-shape/persistence design — wait for the research this amendment commissions). |

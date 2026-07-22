@@ -13,7 +13,7 @@ bootstrap was.
 
 | Level | Title | File | Status |
 |---|---|---|---|
-| GDS-00 | Vision | [00-vision.md](00-vision.md) | ✅ Authored 2026-07-21 |
+| GDS-00 | Vision | [00-vision.md](00-vision.md) | ✅ Authored 2026-07-21; amended 2026-07-22 (v1.1 drift fix); amended 2026-07-22 (v1.2 — cart-shape/save reopened, not decided) |
 | GDS-01 | Concept of Interaction | [01-concept-of-play.md](01-concept-of-play.md) | ✅ Authored 2026-07-21 |
 | GDS-02 | System Context | 02-system-context.md | ⛔ Planned |
 | GDS-03 | Architecture (module layout, main loop, input->parameter mapping, bad-zone metric) | [03-architecture.md](03-architecture.md) | ✅ Authored 2026-07-21 (SS1-5; SS6 lists what's still open); reconciled 2026-07-22 against shipped `IP-0004`/`IP-0007` (`BL-0013`, `BL-0017` root-cause note) |

@@ -1,7 +1,8 @@
 # GDS-00 — Vision (design-facing restatement)
 
 - **Owned by:** `01-vision` · **Status:** ✅ Authored 2026-07-21; amended 2026-07-22 (v1.1
-  drift fix, see below) · **Source:** `docs/master/MSTR-001-program-vision.md` v1.1
+  drift fix); amended 2026-07-22 (v1.2 cart-shape/save reopening, see below) · **Source:**
+  `docs/master/MSTR-001-program-vision.md` v1.2
 
 This is the design-facing restatement of MSTR-001, in the vocabulary the GDS ladder builds on.
 MSTR-001 is authoritative for purpose-level statements; this document translates its commitments
@@ -54,6 +55,19 @@ MSTR-001 (C6's "generation logic... every frame" already accommodates one scheme
 without requiring either). Noted here only so `03-architecture-design-synthesis` picks it up with
 the same "propose one concrete design, not an options menu" discipline the other two items
 already carry, when it takes up `BL-0020`.
+
+## Cart shape and persistence — reopened, not decided (v1.2)
+
+Earlier drafts of this document (and MSTR-001 v1.0/v1.1) treated "single 32KB bank, no SRAM save"
+as settled shape. MSTR-001 v1.2 reopened both — the project owner named this as an arbitrary
+decision that had been mistaken for a firm one. **This document does not decide the replacement
+either.** `03-architecture-design-synthesis` must not assume single-bank/no-save when it reaches
+cart-shape or persistence design; it should wait for (or itself request) the research MSTR-001 §9
+commissions — MBC/bank-switching hardware facts and build-chain impact, and what a real save
+design would need to support a longer-arc listener relationship (favorites, returning to a
+discovered piece). Until that research lands, this remains an open item of the same shape as the
+input-mapping/bad-zone-metric/scheme-combination items already delegated to GDS-03 below — a
+fourth thing not guessed here.
 
 ## Testability requirement carried down from MSTR-001 C9
 

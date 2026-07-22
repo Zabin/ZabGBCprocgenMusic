@@ -70,4 +70,6 @@ No current `IP-xxxx`; feeds a combined research-gap backlog entry for future sco
 ## 7. Related Topics
 R201/R211 (note/phrase-level generation — the same gap from a lower altitude), R204 (bad-zone
 mechanic as Driftune's actual tension/release substitute), R206 (player-attributable-change
-convention, why tempo variation is player-steered rather than autonomous).
+convention, why tempo variation is player-steered rather than autonomous), R220 (2026-07-22 —
+concrete song-form-structure technique for this topic's own §10 "musical structure" gap:
+horizontal-resequencing/vertical-layering as a parameter-envelope state machine).

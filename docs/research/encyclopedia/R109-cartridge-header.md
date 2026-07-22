@@ -41,6 +41,7 @@ NFR-1000 (valid header, fixed ROM size), `IP-0001` T1 suite.
 
 ## 7. Related Topics
 R108 (the cart type's interaction with which hardware features are available — ROM ONLY means no
-SRAM-backed persistence is possible even if a later increment wanted it). R106 (MBC/SRAM — the
-cart-type/RAM-size bytes this topic covers, in more depth, for if that scope commitment is ever
+SRAM-backed persistence is possible even if a later increment wanted it). R304 (ROM validation —
+the checksum *mechanism*, split out from this topic's field-*content* coverage). R106 (MBC/SRAM —
+the cart-type/RAM-size bytes this topic covers, in more depth, for if that scope commitment is ever
 revisited). R112 (whole-address-space memory map this ROM's header describes).

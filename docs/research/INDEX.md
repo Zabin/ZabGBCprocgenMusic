@@ -71,11 +71,11 @@ across R201-R204, R206-R207).
 | ID | Topic | File | Status |
 |---|---|---|---|
 | R301 | PyBoy headless API | [encyclopedia/R301-pyboy-headless-api.md](encyclopedia/R301-pyboy-headless-api.md) | ✅ Authored 2026-07-21 |
-| R302 | Python-assembler codegen patterns | R302-*.md | ⛔ Planned (no gap yet — `gbc_lib.py`'s label/fixup mechanism is simple; author if a future package needs it formalized) |
-| R303 | 2bpp tile encoding & palette data formats | R303-*.md | ⛔ Planned (`IP-0006` — no tile data exists yet) |
-| R304 | ROM validation | R304-*.md | ⛔ Planned (folded into R109 for now — split out if header validation grows more complex than the current checksum recompute) |
+| R302 | Python-assembler codegen patterns | [encyclopedia/R302-python-assembler-codegen-patterns.md](encyclopedia/R302-python-assembler-codegen-patterns.md) | ✅ Authored 2026-07-22 (confirms no gap — the label/fixup mechanism has handled 9 packages cleanly; `IP-0007`'s `JR`-out-of-range incident is evidence it correctly catches the one error class it exists to catch) |
+| R303 | 2bpp tile encoding & palette data formats | [encyclopedia/R303-2bpp-tile-encoding.md](encyclopedia/R303-2bpp-tile-encoding.md) | ✅ Authored 2026-07-22 (`IP-0006`'s trigger fired; confirms `visuals.py`'s tile bytes are correctly encoded) |
+| R304 | ROM validation | [encyclopedia/R304-rom-validation.md](encyclopedia/R304-rom-validation.md) | ✅ Authored 2026-07-22 (split out from R109 per its own "split out if it grows more complex" condition; surfaces a minor test-coverage note — see backlog `BL-0022`) |
 | R305 | Emulator-based test design | [encyclopedia/R305-emulator-test-design.md](encyclopedia/R305-emulator-test-design.md) | ✅ Authored 2026-07-21 (extended to cover user-list Phase 9 items 101-104 — audio verification, fixed-seed regression, long-duration, hardware-compat testing) |
-| R306 | Toolchain portability | R306-*.md | ⛔ Planned (no portability need identified yet — single build target, single CI-less environment) |
+| R306 | Toolchain portability | [encyclopedia/R306-toolchain-portability.md](encyclopedia/R306-toolchain-portability.md) | ✅ Authored 2026-07-22 (path handling confirmed portable; dependency management is NOT — this session hit a real `pyboy`-not-preinstalled gap, see backlog `BL-0023`) |
 | R307 | Real-time audio engine architecture patterns | [encyclopedia/R307-realtime-audio-engine-architecture.md](encyclopedia/R307-realtime-audio-engine-architecture.md) | ✅ Authored 2026-07-21 (user-list Phase 6 items 69-80) |
 | R308 | CPU/RAM/ROM performance budgeting | [encyclopedia/R308-performance-budgeting.md](encyclopedia/R308-performance-budgeting.md) | ✅ Authored 2026-07-21 (user-list Phase 8 items 89-96) |
 | R309 | Emulator comparison & debugging tools (SameBoy, BGB) | [encyclopedia/R309-emulator-debugging-tools.md](encyclopedia/R309-emulator-debugging-tools.md) | ✅ Authored 2026-07-21 (user-list Phase 9 items 97-100) |

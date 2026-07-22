@@ -7,7 +7,7 @@ Kept in sync with `docs/pipeline/pipeline-journal.md`'s Position block and each 
 |---|---|---|
 | 00 Pipeline | Journal, backlog | ✅ Live (`docs/pipeline/`) |
 | 01 Vision | MSTR-001 v1.1 (amended: autonomous bad-zone recovery, Select reframed as reset-and-randomize), GDS-00 | ✅ Authored 2026-07-21 |
-| 02 Research | Per-topic encyclopedia (`docs/research/encyclopedia/`) covering 27 cited topics: R107-R115 (hardware), R201-R207/R209-R218 (procedural music/visualizer/engine design), R301/R305/R307-R309 (tooling) authored; remaining topics (R101-R106/R112/R208/R302-304/R306) explicitly `⛔ Planned` with named "no gap yet" reasoning — see `docs/research/INDEX.md` | ✅ Authored/restructured 2026-07-21 |
+| 02 Research | Per-topic encyclopedia (`docs/research/encyclopedia/`) — **all 39 topics across R100/R200/R300 now authored, every `⛔ Planned` row closed out** 2026-07-22: R101-R115 (hardware, incl. R101-R106/R112 closed this run), R201-R218 (design, incl. R208 closed this run), R301-R309 (tooling, incl. R302-R304/R306 closed this run) — see `docs/research/INDEX.md` | ✅ Fully authored 2026-07-22 |
 | 03 Architecture | GDS-00/01/03/07 authored (GDS-01/03 amended for autonomous recovery, `IP-0007`); GDS-02/04/05/06/08/09/10 planned (`BL-0001`) | 🟡 Partial |
 | 04 Requirements | FR-1000...FR-1120, NFR-1000...NFR-1030 | ✅ Authored 2026-07-21 |
 | 05 Feature Decomposition | Feature Catalog v1 (FEAT-1000...FEAT-1050) | ✅ Authored 2026-07-21 |

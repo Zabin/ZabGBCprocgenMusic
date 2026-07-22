@@ -1,10 +1,10 @@
 # MSTR-001 — Program Vision: Driftune
 
-- **Document ID:** MSTR-001 · **Version:** 1.3 · **Status:** ✅ Authored (from-scratch increment
+- **Document ID:** MSTR-001 · **Version:** 1.4 · **Status:** ✅ Authored (from-scratch increment
   — no shipped ROM exists yet; this vision is the origin of the project, not a restatement of
   existing code)
 - **Date:** 2026-07-21 (v1.0); 2026-07-21 (v1.1 — see §8); 2026-07-22 (v1.2 — see §8); 2026-07-22
-  (v1.3 — see §8) · **Owned by:** `01-vision` skill
+  (v1.3 — see §8); 2026-07-22 (v1.4 — see §8) · **Owned by:** `01-vision` skill
 - **Derived from:** the project owner's initial instruction (2026-07-21): build a standalone GBC
   ROM whose primary purpose is real-time procedurally-generated chiptune music, with
   music-reactive visuals, player-steerable generation parameters, and a "bad zone" detection +
@@ -155,6 +155,53 @@ No timeline or increment commitment is made for any of this — §9 is a durable
 and its open research threads, revisited whenever `01-vision` runs a consistency check, not a
 promise about the next package built.
 
+**Research cycled in 2026-07-22 (v1.4) — all three threads above now have real findings, not just
+routing.** Still no architecture-level adoption decision is made here (that stays
+`03-architecture-design-synthesis`'s job per this section's own delegation discipline) — this is
+only the vision layer recording that the fact-finding it commissioned has happened, and updating
+its own framing so it isn't read as a flat, undifferentiated wishlist anymore:
+
+- **Musical identity & diversity — findings narrow the field, don't foreclose it.** [R219](../research/encyclopedia/R219-genre-feasibility-on-4-channel-gbc-psg.md)
+  found the ~25 genre references are **not equally achievable**: rhythm/timbre-led genres
+  (techno, house, trance, drum'n'bass, jungle, lo-fi, ambient, synthwave, chiptune) are
+  high-confidence — they extend engine parameters Driftune already has (tempo, density, the
+  noise-channel's Euclidean gating, wave-channel timbre); harmony-density-led genres (jazz,
+  blues, classical, orchestral) are low-confidence on 4 monophonic channels without a real
+  design decision to substitute arpeggiated pseudo-harmony (`IP-1060`'s already-shipped
+  technique, R216) for genuine simultaneous multi-voice harmony. **§9's own text should be read
+  through this tiering going forward** — "many genre references" (this section's opening
+  paragraph, unchanged above) does not mean all are equally near-term-achievable.
+- **Style evolution/song-form structure — promoted, this is now a concretely groundable
+  near-term architecture candidate, not just an open question.** [R220](../research/encyclopedia/R220-style-evolution-and-song-form-structure.md)
+  found both song-form structure (intro/build/peak/breakdown/ending) and style drift/blending
+  reduce to the same cheap mechanism: a state machine driving Driftune's *existing* tracked
+  parameters (tempo, density, scale, dissonance-tolerance) through envelopes, using the
+  standard game-audio horizontal-resequencing/vertical-layering convention — no new composition
+  engine needed, no new WRAM-budget-scale cost, comparable cost to the already-shipped
+  `badzone_tick`. This directly extends `BL-0010` (the phrase/song-structure gap) and leaves
+  only the harder motif-recurrence question (L-systems) genuinely open.
+- **Emotional/energy model — promoted, same reason.** [R221](../research/encyclopedia/R221-emotional-energy-parameter-mapping.md)
+  found a real, cited valence-arousal mapping (Russell's circumplex model) is close to free:
+  arousal derives directly from tempo/density (both already tracked), valence primarily from
+  scale/mode (`SCALE_IDX`, already steerable) with `DISSONANCE_SCORE` as a secondary,
+  not-yet-independently-confirmed signal. This is a read/interpret layer over existing engine
+  state, not new generation logic — the cheapest of the three original threads to eventually
+  build, and a natural driver for R220's state machine and for the still-open visual-evolution
+  thread below.
+- **Visual evolution & audio-visual synchronization — still genuinely open, no research
+  cycled in yet.** Not part of this update; remains a named thread for a future
+  `02-research-game-design`/`02-research-gbc-hardware` pass.
+- **Cart shape & persistence — facts now exist, adoption still undecided.** [R106](../research/encyclopedia/R106-mbc-and-sram.md)
+  (extended) names MBC5 (or MBC5+RAM+BATTERY for save) as the concrete recommendation *if*
+  either is ever adopted, and confirms PyBoy natively supports bank-switched/battery-RAM
+  cartridges (not a verification blocker either way). [R302 §8-9](../research/encyclopedia/R302-python-assembler-codegen-patterns.md)
+  found bank-switching specifically would be **real assembler-architecture work** in
+  `gbc_lib.py`/`build_rom.py` (per-bank label addressing, cross-bank-call safety, real per-bank
+  layout tracking) — not a small patch, and should be sized and authorized as its own
+  architecture-scale effort if ever picked up, not folded quietly into whatever feature package
+  first needs the ROM headroom. C1/C2 remain reopened, not decided — this only replaces "unknown
+  cost" with "known, real cost," for whoever decides later.
+
 ## §5 Quality bar
 
 "Done" for any change means: the ROM builds with a valid header at a fixed size; the full headless
@@ -193,3 +240,4 @@ radius enumerated (artifact → owning skill).
 | 2026-07-21 | 1.1 | Amended C5: the bad-zone mechanic must be autonomously self-correcting, not only Select-recoverable; Select's role reframed as "reset and randomize," a manual override rather than the sole recovery path. | Project owner: "If you are already able to detect bad zones, avoid them or navigate naturally out of them. The Select button is only for the user to reset/randomize if they want to." | GDS-01 §"the loop" (item 4, new), GDS-03 §5 (amended — the autonomous-recovery mechanism and Select's randomize behavior), `IP-0007` (implementation, already shipped and tested at the time this amendment was recorded — the code preceded this doc update in the same session, corrected here per the pipeline's own discipline that vision changes are recorded even when implementation moved first under direct user instruction). |
 | 2026-07-22 | 1.2 | Amended C1/C2: removed the "single-bank at present"/"no SRAM save" framing as fixed non-goals, reopened both as explicit research questions (§9 added). Recorded a large (22-section) future-direction topic list the project owner supplied, spanning musical identity/diversity, style evolution, song structure, emotional/energy model, visual evolution, and longer-arc listener relationship (favorites/collection) — not adopted as binding commitments, but named as standing research threads for the owning `02-research-*` skills. | Project owner, verbatim: "This is exactly why this type of research is needed, arbitrary decisions have been mistaken for firm decisions... It should educate the vision through research in these areas. Do not limit to a single bank ceiling. Do not discount saves." Direct correction of the v1.0/v1.1 framing, which had closed off cart-shape and save-behavior questions without a research basis for doing so. | GDS-00 (matching update to its own non-goal framing, this run), `strategic-assumptions-register.md` A5 (single-32KB-bank assumption reopened, no longer treated as comfortably confirmed), new research topics owed to `02-research-game-design`/`02-research-gbc-hardware`/`02-research-tooling-and-testing` per §9's own routing (none authored yet — this amendment only opens the threads), `03-architecture-design-synthesis` (must not assume single-bank/no-save when it eventually reaches cart-shape/persistence design — wait for the research this amendment commissions). |
 | 2026-07-22 | 1.3 | Added C10 (new scope commitment): every authored research topic (`R1xx`/`R2xx`/`R3xx`) must be directly traceable forward to a design feature actually implemented in code, or carry an honestly-named exception (grounds implementation quality, not a feature). Folded the same discipline into §5's "done" quality bar. | Project owner, verbatim: "Add a vision goal of having every research topic directly traceable to a design feature implemented in code." | `04-requirements-engineering`'s traceability matrix (`docs/requirements/04-requirements-traceability-matrix.md`) already tracks each requirement's backward *Research Source* — the new obligation runs the other direction (topic → shipped code) and has no existing forward-audit artifact; a full forward-trace audit across all 39 authored `R1xx`/`R2xx`/`R3xx` topics is owed (not run in this vision-tier pass — auditing is downstream work, likely `04-requirements-engineering` or `10-integration-review`'s traceability-coherence dimension, not `01-vision`'s to perform). Likely near-term finding: several orientation/history topics (e.g. `R112`, `R218`) and some `BL-0010`/`BL-0011`-deferred findings may currently have no forward trace and will need either a real forward link or a recorded C10 exception. |
+| 2026-07-22 | 1.4 | Cycled in findings from all three §9 research threads (R219-R221 musical identity/style-evolution/emotional-energy; R106 extended, MBC/save hardware facts; R302 §8-9 addendum, bank-switching tooling cost) — no new commitments added, §9's own text updated so it reads as tiered/found-facts rather than a flat wishlist: genre feasibility is now known to be uneven (rhythm/timbre-led high-confidence, harmony-density-led low-confidence); style-evolution/song-form and the emotional/energy model are promoted from "open question" to "concretely groundable near-term architecture candidate" (both found cheap — a parameter-envelope state machine over already-tracked state); cart-shape/persistence facts recorded (MBC5 the concrete recommendation if ever adopted, PyBoy not a blocker, bank-switching itself real assembler-architecture work not a patch) without deciding adoption. Visual-evolution thread remains untouched — no research cycled in for it yet. | User: "Iterate pipeline on the research thread. Cycle in updates to the vision." Direct instruction to close the loop this session's research opened. | `03-architecture-design-synthesis` (two of §9's threads — style-evolution/song-form and emotional/energy — are now concretely groundable candidates it could pick up without further research; cart-shape/persistence still needs an adoption decision, not just facts, before requirements work); `02-research-game-design`/`02-research-gbc-hardware` (visual-evolution thread still owed); no code/requirements/architecture actually authored by this amendment itself. |

@@ -2,8 +2,8 @@
 
 - **Owned by:** `01-vision` · **Status:** ✅ Authored 2026-07-21; amended 2026-07-22 (v1.1
   drift fix); amended 2026-07-22 (v1.2 cart-shape/save reopening); amended 2026-07-22 (v1.3
-  research-to-code traceability goal, see below) · **Source:**
-  `docs/master/MSTR-001-program-vision.md` v1.3
+  research-to-code traceability goal); amended 2026-07-22 (v1.4 — §9 research findings cycled
+  in, see below) · **Source:** `docs/master/MSTR-001-program-vision.md` v1.4
 
 This is the design-facing restatement of MSTR-001, in the vocabulary the GDS ladder builds on.
 MSTR-001 is authoritative for purpose-level statements; this document translates its commitments
@@ -57,18 +57,28 @@ without requiring either). Noted here only so `03-architecture-design-synthesis`
 the same "propose one concrete design, not an options menu" discipline the other two items
 already carry, when it takes up `BL-0020`.
 
+**Added 2026-07-22 (v1.4), two more of the same shape**: MSTR-001 §9's research now grounds two
+further concretely-groundable candidates — a **song-form/style-drift state machine** (R220: a
+parameter-envelope mechanism over already-tracked engine state, extending `BL-0010`) and an
+**emotional/energy read-layer** (R221: a valence-arousal mapping over the same already-tracked
+state). Neither is decided here; both are now cheaper to design than they were before this
+research landed, since the underlying mechanism (a state machine driving existing WRAM
+parameters) is shared with the bad-zone detect/recover loop `IP-0007` already ships — `03-
+architecture-design-synthesis` should note that shared shape if/when it picks either up.
+
 ## Cart shape and persistence — reopened, not decided (v1.2)
 
 Earlier drafts of this document (and MSTR-001 v1.0/v1.1) treated "single 32KB bank, no SRAM save"
 as settled shape. MSTR-001 v1.2 reopened both — the project owner named this as an arbitrary
-decision that had been mistaken for a firm one. **This document does not decide the replacement
-either.** `03-architecture-design-synthesis` must not assume single-bank/no-save when it reaches
-cart-shape or persistence design; it should wait for (or itself request) the research MSTR-001 §9
-commissions — MBC/bank-switching hardware facts and build-chain impact, and what a real save
-design would need to support a longer-arc listener relationship (favorites, returning to a
-discovered piece). Until that research lands, this remains an open item of the same shape as the
-input-mapping/bad-zone-metric/scheme-combination items already delegated to GDS-03 below — a
-fourth thing not guessed here.
+decision that had been mistaken for a firm one. **This document still does not decide the
+replacement** — that stays `03-architecture-design-synthesis`'s call. What has changed as of
+v1.4: the research MSTR-001 §9 commissioned has now landed (R106 extended, R302 §8-9 addendum) —
+MBC5 is the concrete hardware recommendation if bank-switching or save is ever adopted, PyBoy
+natively supports both (not a verification blocker), and bank-switching specifically is real
+assembler-architecture work in `gbc_lib.py`/`build_rom.py` (per-bank label addressing, cross-bank
+call safety), not a small patch. `03-architecture-design-synthesis` now has real facts to decide
+from instead of an open question to research first — the decision itself (adopt or not, and when)
+is still not made here or by that research, only the facts it needs are now available.
 
 ## Research-to-code traceability goal (v1.3)
 

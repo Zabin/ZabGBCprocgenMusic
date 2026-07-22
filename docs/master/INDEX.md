@@ -8,7 +8,7 @@ stages share" (rules G1–G5).
 
 | ID | Document | Owned by | Status |
 |---|---|---|---|
-| MSTR-001 | Program vision — project is **Driftune** ([`MSTR-001-program-vision.md`](MSTR-001-program-vision.md)) | `01-vision` | ✅ v1.3, 2026-07-22 (v1.2: single-bank/no-save non-goals reopened as research questions, §9 future-direction topic list added; v1.3: C10 added — every research topic traceable forward to shipped code or a named exception) |
+| MSTR-001 | Program vision — project is **Driftune** ([`MSTR-001-program-vision.md`](MSTR-001-program-vision.md)) | `01-vision` | ✅ v1.4, 2026-07-22 (v1.2: single-bank/no-save reopened, §9 added; v1.3: C10 traceability goal; v1.4: §9's three research threads cycled in — see §9's own text for findings) |
 | MSTR-002 | Architecture principles | `03-architecture-design-synthesis` (optional) | ⛔ Planned |
 | MSTR-003 | Design philosophy | `01-vision`/`03` (optional) | ⛔ Planned |
 | MSTR-004 | Glossary | any stage skill may add terms; `03` curates (optional) | ⛔ Planned |

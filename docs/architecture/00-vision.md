@@ -1,8 +1,9 @@
 # GDS-00 — Vision (design-facing restatement)
 
 - **Owned by:** `01-vision` · **Status:** ✅ Authored 2026-07-21; amended 2026-07-22 (v1.1
-  drift fix); amended 2026-07-22 (v1.2 cart-shape/save reopening, see below) · **Source:**
-  `docs/master/MSTR-001-program-vision.md` v1.2
+  drift fix); amended 2026-07-22 (v1.2 cart-shape/save reopening); amended 2026-07-22 (v1.3
+  research-to-code traceability goal, see below) · **Source:**
+  `docs/master/MSTR-001-program-vision.md` v1.3
 
 This is the design-facing restatement of MSTR-001, in the vocabulary the GDS ladder builds on.
 MSTR-001 is authoritative for purpose-level statements; this document translates its commitments
@@ -68,6 +69,18 @@ design would need to support a longer-arc listener relationship (favorites, retu
 discovered piece). Until that research lands, this remains an open item of the same shape as the
 input-mapping/bad-zone-metric/scheme-combination items already delegated to GDS-03 below — a
 fourth thing not guessed here.
+
+## Research-to-code traceability goal (v1.3)
+
+MSTR-001 C10 (added v1.3): every authored research topic must be directly traceable forward to a
+design feature actually implemented in code, or carry an honestly-named exception. This sits
+alongside the existing testability requirement below — both are forms of the same discipline
+(nothing this project records stays untethered from the shipped ROM), just running in different
+directions: testability ties shipped behavior back to an assertion; C10 ties an authored topic
+forward to a shipped behavior. Auditing which of the 39 currently-authored `R1xx`/`R2xx`/`R3xx`
+topics already satisfy this and which don't is downstream work (not performed by this vision-tier
+amendment) — likely `04-requirements-engineering` (when it next reconciles the traceability
+matrix) or `10-integration-review`'s traceability-coherence dimension.
 
 ## Testability requirement carried down from MSTR-001 C9
 

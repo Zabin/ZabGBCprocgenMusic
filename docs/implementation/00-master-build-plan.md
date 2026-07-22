@@ -56,6 +56,22 @@ requirement). Neither is `READY` in the stage-07 sense used elsewhere on this pl
 label is reserved for "dependencies `VERIFIED`" — these packages' blocker is **G3 authorization**,
 not a dependency.
 
+## Technical Work Breakdown (TWBS) — Sound Design Techniques (`FS-106`, `BL-0024`)
+
+See [`01-technical-work-breakdown.md`](01-technical-work-breakdown.md) for the full verb-inventory,
+supersession-sweep, and split rationale.
+
+| IP | Package | Requirements | Status |
+|---|---|---|---|
+| IP-1060 | Arpeggio + duty-cycle variation | FR-1130, FR-1160 | **READY** — fully specified, [package](packages/IP-1060-arpeggio-and-duty-cycle.md); dependencies (`IP-0001`-`IP-0003`) all `VERIFIED`; **G3-authorized** — see note below |
+| IP-1061 | Vibrato + portamento | FR-1140, FR-1150 | **READY** — fully specified, [package](packages/IP-1061-vibrato-and-portamento.md); dependencies (`IP-0001`-`IP-0003`) all `VERIFIED`, sequencing-only dependency on `IP-1060`; **G3-authorized** — see note below |
+
+**G3 authorization for `IP-1060`/`IP-1061`**: the user's request that filed `BL-0024` — "Iterating
+the pipeline skill run through to implantation the concepts in R216... Iterate until they are all
+in a committed and pushed ROM" — is explicit, direct authorization to build and verify this
+specific, scoped feature. Recorded here as the basis, distinct from and not extending to
+`IP-9010`/`IP-9020`, which remain separately unauthorized (see below).
+
 ## G5 gate (every stage-08 run)
 
 The ROM must build (`python3 build_rom.py <path>` -> fixed size, valid header) and the full
@@ -72,3 +88,7 @@ as standing authorization for the first foundation package; IP-0002 onward each 
 go-ahead at the point the pipeline reaches them (recorded in the journal/backlog, not assumed
 silently). **`IP-9010`/`IP-9020` are not authorized** — no user go-ahead is on record for either;
 both require an explicit per-package go-ahead before `08-code-implementation` may build them.
+**`IP-1060`/`IP-1061` ARE authorized** — the user's own `BL-0024`-filing request explicitly
+directed the pipeline to carry the R216 sound-design-techniques feature through implementation
+and verification ("iterate until... committed and pushed"), recorded as the per-package go-ahead
+for these two packages specifically.

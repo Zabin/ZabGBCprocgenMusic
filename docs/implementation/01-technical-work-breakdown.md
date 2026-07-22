@@ -1,7 +1,7 @@
 # Technical Work Breakdown
 
 - **Owned by:** `07-implementation-planning` · **Status:** ✅ Authored, 2026-07-21 (v1 — two
-  remediation tranches, `IP-9010`/`IP-9020`)
+  remediation tranches, `IP-9010`/`IP-9020`); extended 2026-07-22 (`IP-1060`/`IP-1061`, `FS-106`)
 
 This project's first six packages (`IP-0001`-`IP-0007`, `07-implementation-planning`'s original
 Master Build Plan pass) were authored directly against approved abbreviated FS notes during the
@@ -68,8 +68,50 @@ Foundation-bucket integration review's headline blocker), each independently ver
 (`09-package-verification`) before the next starts, same discipline as the original 7-package
 tranche.
 
-## Master Build Plan
+## Master Build Plan (remediation tranche)
 
 Both packages added as new rows; see [`00-master-build-plan.md`](00-master-build-plan.md).
 Neither is `READY` for `08-code-implementation` yet — **both require explicit G3 user
 authorization**, not yet on record (this project carries no bootstrap carve-out).
+
+## Tranche: Sound Design Techniques (`FS-106`, `FEAT-1060`, `BL-0024`)
+
+**Source:** `docs/features/fs-106-sound-design-techniques.md`, a full 20-field spec (no
+abbreviated-notes exception this time).
+
+**Verb inventory.** The capability is "richer per-note timbral behavior," covering four
+independent research-grounded techniques (`R216`): *generate* (arpeggio cycles pitch within a
+note — owned below), *modulate-pitch* (vibrato's periodic offset, portamento's glide — owned
+below), *modulate-timbre* (duty-cycle variation — owned below), *persist/reset* (Select-reset
+must zero the new counters — owned below, riding the existing `init_engine` pattern rather than a
+separate package). No verb is left unowned.
+
+**Supersession sweep.** Neither package retires an existing model — arpeggio/vibrato/portamento/
+duty-cycle are additive modulations layered onto the existing note-onset write, not a replacement
+of it. Grepped `NR11`/`NR21`/`NR13`/`NR14`/`NR23`/`NR24`/`NR33`/`NR34` across `music_engine.py` to
+confirm the only existing writers are `_emit_channel_gen`'s onset write and `build_rom.py`'s
+boot-time init — confirmed clean, no other call site encodes the old fixed-duty/instant-onset
+pattern that would need reconciling.
+
+**Split rationale** (per `FS-106`'s own Risks section, "build one effect at a time"): two
+packages rather than one four-effect package or four single-effect packages. `IP-1060` (arpeggio
++ duty-cycle) groups the two effects that don't touch the *same* per-frame frequency-write
+timing — arpeggio's sub-tick cycling and duty-cycle's per-onset lookup are independent additions.
+`IP-1061` (vibrato + portamento) groups the two effects that both modulate the *held* frequency
+value every frame and interact with each other's output (portamento's glide target is the value
+vibrato then perturbs) — building and testing them together is more honest than pretending they're
+independent, per `FS-106`'s own "order of operations" note. Four single-effect packages would
+over-fragment a already-small feature; one four-effect package would combine `IP-1060`'s simpler,
+independent effects with `IP-1061`'s genuinely-interacting ones, diluting the verification signal
+if something breaks.
+
+**Packages:** [`IP-1060`](packages/IP-1060-arpeggio-and-duty-cycle.md) (arpeggio + duty-cycle) →
+[`IP-1061`](packages/IP-1061-vibrato-and-portamento.md) (vibrato + portamento, depends on
+`IP-1060` only for sequencing hygiene — same file, not a functional dependency) →
+`08-code-implementation` for both.
+
+**Authorization basis:** the user's own request that filed `BL-0024` — "Iterating the pipeline
+skill run through to implantation the concepts in R216... Iterate until they are all in a
+committed and pushed ROM" — is explicit, direct authorization to build and verify this specific,
+scoped feature, distinct from and not extending to the separately-gated `IP-9010`/`IP-9020`. Both
+packages below are recorded **G3-authorized** on this basis.

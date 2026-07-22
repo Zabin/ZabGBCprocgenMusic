@@ -2,7 +2,37 @@
 
 ## Position
 
-- **Updated:** 2026-07-22 (run #30) — **All three MSTR-001 §9 research threads closed (R219-R221, R106 extended, R302 §8-9 addendum) and cycled back into MSTR-001 v1.4**
+- **Updated:** 2026-07-22 (run #31) — **Full Product Roadmap planning package authored (`docs/roadmap/`, 01-10) — a cross-cutting TPM synthesis, not a new pipeline stage**
+- **Run #31:** user directed, acting explicitly as "Lead Systems Architect and Technical Program
+  Manager": build a comprehensive, capability-driven product roadmap from empty ROM to release
+  candidate, using only the existing Vision + Research Encyclopedia (no new research), producing
+  10 named deliverables (Product Goals, Capability Map, Capability Dependency Graph, Release
+  Roadmap, Milestone Definitions, Feature Specifications, Traceability Matrix, Development
+  Strategy, Release Exit Criteria, Final Roadmap Review) with permission to rename/adjust to fit
+  the existing pipeline hierarchy. Authored `docs/roadmap/01-10.md` + `INDEX.md`: a 21-capability
+  map (`CAP-01`-`CAP-21`) with honest current status against the real shipped tree (10 Foundational
+  capabilities `VERIFIED`, 5 Intermediate — two carrying open defects `BL-0019`/`BL-0017` — 5
+  Advanced planned, 1 cross-cutting); a dependency graph identifying `CAP-10`'s fix as the true
+  critical-path blocker (technically small, already G3-authorization-blocked) and two genuinely
+  parallel work streams (Integrity & Diversity vs. Musical Maturity) converging only at the
+  visualizer; a 14-release sequence `R0`-`R13` (`R0`-`R2` shipped, included for continuity only,
+  not re-planned) tracing the user's requested arc (basic audio → multi-channel → song structure →
+  long-form evolution → genre support/blending → emotion modelling → visual sync → interactive
+  controls → optimization → RC) onto the project's actual research findings (R219 genre-
+  feasibility tiering, R220 song-form/style-drift, R221 emotional/energy, R106/R302 cart-shape
+  facts); six milestones; catalog-grain `RM-xxxx` feature entries (explicitly distinct from and
+  feeding, not replacing, the live `FEAT-xxxx`/`FS-xxx` grain); a full vision-to-feature
+  traceability matrix (one deliberate gap named — L-system motif recurrence, correctly excluded as
+  not yet groundable, not silently dropped); a development strategy restating the pipeline's own
+  already-proven practices at roadmap scale; per-release exit criteria; and a genuinely critical
+  final review (5 ranked findings, not a rubric pass) whose top finding — the cart-shape/
+  bank-switching decision was bundled too late at R11, risking an unplanned mid-roadmap ROM-budget
+  emergency — was **applied directly** (a new `R4.5` checkpoint release added, `R11` narrowed to
+  just the save feature) rather than left as a dangling recommendation. No algorithms, source
+  code, APIs, or file structures named anywhere in the package, per the user's explicit scope
+  limit. No code/requirements/architecture authored; no G3 authorization granted or implied — this
+  package is planning input for `03`/`04`/`05`/`06` as each release is actually picked up, not a
+  shortcut around any of them. Cross-linked from `docs/INDEX.md` and `ROADMAP.md`.
 - **Runs #27-30 summary:** user directed "Iterate pipeline on the research thread. Cycle in
   updates to the vision." Ran the three §9 threads in turn — `02-research-game-design` (R219
   genre feasibility, R220 style-evolution/song-form, R221 emotional/energy — the largest
@@ -172,17 +202,19 @@
   `BL-0011` item (1) (arpeggio), noted there. `BL-0021`/`BL-0022`/`BL-0023` remain
   `SCHEDULED`/`DEFERRED` with named triggers. `IP-9010`/`IP-9020`'s G3 authorization remains an
   open gate, not touched this run.
-- **Next step:** all three §9 research threads are now closed and cycled into the vision (v1.4).
-  Two threads remain: (1) **visual evolution & audio-visual synchronization** — the one §9 thread
-  research was never run against this session, still owed to `02-research-game-design`/
-  `02-research-gbc-hardware`. (2) `03-architecture-design-synthesis` now has real, groundable
-  material to pick up without further research if it wants to: style-evolution/song-form (R220)
-  and the emotional/energy model (R221) are both concretely cheap (a parameter-envelope state
-  machine over already-tracked state, sharing its shape with `IP-0007`'s bad-zone loop); the
-  cart-shape/persistence decision (R106/R302) is now fact-grounded but still needs an actual
-  adopt-or-not call. Separately, still owed from earlier runs: the **forward-traceability audit**
-  (run #26's C10), `09-package-verification` on `IP-1060`/`IP-1061` (fresh session needed), and
-  the standing **G3 authorization gate for `IP-9010`/`IP-9020`** (open since run #14).
+- **Next step:** the Product Roadmap package (`docs/roadmap/`) now gives this project's next
+  moves a concrete, traced sequence for the first time: **R3** (integrity remediation, `IP-9010`/
+  `IP-9020`) is named as the critical-path-first release, blocked only on the standing G3
+  authorization gate below. Once authorized, **R4.5** (the cart-shape decision) and **R6** (song-
+  form/style-drift, parallelizable with R4/R5) are the next-highest-value moves per the roadmap's
+  own dependency analysis. Separately, still owed from earlier runs, all independent of the
+  roadmap: **visual evolution & audio-visual synchronization** research (owed to
+  `02-research-game-design`/`02-research-gbc-hardware`, and now also a named hard prerequisite for
+  the roadmap's own R9), the **forward-traceability audit** (run #26's C10), `09-package-
+  verification` on `IP-1060`/`IP-1061` (fresh session needed), and the standing **G3 authorization
+  gate for `IP-9010`/`IP-9020`** (open since run #14) — now doubly load-bearing, since the roadmap
+  confirms it blocks not just the Foundation bucket's own release-readiness but the entire
+  Milestone B/D chain (Multi-Scheme, Style Engine, Genre Blending).
 - **Open gates:** **G3 authorization for `IP-9010` and `IP-9020`** — open since run #14, untouched
   this run; still the standing blocker for `10-integration-review`'s eventual re-run and
   `11-release-readiness`. **Independent verification owed for `IP-1060`/`IP-1061`** — not a G3
@@ -227,6 +259,8 @@
 | 28 | 2026-07-22 | run (same push, continuing) | `02-research-gbc-hardware` | R106 (extended) | Extended R106 (MBC/SRAM) — its prior "no gap, MSTR-001 C2 stands" framing was superseded by MSTR-001 v1.2's reopening of C1/C2, so it needed a dated correction, not a new topic (checked existing coverage first per the skill's own workflow). Grounded real MBC1/MBC3/MBC5 bank-switching protocols (register ranges, ROM/RAM ceilings, MBC1's bank-0 quirk vs. MBC5's cleaner design) and PyBoy's own battery-RAM save mechanics (confirms a save design would be independently testable headless via PyBoy's `.ram`-file handling, satisfying MSTR-001 C9 without new tooling). Named MBC5 (or MBC5+RAM+BATTERY) as the concrete recommendation if bank-switching or save is ever adopted — decision itself left to `03-architecture-design-synthesis`. Updated `docs/research/INDEX.md`, `ROADMAP.md`. | `Next: 02-research-tooling-and-testing for MSTR-001 §9's third and last thread (multi-bank build/verify-chain impact).` |
 | 29 | 2026-07-22 | run (same push, continuing) | `02-research-tooling-and-testing` | R302 (§8-9 addendum) | Added a dated addendum to R302 (Python-assembler codegen patterns) rather than a new topic, same "extend don't duplicate" discipline as run #28. Honestly assessed what adopting R106's MBC5 recommendation would cost `gbc_lib.py`'s label/fixup assembler: labels would need a bank component (not just a byte offset), fixups would need to distinguish safely-callable bank-0 targets from switched-bank targets (a real silent-failure class today's `resolve()` can't detect), and `build_rom.py`'s flat sequential-append layout would need genuine per-bank budget tracking — real assembler-architecture work, not a config flag or small patch. Confirmed via PyBoy's own source (`cartridge.py` dispatches to dedicated `.mbc1`/`.mbc3`/`.mbc5` submodules) that PyBoy itself is not a blocker — bank-switched ROMs are natively emulated; flagged that "which bank is selected" would be new first-class `test_rom.py` state to track, not confirmed as directly PyBoy-readable this pass. Updated `docs/research/INDEX.md`, `ROADMAP.md` (all three §9 threads now closed). | `Next: 01-vision to cycle these findings back into MSTR-001/GDS-00/the strategic assumptions register, per the user's own "cycle in updates to the vision" instruction.` |
 | 30 | 2026-07-22 | run (same push, closing) | `01-vision` | MSTR-001, GDS-00, strategic-assumptions-register.md | Consistency-check-and-cycle-in run (not a new pivot) folding runs #27-29's findings back into the vision layer. Amended MSTR-001 to **v1.4**: §9's own text rewritten per-thread — genre feasibility now explicitly tiered (not read as 25 equally-likely targets); style-evolution/song-form and the emotional/energy model promoted from "open question, research owed" to "concretely groundable near-term architecture candidate" (both found cheap, sharing their state-machine shape with `IP-0007`'s already-shipped bad-zone loop); cart-shape/persistence facts recorded (MBC5 recommended if ever adopted, PyBoy not a blocker, bank-switching itself real assembler work) without deciding adoption — that stays `03-architecture-design-synthesis`'s call, consistent with §9's own delegation discipline. Visual-evolution thread explicitly left untouched (no research ran against it this session). Updated GDS-00 to match (cart-shape section rewritten to "facts now exist, decision still open"; new note alongside the input-mapping/bad-zone-metric/scheme-combination GDS-03 delegations naming the two newly-groundable candidates). `strategic-assumptions-register.md` A5 updated to record the research landing without resolving the open question (not re-fired — this is the outcome of its prior firing, not a new one). Updated `ROADMAP.md`, both `INDEX.md` files. | `Next: two threads remain — visual evolution/audio-visual sync (still needs research) and 03-architecture-design-synthesis picking up whichever of the now-groundable candidates (style-evolution/song-form, emotional/energy, cart-shape adoption) it judges highest-value. Unrelated, still owed: the C10 forward-traceability audit (run #26), 09-package-verification on IP-1060/IP-1061, and the standing G3 gate for IP-9010/IP-9020 (open since run #14). This run's directed scope ("iterate pipeline on the research thread, cycle in updates to the vision") is complete.` |
+
+| 31 | 2026-07-22 | run (user-directed, explicit Lead-Systems-Architect/TPM framing) | cross-cutting planning synthesis (no single numbered skill — spans what `03-architecture-design-synthesis`/`05-feature-decomposition` would normally own at a higher grain, per the user's explicit permission to adjust deliverables to fit the existing pipeline) | `docs/roadmap/01-10.md` + `INDEX.md` | Authored the full requested planning package from the existing Vision (MSTR-001 v1.4) and Research Encyclopedia (42 topics) only — no new research performed, per instruction. 21-capability map with honest shipped/partial/broken/planned status; dependency graph naming `CAP-10`'s fix (`BL-0019`) as the true critical-path blocker and identifying two parallel streams (Integrity & Diversity vs. Musical Maturity) converging only at the visualizer; 14-release sequence `R0`-`R13` (`R0`-`R2` shipped, included for continuity/traceability only) mapping the user's requested capability arc onto this session's own research findings (R219/R220/R221, R106/R302); six milestones; catalog-grain `RM-xxxx` features (distinct from, feeding, the live `FEAT-xxxx`/`FS-xxx` grain); a full traceability matrix with one deliberately-named gap (L-system motif recurrence, correctly excluded, not silently dropped); a development strategy restating already-proven pipeline practice at roadmap scale; per-release exit criteria; and a genuinely critical final review (5 ranked findings) whose top finding — cart-shape decision bundled too late — was **applied directly** (new `R4.5` checkpoint release) rather than left as a dangling note. No implementation details, algorithms, source code, APIs, or file structures named anywhere, per the user's explicit scope limit. Authorizes nothing (G3 unchanged); cross-linked from `docs/INDEX.md`/`ROADMAP.md`. | `Next: R3 (integrity remediation) is the roadmap's own named critical-path-first release, blocked on the standing G3 gate for IP-9010/IP-9020 (open since run #14) — same gate as before, now with the roadmap's own dependency analysis confirming its downstream blast radius (Milestones B and D both wait on it). Once authorized: R4.5 (cart-shape decision) and R6 (song-form/style-drift, parallelizable) are next. Unrelated, still owed: visual-evolution research (now also R9's named prerequisite), the C10 forward-traceability audit, and 09-package-verification on IP-1060/IP-1061.` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

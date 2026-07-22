@@ -2,7 +2,27 @@
 
 ## Position
 
-- **Updated:** 2026-07-22 (run #25) — **MSTR-001 amended to v1.2: single-bank/no-save reopened as research questions, S9 future-direction topic list added, downstream research owed**
+- **Updated:** 2026-07-22 (run #26) — **MSTR-001 amended to v1.3: C10 added, every research topic must trace forward to shipped code or a named exception; a forward-trace audit is now owed**
+- **This run (#26):** user directed: "Add a vision goal of having every research topic directly
+  traceable to a design feature implemented in code." Invoked `01-vision` directly (deliberate
+  change mode — a genuine new scope commitment, not a consistency check). Added **C10** to
+  MSTR-001 §3 (v1.3): every authored `R1xx`/`R2xx`/`R3xx` topic must trace forward to a design
+  feature actually implemented in code, or carry an honestly-named exception for topics that
+  ground implementation *quality* rather than a standalone feature (codegen practice, ROM-header
+  validation, toolchain portability, etc.) — the exception itself must be recorded, never left
+  implicit. Folded the same discipline into §5's "done" quality bar. This is the mirror-image of
+  the traceability discipline the project already had: `04-requirements-engineering`'s
+  traceability matrix already records each requirement's backward *Research Source*; C10 adds the
+  forward direction (topic → shipped code), which had no existing audit artifact. Updated GDS-00
+  to match (new "Research-to-code traceability goal" section, framed alongside the existing
+  testability-requirement section as the same discipline running in opposite directions).
+  **Explicitly did not perform the audit itself** — auditing which of the 39 currently-authored
+  topics already satisfy C10 and which need a real forward link or an exception is named as
+  downstream work (`04-requirements-engineering`'s next traceability-matrix pass, or
+  `10-integration-review`'s traceability-coherence dimension), not `01-vision`'s to perform.
+  Flagged a likely near-term finding in §8's amendment log: orientation/history topics (e.g.
+  `R112`, `R218`) and `BL-0010`/`BL-0011`-deferred findings may currently have no forward trace.
+  Updated `ROADMAP.md`, `docs/master/INDEX.md`, `docs/architecture/INDEX.md`.
 - **This run (#25):** user supplied a 22-section vision-expansion topic list (musical identity/
   diversity across many genre references, style evolution/blending, song-form structure, an
   emotional/energy model, visual evolution, longer-arc listener relationship — favorites/
@@ -143,17 +163,19 @@
   `BL-0011` item (1) (arpeggio), noted there. `BL-0021`/`BL-0022`/`BL-0023` remain
   `SCHEDULED`/`DEFERRED` with named triggers. `IP-9010`/`IP-9020`'s G3 authorization remains an
   open gate, not touched this run.
-- **Next step:** run #25's vision amendment opens three new research threads (§9) that are now
-  this project's most current standing work item: `02-research-game-design` should pick up
-  musical identity/diversity, style evolution, song structure, and the emotional/energy model
-  first (the largest cluster, most load-bearing for what "done" musically even means);
-  `02-research-gbc-hardware` should investigate MBC/bank-switching options and SRAM/battery-save
-  hardware facts; `02-research-tooling-and-testing` should assess what multi-bank ROM would cost
-  the existing build/test chain. None of these are architecture or requirements work yet — that
-  follows once the research lands. Separately, unrelated to this run: `09-package-verification`
-  on `IP-1060`/`IP-1061` (each needs a genuinely fresh session, no waiver given) and the standing
-  **G3 authorization gate for `IP-9010`/`IP-9020`** (open since run #14) remain untouched, both
-  still owed whenever picked back up.
+- **Next step:** two threads now stand open together. (1) Run #25's vision amendment opened three
+  new research threads (§9): `02-research-game-design` should pick up musical identity/diversity,
+  style evolution, song structure, and the emotional/energy model first (the largest cluster);
+  `02-research-gbc-hardware` should investigate MBC/bank-switching and SRAM/battery-save hardware
+  facts; `02-research-tooling-and-testing` should assess multi-bank build/test-chain impact. (2)
+  Run #26's C10 addition owes a **forward-traceability audit** across all 39 currently-authored
+  research topics — which already trace to shipped code, which need a real forward link, which
+  need a named "grounds implementation quality" exception — most naturally done alongside
+  `04-requirements-engineering`'s next traceability-matrix pass, or as a dimension of
+  `10-integration-review`. Neither thread is architecture/requirements/code work yet. Separately,
+  unrelated to both: `09-package-verification` on `IP-1060`/`IP-1061` (fresh session needed) and
+  the standing **G3 authorization gate for `IP-9010`/`IP-9020`** (open since run #14) remain
+  untouched, both still owed whenever picked back up.
 - **Open gates:** **G3 authorization for `IP-9010` and `IP-9020`** — open since run #14, untouched
   this run; still the standing blocker for `10-integration-review`'s eventual re-run and
   `11-release-readiness`. **Independent verification owed for `IP-1060`/`IP-1061`** — not a G3
@@ -191,6 +213,8 @@
 | 24 | 2026-07-22 | run (same push, catch-up + close-out) | `00-pipeline-manager` (journal/backlog discipline only — no new code/docs beyond the ledgers) | `BL-0024`, `IP-1060`, `IP-1061` | Caught up the journaling gap runs #20-#23 had accumulated (every other internal step this session was journaled as it happened; this thread's five internal steps — `04`, `05`+`06`, `07`, two `08` runs — were not, discovered when resuming after a context compaction). Wrote this row plus rows #20-#23 retroactively from the session's own record, rewrote the Position block to reflect `FEAT-1060`/`FS-106`/`IP-1060`/`IP-1061`'s current state. Updated `IP-1061`'s status from `READY`(stale) to `COMPLETE` on the Master Build Plan and `packages/INDEX.md`, matching the update already made for `IP-1060`. Updated `BL-0024`'s backlog row from disposition `—`/status `NEW` to `IN PIPELINE`, recording the full `04`→`08` path taken and that both packages are `COMPLETE`, not yet `VERIFIED`. Committed the journal/backlog/plan/index updates, then pushed the full commit range (7 commits: intake, requirements, feature-catalog, FS-106, implementation-planning, IP-1060, IP-1061, plus this journaling commit) to `claude/iterate-pipeline-skill-04nvuc`. | `GATE (parallel, not blocking): 09-package-verification on IP-1060 then IP-1061, each needing a genuinely fresh session per the standing independence rule — no waiver given this run. Also standing, untouched: G3 authorization for IP-9010/IP-9020, open since run #14. This run's directed scope (R216 into a committed and pushed ROM) is complete; ending here to report to the user.` |
 
 | 25 | 2026-07-22 | run (user-directed vision amendment) | `01-vision` | MSTR-001, GDS-00, strategic-assumptions-register.md | User supplied a 22-section vision-expansion topic list ("additional research topics for building out the vision") spanning executive vision restatement, listening experience, musical identity/diversity (25+ genre references), style evolution, tempo/rhythm/melody/harmony vision, song structure, musical evolution over time, emotional landscape, energy model, procedural identity, visual identity/evolution, audio-visual synchronization, user interaction/progression/accessibility vision, creative vision, and success metrics. Attempted to check with the user first (aspirational vs. immediate-scope-change vs. narrower) via `AskUserQuestion` — rejected as unseen; the user's actual follow-up answered directly and corrected the underlying framing: "arbitrary decisions have been mistaken for firm decisions... It should educate the vision through research in these areas. Do not limit to a single bank ceiling. Do not discount saves." Amended MSTR-001 to **v1.2**: C1/C2 reworded (cart shape and save behavior no longer framed as settled), §4 non-goals had "SRAM/battery save" and "bank-switched ROM growth beyond one bank" removed and explicitly reopened, new §9 added recording the topic list's genuinely new direction as **standing research threads, not binding architecture** — routed by cluster to `02-research-game-design` (musical identity/diversity/style-evolution/song-structure/emotional-energy-model), `02-research-gbc-hardware` (MBC/SRAM hardware facts, visual-evolution VRAM/palette budget), `02-research-tooling-and-testing` (multi-bank build/verify-chain impact). §8 amendment log entry added with full rationale and downstream blast radius. GDS-00 updated to match (new "Cart shape and persistence — reopened, not decided" section, same "propose one concrete design, don't guess here" discipline as the existing input-mapping/bad-zone-metric/scheme-combination delegations). `strategic-assumptions-register.md` A5 (single-32KB-bank, previously read as confirmed by R106/R112) reopened — its trigger recorded as fired by the user's own correction, not new tree evidence. Updated `ROADMAP.md`, `docs/master/INDEX.md`, `docs/architecture/INDEX.md`. No architecture, requirements, or code touched this run — vision-tier only, per `01-vision`'s own scope discipline. | `Next: 02-research-game-design (musical identity/diversity/style-evolution/song-structure/emotional-energy-model — largest, most load-bearing cluster), 02-research-gbc-hardware (MBC/bank-switching, SRAM/battery-save hardware facts), 02-research-tooling-and-testing (multi-bank build/verify-chain impact) — none of it architecture/requirements work yet, that follows once research lands. Unrelated, still owed: 09-package-verification on IP-1060/IP-1061 (fresh session needed); standing G3 gate for IP-9010/IP-9020 (open since run #14).` |
+
+| 26 | 2026-07-22 | run (user-directed vision amendment) | `01-vision` | MSTR-001, GDS-00 | User directed: "Add a vision goal of having every research topic directly traceable to a design feature implemented in code." Added **C10** to MSTR-001 §3 (v1.3): every authored `R1xx`/`R2xx`/`R3xx` research topic must trace forward to a design feature actually implemented in code, or carry an honestly-named exception (topics that ground implementation quality — codegen practice, ROM validation, toolchain portability — rather than a standalone feature; the exception itself must be recorded, not left implicit). Folded into §5's "done" quality bar. Framed explicitly as the mirror of the project's existing backward traceability (the requirements traceability matrix's *Research Source* column already ties a requirement back to its grounding topic; C10 adds the missing forward direction, topic → shipped code). Updated GDS-00 to match (new "Research-to-code traceability goal" section, positioned alongside the existing testability-requirement section as the same discipline running the opposite way). Deliberately did not perform the forward-trace audit itself — named as downstream work for `04-requirements-engineering` or `10-integration-review`, not `01-vision`'s job; flagged in §8's amendment log that orientation/history topics (`R112`, `R218`) and `BL-0010`/`BL-0011`-deferred findings are the likeliest currently-untraced candidates. Updated `ROADMAP.md`, `docs/master/INDEX.md`, `docs/architecture/INDEX.md`. | `Next: a forward-traceability audit across all 39 authored research topics is now owed, alongside run #25's three open research threads (game-design/gbc-hardware/tooling-and-testing). Neither is architecture/requirements/code work yet. Unrelated, still owed: 09-package-verification on IP-1060/IP-1061; standing G3 gate for IP-9010/IP-9020 (open since run #14).` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

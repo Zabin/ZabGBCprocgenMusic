@@ -6,7 +6,7 @@ Kept in sync with `docs/pipeline/pipeline-journal.md`'s Position block and each 
 | Stage | Artifact(s) | Status |
 |---|---|---|
 | 00 Pipeline | Journal, backlog | ✅ Live (`docs/pipeline/`) |
-| 01 Vision | MSTR-001 v1.1 (amended: autonomous bad-zone recovery, Select reframed as reset-and-randomize), GDS-00 | ✅ Authored 2026-07-21 |
+| 01 Vision | MSTR-001 v1.1 (amended: autonomous bad-zone recovery, Select reframed as reset-and-randomize), GDS-00 (drift-fixed 2026-07-22 to match v1.1), strategic assumptions register (authored 2026-07-22, 7 assumptions, A7's trigger already fired) | ✅ Consistency-checked 2026-07-22 |
 | 02 Research | Per-topic encyclopedia (`docs/research/encyclopedia/`) — **all 39 topics across R100/R200/R300 now authored, every `⛔ Planned` row closed out** 2026-07-22: R101-R115 (hardware, incl. R101-R106/R112 closed this run), R201-R218 (design, incl. R208 closed this run), R301-R309 (tooling, incl. R302-R304/R306 closed this run) — see `docs/research/INDEX.md` | ✅ Fully authored 2026-07-22 |
 | 03 Architecture | GDS-00/01/03/07 authored (GDS-01/03 amended for autonomous recovery, `IP-0007`); GDS-02/04/05/06/08/09/10 planned (`BL-0001`) | 🟡 Partial |
 | 04 Requirements | FR-1000...FR-1120, NFR-1000...NFR-1030 | ✅ Authored 2026-07-21 |

@@ -33,7 +33,7 @@ None yet — no capability cluster has surfaced tension beyond what GDS-03 alrea
 
 | Artifact | File | Status |
 |---|---|---|
-| Strategic assumptions register | strategic-assumptions-register.md | ⛔ Planned |
+| Strategic assumptions register | [strategic-assumptions-register.md](strategic-assumptions-register.md) | ✅ Authored 2026-07-22 (7 assumptions; A7's trigger already fired — see `BL-0023`) |
 
 ## §4 — Architecture Decision Records
 

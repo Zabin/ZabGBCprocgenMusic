@@ -63,7 +63,7 @@ supersession-sweep, and split rationale.
 
 | IP | Package | Requirements | Status |
 |---|---|---|---|
-| IP-1060 | Arpeggio + duty-cycle variation | FR-1130, FR-1160 | **READY** — fully specified, [package](packages/IP-1060-arpeggio-and-duty-cycle.md); dependencies (`IP-0001`-`IP-0003`) all `VERIFIED`; **G3-authorized** — see note below |
+| IP-1060 | Arpeggio + duty-cycle variation | FR-1130, FR-1160 | **COMPLETE** — [package](packages/IP-1060-arpeggio-and-duty-cycle.md), 63/63 tests, 6000+ frame stress run clean; verification pending |
 | IP-1061 | Vibrato + portamento | FR-1140, FR-1150 | **READY** — fully specified, [package](packages/IP-1061-vibrato-and-portamento.md); dependencies (`IP-0001`-`IP-0003`) all `VERIFIED`, sequencing-only dependency on `IP-1060`; **G3-authorized** — see note below |
 
 **G3 authorization for `IP-1060`/`IP-1061`**: the user's request that filed `BL-0024` — "Iterating

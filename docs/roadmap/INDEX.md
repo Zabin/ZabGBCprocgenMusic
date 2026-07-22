@@ -38,6 +38,29 @@ standing G3 authorization gate for `IP-9010`/`IP-9020` (`docs/pipeline/backlog.m
 it clears. Milestone C is independently startable in parallel, per `03-capability-dependency-
 graph.md`.
 
+## Integration with `00-pipeline-manager` (added 2026-07-22)
+
+This package is now a standing input to the manager's loop, not a one-off artifact sitting outside
+it:
+
+- **Step 1 (reconcile)**: `00-pipeline-manager` reads `04-release-roadmap.md` (+ this index)
+  alongside its other cross-stage ledgers (`ROADMAP.md`, the Master Build Plan, etc.) every run,
+  and notes drift the same way it does for any other ledger (a release this file still marks "not
+  started" that the tree shows in progress, etc.).
+- **Step 3 (choose the next step)**: the roadmap's release sequence and dependency graph act as a
+  **tie-breaker among options tier-precedence and the backlog already leave unblocked** — it never
+  overrides a gate, a tier-precedence rule, or the pipeline's own upstream-before-downstream order.
+  If the roadmap and the backlog-driven recommendation conflict, the backlog/tier-precedence
+  recommendation wins and the conflict is journaled so this package can be corrected.
+- **Write ownership**: `00-pipeline-manager` **reads but never writes** this directory (same
+  "never edit a ledger the stages own" guardrail that already governs `ROADMAP.md`,
+  `docs/implementation/00-master-build-plan.md`, etc.). Whichever skill's run actually completes or
+  starts work on a named release (`R3`, `R4.5`, `R6`, …) is responsible for updating that release's
+  status line in `04-release-roadmap.md` as part of its own normal doc-update discipline — the
+  same convention every skill already follows for keeping `ROADMAP.md`'s per-stage row current.
+- **Full mechanics**: see `.claude/skills/README.md`'s "Product Roadmap" section and
+  `00-pipeline-manager/SKILL.md`'s Step 1/Step 3.
+
 ## How to use this package going forward
 
 When a release from `04-release-roadmap.md` is picked up: **(1)** confirm its named precondition

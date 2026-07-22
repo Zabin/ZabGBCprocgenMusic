@@ -127,7 +127,9 @@ cheapest-first, always including the ledgers that bear on the recorded next step
 `05-feature-review.md` · `docs/features/INDEX.md` ·
 `docs/implementation/00-master-build-plan.md` + `packages/INDEX.md` ·
 `docs/implementation/verification/` · `docs/reviews/integration-review-*` +
-`release-assessment-*`.
+`release-assessment-*` · `docs/roadmap/04-release-roadmap.md` + `INDEX.md` (if present — read-only
+cross-cutting sequencing input, see `README.md`'s "Product Roadmap" section; note drift here the
+same as any other ledger, but never edit it — it isn't this skill's write scope).
 
 Drift (a status the journal didn't expect, work done outside the manager, a `VERIFIED` with no
 Verification Report, a backlog item the tree shows already resolved) is corrected now and noted in
@@ -203,6 +205,19 @@ outranks proceeding into a dependent lower-tier step, even one already `SCHEDULE
 journal's recorded next step is still valid and no due backlog entry or higher-tier open question
 outranks it, that's the default. If several steps are genuinely parallel (see above), pick one and
 name the others in the report.
+
+**When `docs/roadmap/04-release-roadmap.md` exists**, use its release sequence and dependency
+graph as a **tie-breaker among already-unblocked, backlog-cleared candidates** — e.g. preferring
+the step that advances the roadmap's named critical-path release, or picking one of several
+genuinely-parallel roadmap streams to name as this run's choice while listing the others as
+parallel options in the report (same as any other parallel-step case above). The roadmap **never**
+overrides tier precedence, never skips a gate a roadmap release's own entry names as a precondition
+(that precondition is gate-checked normally in Step 4, not specially), and never justifies invoking
+a stage out of the pipeline's own upstream-before-downstream order. If the roadmap and the
+backlog-derived recommendation genuinely conflict (the roadmap names one release as next but a
+higher-tier open question or a due Critical/High backlog item points elsewhere), the backlog/tier-
+precedence recommendation wins — note the conflict in the run's journal row so the roadmap can be
+corrected by whichever skill owns the affected release entry.
 
 **During the first, from-scratch increment**, the ordering is simply the first stage whose
 artifacts don't exist yet, 01 upward — there is no as-built baseline to derive from, so `01-vision`

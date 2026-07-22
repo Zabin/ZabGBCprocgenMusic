@@ -50,6 +50,29 @@ exception (see `00-pipeline-manager`). New scope beyond the initial vision enter
 | 10 | `10-integration-review` | Integration Report for an epic/release's verified package set | `docs/reviews/` |
 | 11 | `11-release-readiness` | Release Assessment (GO/NO-GO) + baseline update on GO | `docs/reviews/`, trackers |
 
+## Product Roadmap (cross-cutting sequencing input, not a numbered stage)
+
+`docs/roadmap/` (authored 2026-07-22) is a **capability-driven planning package** — product
+goals, a capability map/dependency graph, a sequenced release list (`R0`-`R13`), milestones,
+catalog-grain feature entries, a traceability matrix, and exit criteria — synthesized directly
+from the Vision and Research tiers, sitting *above* `03-architecture-design-synthesis`/
+`05-feature-decomposition` in grain (it plans *which release comes next and why*, not *what a
+package's files/tasks/tests are*). It is not a numbered stage and authorizes nothing (G3 still
+applies per-package, unchanged) — see `docs/roadmap/INDEX.md`.
+
+**How it fits the loop:** `00-pipeline-manager` reads it during Step 1 reconciliation (alongside
+the other cross-stage ledgers) and consults it during Step 3 as a **sequencing aid, never an
+override** — the roadmap's release order helps pick which unblocked, backlog-cleared step is
+highest-leverage; it never lets the manager skip a gate, ignore tier precedence, or invoke a stage
+out of the pipeline's own dependency order. When a roadmap release's own named precondition (a
+G3 authorization, an architecture decision, a research pass) is still open, that precondition is a
+normal gate/backlog item like any other — the roadmap does not create a second gating mechanism.
+**Who keeps it current:** whichever skill's run completes or starts work on a named release
+updates that release's status line in `docs/roadmap/04-release-roadmap.md` as part of its own
+normal doc-update discipline (the same convention every skill already follows for `ROADMAP.md`'s
+per-stage row) — `00-pipeline-manager` itself only reads and flags drift here, per its existing
+"never edit a ledger the stages own" guardrail; it does not write `docs/roadmap/`.
+
 ## Iteration loops
 
 The pipeline is iterative, not a one-way waterfall — but every loop re-enters at a numbered stage

@@ -37,20 +37,20 @@
 [PASS] T6.5 All three pitched channels still report active after sustained play  (NR52=0xf7)
 [PASS] T7.setup DENSITY_IDX reached 0  (got 0)
 [PASS] T7.0.1 Noise step index cycles through all 16 steps at density 0  (seen: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
-[PASS] T7.0.2 Channel 4 (noise) triggers at least once at density 0  (onset-frame count: 138)
+[PASS] T7.0.2 Channel 4 (noise) triggers at least once at density 0  (onset-frame count: 137)
 [PASS] T7.setup DENSITY_IDX reached 7  (got 7)
 [PASS] T7.7.1 Noise step index cycles through all 16 steps at density 7  (seen: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
-[PASS] T7.7.2 Channel 4 (noise) triggers at least once at density 7  (onset-frame count: 563)
-[PASS] T7.3 Denser preset (max DENSITY_IDX) produces more onset-frames than the sparsest  (onset_counts={0: 138, 7: 563})
+[PASS] T7.7.2 Channel 4 (noise) triggers at least once at density 7  (onset-frame count: 560)
+[PASS] T7.3 Denser preset (max DENSITY_IDX) produces more onset-frames than the sparsest  (onset_counts={0: 137, 7: 560})
 [PASS] T8.1 DISSONANCE_SCORE at boot is within the theoretical 0-45 range  (got 29)
 [PASS] T8.2 BAD_ZONE_FLAGS at boot is a valid 4-bit combination
-[PASS] T8.3 DISSONANCE_SCORE varies over time (three independently-walking channels produce a changing interval mix)  (distinct scores: [0, 1, 2, 3, 4, 6, 11, 12, 13, 15, 16, 17, 18, 19, 22, 24, 29, 30])
-[PASS] T8.4 BAD_ZONE_FLAGS bit3 (COMBINED) matches bit0 (DISSONANT) on almost every frame (at most a rare, self-healing one-frame transient, not a sustained mismatch)  (1/2000 mismatched frames; flags seen: [0, 1, 9, 10])
-[PASS] T8.5 At least one bad-zone entry (DISSONANT or COMBINED) was observed over a long run  (flags seen: [0, 1, 9, 10])
+[PASS] T8.3 DISSONANCE_SCORE varies over time (three independently-walking channels produce a changing interval mix)  (distinct scores: [0, 1, 2, 3, 4, 6, 11, 12, 13, 14, 15, 18, 19, 22, 24, 29, 30])
+[PASS] T8.4 BAD_ZONE_FLAGS bit3 (COMBINED) matches bit0 (DISSONANT) on almost every frame (at most a rare, self-healing one-frame transient, not a sustained mismatch)  (0/2000 mismatched frames; flags seen: [0, 9, 10])
+[PASS] T8.5 At least one bad-zone entry (DISSONANT or COMBINED) was observed over a long run  (flags seen: [0, 9, 10])
 [PASS] T8.6 Select clears BAD_ZONE_FLAGS (read on the exact reset frame)  (got 0)
 [PASS] T8.7 Select clears DISSONANCE_SCORE (read on the exact reset frame)  (got 0)
 [PASS] T8.7b Select clears STALE_COUNT_PA (read on the exact reset frame)  (got 0)
-[PASS] T8.7c Select resets ONSET_WINDOW_COUNT to just this frame's fresh onsets  (got 3)
+[PASS] T8.7c Select resets ONSET_WINDOW_COUNT to just this frame's fresh onsets  (got 2)
 [PASS] T8.8 A couple of settle frames later, STALE_COUNT_PA is still small (a fresh count, not a stale accumulated one)  (got 0)
 [PASS] T8.9 A couple of settle frames later, ONSET_WINDOW_COUNT is still small (just fresh onsets, not a stale accumulated count)  (got 3)
 [PASS] T9.1 LCD is on with BG tile data at 0x8000 and BG display enabled  (LCDC=0x91)
@@ -60,6 +60,8 @@
 [PASS] T10.2 The engine recovered out of a bad-zone state on its own (no Select pressed), confirming autonomous avoidance/recovery works, not just detection
 [PASS] T11.1 Pulse A's arpeggio step index cycles through more than one value over a sustained run (chord-tone cycling is live, not frozen)  (distinct steps seen: [0, 1, 2, 3])
 [PASS] T11.2 Pulse A's duty-cycle bits (NR11) take more than one value across onsets  (distinct duty values seen: ['0x0', '0x40', '0x80', '0xc0'])
+[PASS] T11.4 Pulse A's vibrato phase cycles through all 4 values every frame (live, not frozen)  (phases seen: [0, 1, 2, 3])
 [PASS] T11.3 Select resets the arpeggio step index to 0 (read on the exact reset frame)  (got 0)
+[PASS] T11.5 Select resets the vibrato phase to 0 or 1 (0 = the resolved value; 1 = one same-frame arp_tick step already advanced it, the same effect T8.7c documents elsewhere — both are correct, not a reset defect)  (got 1)
 
-63 PASS, 0 FAIL
+65 PASS, 0 FAIL

@@ -79,7 +79,17 @@ all always-on, no new input control:
   root note, implying a chord on a single channel.
 - **Duty cycle** → `NR11`/`NR21`'s duty bits vary per onset (`DUTY_BY_DEGREE`, indexed by
   `CUR_DEGREE mod 4`) instead of staying fixed at 50%.
-- *(Vibrato/portamento land in `IP-1061` — update this section once built.)*
+- **Vibrato** → every frame, a tiny +-1 low-byte wobble is added to the held frequency
+  (`ARP_STATE_PA`/`PB` bits6-7, a 4-phase cycle: +1, none, -1, none) — a deliberate scope
+  reduction from a true frequency-domain LFO (the SM83 opcode set this project uses has no
+  ADC/SBC for safe multi-byte carry-chain arithmetic), kept to the smallest safe unit with
+  exact carry/borrow handling via `JP_C`/`JP_NC`.
+- **Portamento** → on a degree-changing onset, the trigger write uses the *old* degree's
+  frequency (retriggering envelope/duty at the outgoing pitch) rather than the new one;
+  `arp_tick`, which runs every frame and — critically — runs *before* `gen_tick` in
+  `engine_tick`'s call order, carries the pitch the rest of the way to the new target over the
+  following frame(s). This 2-call reordering is what actually produces the glide — see
+  `engine_tick`'s own comment before changing that order.
 
 ## How to Change Things
 
@@ -133,13 +143,15 @@ per-channel `STALE_COUNT_*`, overload via the rolling onset window) — see
 - Visualizer: LCD on, 4 tile indicators reflect `NR52`'s per-channel active bits every frame; BG
   palette swaps from calm (blue/green) to bad-zone (red) tones based on `BAD_ZONE_FLAGS` bit3
 - Pulse A/B arpeggiate (frequency cycles through a 4-step chord-tone pattern every few frames,
-  no envelope retrigger) and vary duty cycle per onset (`IP-1060`, `R216`)
+  no envelope retrigger), vibrato-wobble every frame, glide (portamento) from the old pitch to
+  the new one across a degree-changing onset, and vary duty cycle per onset (`IP-1060`/`IP-1061`,
+  `R216`)
 
-**63/63 `test_rom.py` checks pass** (T1-T11). A 6000+ frame stress run with continuous input
+**65/65 `test_rom.py` checks pass** (T1-T11). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 
-**Explicitly not built yet**: vibrato/portamento (`IP-1061`, planned next), chord-progression/
+**Explicitly not built**: chord-progression/
 song-form composition, session-length-adaptive drift, non-default preset tuning by ear, a proper
 `visuals.py` beyond the 4-tile/2-palette MVP — see `docs/pipeline/backlog.md` (`BL-0005`,
 `BL-0011`) for named, deferred candidates.

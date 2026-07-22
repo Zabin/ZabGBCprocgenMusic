@@ -33,8 +33,9 @@ Authoritative source: [`docs/architecture/07-data-model.md`](docs/architecture/0
 channel-mix — channel-mix wired but not yet consumed by any channel), bad-zone state at
 `0xC005`-`0xC00B` (dissonance score, per-channel stale counts, onset-window counter/timer),
 per-channel generation state (note timers, scale degrees, LFSR states) at `0xC00C`+, joypad state
-at `0xC050`-`0xC052`, noise step index at `0xC019`. **No SRAM** — this project makes no save/
-battery commitment (MSTR-001 C2).
+at `0xC050`-`0xC052`, noise step index at `0xC019`, **arpeggio state (`IP-1060`) at `0xC01D`-
+`0xC01F`** (`ARP_STATE_PA`/`PB` — packed countdown+step byte — and a shared scratch byte). **No
+SRAM** — this project makes no save/battery commitment (MSTR-001 C2).
 
 ### Input mapping (GDS-03 SS3)
 
@@ -66,6 +67,19 @@ longer the only way out:
 Recovery acts at the granularity of each channel's own note cadence (it changes what plays next,
 not what's already sounding), so it takes effect within roughly one note duration per channel, not
 instantly — see `docs/architecture/03-architecture.md` §5's amendment for the full rationale.
+
+### Sound design techniques (`IP-1060`/`IP-1061`, R216)
+
+Pulse A/B (not wave — it keeps its plain sustained bass role) get four layered timbral effects,
+all always-on, no new input control:
+
+- **Arpeggio** → every few frames (`ARP_SUBTICK_RELOAD`), the channel's frequency register is
+  rewritten (no retrigger — envelope keeps decaying naturally) to cycle through
+  `ARPEGGIO_OFFSETS`, a period-4 up/down pattern of scale-degree deltas from the currently-held
+  root note, implying a chord on a single channel.
+- **Duty cycle** → `NR11`/`NR21`'s duty bits vary per onset (`DUTY_BY_DEGREE`, indexed by
+  `CUR_DEGREE mod 4`) instead of staying fixed at 50%.
+- *(Vibrato/portamento land in `IP-1061` — update this section once built.)*
 
 ## How to Change Things
 
@@ -118,14 +132,17 @@ per-channel `STALE_COUNT_*`, overload via the rolling onset window) — see
   same frame, with a genuinely different starting point each press
 - Visualizer: LCD on, 4 tile indicators reflect `NR52`'s per-channel active bits every frame; BG
   palette swaps from calm (blue/green) to bad-zone (red) tones based on `BAD_ZONE_FLAGS` bit3
+- Pulse A/B arpeggiate (frequency cycles through a 4-step chord-tone pattern every few frames,
+  no envelope retrigger) and vary duty cycle per onset (`IP-1060`, `R216`)
 
-**60/60 `test_rom.py` checks pass** (T1-T10). An 8000+ frame stress run with continuous input
+**63/63 `test_rom.py` checks pass** (T1-T11). A 6000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 
-**Explicitly not built**: arpeggio/vibrato/chord progressions, session-length-adaptive drift,
-non-default preset tuning by ear, a proper `visuals.py` beyond the 4-tile/2-palette MVP — see
-`docs/pipeline/backlog.md` (`BL-0005`, `BL-0011`) for named, deferred candidates.
+**Explicitly not built yet**: vibrato/portamento (`IP-1061`, planned next), chord-progression/
+song-form composition, session-length-adaptive drift, non-default preset tuning by ear, a proper
+`visuals.py` beyond the 4-tile/2-palette MVP — see `docs/pipeline/backlog.md` (`BL-0005`,
+`BL-0011`) for named, deferred candidates.
 
 ## Known Issues
 

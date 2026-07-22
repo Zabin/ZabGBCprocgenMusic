@@ -53,6 +53,9 @@ project's own convention.
 | `0xC01A` | `SEMI_PA` | **Added `IP-0004`, documented here `BL-0018`** — pulse A's current note's semitone class (mod 12), scratch state recomputed every `badzone_tick` call (§4a) — not meaningful across frames, a working register more than persistent state |
 | `0xC01B` | `SEMI_PB` | **Added `IP-0004`, documented here `BL-0018`** — pulse B's semitone-class scratch, same role as `SEMI_PA` |
 | `0xC01C` | `SEMI_WV` | **Added `IP-0004`, documented here `BL-0018`** — wave channel's semitone-class scratch, same role |
+| `0xC01D` | `ARP_STATE_PA` | **Added `IP-1060` (2026-07-22)** — pulse A's arpeggio state, packed: bits0-3 sub-tick countdown, bits4-5 step index (0-3, wraps via `AND 0x30`) |
+| `0xC01E` | `ARP_STATE_PB` | **Added `IP-1060`** — pulse B's arpeggio state, same packing |
+| `0xC01F` | `ARP_DEGREE_SCRATCH` | **Added `IP-1060`** — shared working storage for the arpeggio tick's effective-degree computation (pa/pb ticks run sequentially within a frame, never concurrently, so sharing one byte is safe — same convention as `SEMI_PA`/`PB`/`WV`'s own "not persisted across frames" scratch role) |
 
 ## §4 Repetition-detection history buffers (§4b's "last 8 notes")
 

@@ -3,7 +3,9 @@
 - **Tier:** R300 · **Owned by:** `02-research-tooling-and-testing` · **Status:** ✅ Authored
   2026-07-22 (was "no gap yet — simple label/fixup mechanism"; re-evaluated against the now
   7-package-shipped tree — judgment confirmed, authored as a real grounding topic rather than a
-  bare row)
+  bare row); **§8-9 addendum added 2026-07-22** (MSTR-001 §9 thread — what adopting R106's
+  MBC5 recommendation would cost this design; a different question from §1-7's "is the current
+  flat-32KB design clean," answered honestly as real assembler-architecture work, not a patch)
 
 ## 1. Purpose
 Ground `gbc_lib.py`'s label/fixup assembler pattern against general two-pass-assembler design
@@ -63,4 +65,71 @@ Create/Modify` claims about `music_engine.py`/`build_rom.py`/etc. being buildabl
 ## 7. Related Topics
 R301 (PyBoy headless API — the other half of the build-then-verify toolchain), R304 (ROM
 validation — the header/checksum pass that runs after `resolve()`), R109 (cartridge header, the
-data `set_header` writes).
+data `set_header` writes), R106 (MBC/SRAM — the §8 addendum below grounds what adopting R106's
+MBC5 recommendation would cost this topic's own assembler).
+
+## §8 Addendum (2026-07-22) — what bank-switching would cost this design
+
+**Added for MSTR-001 §9's third research thread** (v1.2 reopened the single-bank non-goal;
+R106, this tier's sibling topic, names MBC5 as the concrete recommendation *if* bank-switching is
+ever adopted). This addendum grounds the tooling cost honestly — it does **not** reconfirm "no
+gap" the way §5 above does for the current flat-32KB design; those are two different questions
+answered under two different assumptions, both true in their own scope.
+
+**`gbc_lib.py`'s `ROM` class is architecturally single-bank today, not incidentally.**
+`ROM.__init__` allocates one flat `bytearray(size=32768)` (`gbc_lib.py:11`); `self.pos`/`self.labels`/
+`self.fixups` all address into that one flat space — a label is just a byte offset, with no bank
+component (`gbc_lib.py:24-26`). This is the same design R302 §3-4 already confirmed is clean and
+textbook *for a flat address space* — the two-pass label/fixup mechanism itself (record offsets,
+patch forward references) is bank-agnostic in principle, but this project's specific
+implementation has never needed to represent "which bank a label lives in," so it doesn't.
+
+**Real GBC bank-switching splits the ROM window into a fixed half and a switchable half**: `$0000`-
+`$3FFF` is always bank 0; `$4000`-`$7FFF` is whichever bank was last selected by writing the MBC's
+bank-select register (R106 §3's MBC1/3/5 protocols) [Pan Docs — Memory Map](https://gbdev.io/pandocs/Memory_Map.html).
+Concretely, adopting this would require, at minimum: (1) `ROM.label()`/`self.labels` gaining a
+bank component — a label is no longer just an offset, it's `(bank, offset)`, and two different
+banks can validly reuse the same `$4000`-`$7FFF` offset for unrelated code; (2) `_abs`/`_rel`
+fixups need to know whether a call target is in the fixed bank-0 region (safe to `CALL` directly
+from anywhere) or in a switched bank (only safely callable if the caller first confirms/sets the
+right bank selected — calling into a *different*, not-currently-switched-in bank via a plain
+`CALL` silently executes whatever code happens to be switched in, a real and dangerous silent-
+failure class this project's `resolve()` currently has no way to detect); (3) `build_rom.py`'s
+section-layout model (which currently just appends sections sequentially into the one flat
+`bytearray`) would need real per-bank layout/budget tracking, not just a longer flat file.
+**This is genuine assembler-architecture work — a new addressing model, not a config flag or a
+small patch** — consistent with this addendum's own instruction to assess it honestly rather than
+undersell the cost.
+
+**PyBoy itself is not the blocker.** PyBoy's cartridge-loading module dispatches to dedicated
+per-controller submodules — `cartridge.py` imports and dispatches to `.mbc1`/`.mbc3`/`.mbc5`
+(among others) based on the header's cart-type byte [PyBoy source — `pyboy/core/cartridge/cartridge.py`](https://github.com/Baekalfen/PyBoy/blob/master/pyboy/core/cartridge/cartridge.py) —
+confirming bank-switched ROMs are natively, properly emulated (unsurprising, since PyBoy plays
+real commercial MBC1/3/5 cartridge dumps as its primary use case, not just Driftune's flat-ROM
+case). `test_rom.py`'s existing memory-read/register-assertion pattern (R301) would keep working
+unchanged for reads inside the fixed bank-0 window; **the only new test-design concern is that a
+memory read at a switchable-window address (`$4000`-`$7FFF`) is now ambiguous without also
+tracking which bank was selected at read time** — a genuinely new piece of state `test_rom.py`
+would need to track and assert on (e.g. reading the MBC's bank-select shadow, or PyBoy exposing
+the currently-mapped bank directly — not independently confirmed this pass, flagged "needs
+fetch-verification" if bank-switching is actually adopted).
+
+### §8 Sources
+- [Pan Docs — Memory Map](https://gbdev.io/pandocs/Memory_Map.html) (fixed vs. switchable window)
+- [PyBoy source — `pyboy/core/cartridge/cartridge.py`](https://github.com/Baekalfen/PyBoy/blob/master/pyboy/core/cartridge/cartridge.py)
+  (confirms native MBC1/3/5 dispatch, Tier-A primary-source evidence)
+- Whether PyBoy exposes "currently selected bank" as a directly-readable test-harness value:
+  not confirmed this pass — flagged "needs fetch-verification" before `test_rom.py` design work
+  starts, not asserted as available.
+
+## §9 Implementation Guidance addendum (bank-switching specifically)
+- **Do not treat bank-switching adoption as a `gbc_lib.py` patch** — budget it as a real
+  assembler-architecture package in its own right (`07-implementation-planning` should size it
+  honestly, likely its own `IP-8xx0`-scale refactoring effort or larger, not folded into whatever
+  feature package motivated the ROM-budget pressure).
+- **Do** keep the current flat-address design exactly as-is until bank-switching is genuinely
+  needed (R106 §4/§5's own "no MBC/SRAM work is needed or planned" still holds for the *shipped*
+  ROM) — this addendum grounds a future cost, it does not recommend incurring it now.
+- **Do** treat "which bank is selected" as new first-class test state the moment bank-switching
+  is adopted — R305 (emulator-based test design) should be revisited alongside any such adoption,
+  not assumed to extend for free.

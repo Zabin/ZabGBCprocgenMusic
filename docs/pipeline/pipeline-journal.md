@@ -2,7 +2,7 @@
 
 ## Position
 
-- **Updated:** 2026-07-22 (run #18) — **Vision consistency check: GDS-00 drift fixed, assumptions register authored**
+- **Updated:** 2026-07-22 (run #19) — **User-directed research/architecture push complete: ADS-100 authored, BL-0013/BL-0018 reconciled**
 - **Increment:** Foundation release bucket unchanged (all 7 `VERIFIED`, integration-reviewed, `IP-9010`/`IP-9020` still await G3 — not being re-asked this run per explicit user direction). New thread this run: user directed closing out all open research topics and revisiting top-tier hierarchy (vision/architecture), adjusting vision as new research warrants.
 - **Pipeline state:**
   - `01-vision`: ✅ MSTR-001 **v1.1** (amended: bad-zone must be autonomously recoverable, Select
@@ -23,10 +23,14 @@
     dependency management confirmed **not** portable, surfacing `BL-0023`: no `requirements.txt`
     despite this session's own repeated `pip install pyboy` friction across every fresh-session
     verification run).
-  - `03-architecture-design-synthesis`: 🟡 GDS-00/01/03/07 authored (GDS-01/03 amended this run
-    for autonomous recovery + Select randomization); GDS-02/04/05/06/08/09/10 remain `⛔ Planned`
-    (`BL-0001`). Shipped code deviates from two GDS-03/GDS-07/R204 details in documented,
-    deliberate ways not yet reconciled back into those docs (`BL-0013`).
+  - `03-architecture-design-synthesis`: 🟡 GDS-00/01/03/07 authored; GDS-02/04/05/06/08/09/10
+    remain `⛔ Planned` (`BL-0001`). **Run #19**: GDS-03/GDS-07 reconciled against shipped code
+    (`BL-0013`'s architecture half done — GDS-03 §4a/§4b and GDS-07 §3/§4 now describe the actual
+    period-1/7-entry-interval-class design with a dated note, R204/FR-1090 still owed to their
+    own owning skills); GDS-07 extended with 6 previously-undocumented WRAM addresses (`BL-0018`,
+    `DONE`); **`ADS-100`** (Combinable Generation Schemes) authored for `BL-0020` — one concrete
+    design (a second "Scheme E" selectable per pitched channel, riding `IP-9010`'s not-yet-shipped
+    `CHMIX_IDX` mask-byte bits, `ADR-0001`), contingent on `IP-9010` shipping first.
   - `04-requirements-engineering`: ✅ FR-1000...FR-1120, NFR-1000...NFR-1030 authored (v1).
   - `05-feature-decomposition`: ✅ Feature Catalog v1 (FEAT-1000...FEAT-1050).
   - `06-feature-specification`: ⛔ No formal FS-xxx yet — abbreviated per-package notes used
@@ -77,23 +81,22 @@
     (recalibrates `OVERLOAD_THRESHOLD`/`ONSET_WINDOW_FRAMES`, `BL-0017`). Both fully specified,
     **neither `READY`/authorized** — this project carries no G3 bootstrap carve-out.
 - **Backlog:** 20 open entries (`BL-0001`, `BL-0005`...`BL-0007`, `BL-0010`...`BL-0013`, `BL-0015`
-  ...`BL-0023`; `BL-0002`/`BL-0003`/`BL-0004`/`BL-0008`/`BL-0009`/`BL-0014` are `DONE`, pending
-  archiving at the next triage sweep). `BL-0020` `SCHEDULED` (rides `03-architecture-design-synthesis`
-  later this run). `BL-0021` (accessibility, narrow luminance gap), `BL-0022` (test-coverage,
-  global checksum), `BL-0023` (toolchain, no `requirements.txt`) all `SCHEDULED`/`DEFERRED` with
-  named triggers, none urgent enough to jump ahead of `BL-0019`/`BL-0017`. `IP-9010`/`IP-9020`'s
-  G3 authorization remains an open gate but is **not being re-asked this run** — the user
-  explicitly redirected attention to research/architecture work instead; the gate stays recorded,
-  not silently dropped.
-- **Next step (mid-run — user-directed research/architecture push in progress):** vision
-  consistency check done. Continue this run's queue: `03-architecture-design-synthesis`
-  (`BL-0020`'s combinable-schemes question, plus the standing `BL-0013`/`BL-0018` reconciliation
-  debt). Separately, still unblocked whenever picked up: `06-feature-specification`'s
-  FS-100...FS-105 backfill (`BL-0006`/`BL-0012`).
-- **Open gates:** **G3 authorization for `IP-9010` and `IP-9020`** remains open from run #14 —
-  not re-asked this run per the user's explicit redirection, not resolved either. A genuinely new
-  gate (Vision-level tension, a fresh `NEEDS-USER`) could still stop this run's research/
-  architecture push before it reaches those two packages.
+  ...`BL-0023`; `BL-0002`/`BL-0003`/`BL-0004`/`BL-0008`/`BL-0009`/`BL-0014`/`BL-0018` are `DONE`,
+  pending archiving at the next triage sweep). `BL-0013`/`BL-0020` now `IN PIPELINE` (architecture
+  halves done, remainder owed to `02-research-game-design`/`04-requirements-engineering`).
+  `BL-0021`/`BL-0022`/`BL-0023` remain `SCHEDULED`/`DEFERRED` with named triggers, none urgent
+  enough to jump ahead of `BL-0019`/`BL-0017`. `IP-9010`/`IP-9020`'s G3 authorization remains an
+  open gate, not re-asked this run.
+- **Next step:** this user-directed push (top-tier hierarchy + all open research) is now
+  **complete** — research fully closed out (39/39), vision consistency-checked, architecture
+  work done for `BL-0020`/`BL-0013`/`BL-0018`. Two threads remain for a future run, neither
+  urgent: `04-requirements-engineering` could formalize `ADS-100`'s candidate FRs for `BL-0020`
+  (though implementation is contingent on `IP-9010` shipping first, per `ADR-0001` — no rush);
+  and the standing **G3 authorization gate for `IP-9010`/`IP-9020`** is still open and still the
+  pipeline's actual critical-path blocker whenever the user wants to resume it.
+- **Open gates:** **G3 authorization for `IP-9010` and `IP-9020`** — open since run #14, not
+  re-asked this run per the user's explicit redirection to research/architecture work; still the
+  standing blocker for `10-integration-review`'s eventual re-run and `11-release-readiness`.
 
 ## Run log
 
@@ -117,6 +120,7 @@
 | 16 | 2026-07-22 | iterate (user-directed, same run as #15) | `02-research-game-design` | R208 (last remaining `⛔ Planned` R2xx row) | Continuing the user-directed research push. Ran real `WebSearch` research on color semiotics (red-for-warning/green-for-calm as near-universal UI convention) and pixel-art palette-restraint convention (Game Boy Color's own historical aesthetic), then checked the shipped `visuals.py` `CALM_PALETTE`/`BAD_PALETTE` design against both — confirmed the red/calm semantic and single-palette restraint both match real convention (not arbitrary choices). Went further and computed approximate perceived luminance for each palette's "on" color (`0.3R+0.59G+0.11B` on the 0-31 scale): `CALM` idx3 ≈21.7, `BAD` idx3 ≈15.9 — a real but narrow (~27%) gap. Cross-checked against red-green color-vision-deficiency accessibility convention (WebAIM, Colblindor) — the design isn't relying on hue alone (a genuine brightness difference exists), but the gap is narrow enough it may not read clearly at a glance under red-green CVD, and nothing (R205, GDS-03, the `IP-0006` package doc, or `VR-0006`'s hue-only pixel check) had evaluated this. Filed `BL-0021` (new, Low-Medium, accessibility/design-quality — no functional defect). **R200 tier (design research) now fully closed out** — R201-R218 all `✅`. | `Next: 02-research-tooling-and-testing (R302/R303/R304/R306) — the last research tier's remaining planned rows. Then 01-vision, then 03-architecture-design-synthesis (BL-0020/BL-0013/BL-0018). IP-9010/IP-9020's G3 gate remains open but unasked, per explicit user direction.` |
 | 17 | 2026-07-22 | iterate (user-directed, same run as #15/#16) | `02-research-tooling-and-testing` | R302, R303, R304, R306 (last four `⛔ Planned` R3xx rows) | Continuing the user-directed research push. R302 (codegen patterns): re-derived `gbc_lib.py`'s two-pass label/fixup assembler against textbook practice, confirmed the "no gap yet" judgment holds — cited `IP-0007`'s own `JR`-out-of-range incident as concrete evidence the mechanism correctly catches the one error class it exists to catch. R303 (2bpp tile encoding): confirmed `visuals.py`'s `_tile_off_bytes`/`_tile_on_bytes` are correctly formed per the real bitplane encoding (Pan Docs + a worked-example cross-reference), closing the `IP-0006`-gated deferral. R304 (ROM validation, split from R109 per its own stated condition): re-derived both header-checksum algorithms directly from `gbc_lib.py:219-225`, confirmed correct; noted `test_rom.py` T1 asserts only the boot-gating header checksum, never the global checksum — filed `BL-0022` (Low, test-coverage only, zero functional risk). R306 (toolchain portability): confirmed path handling is portable (`Path(__file__)`-relative, argv-driven output path, no OS-specific assumptions found by grep) but dependency management is **not** — grepped for a `requirements.txt`/`pyproject.toml` (none exists) and cited this session's own repeated `pip install pyboy` friction (first hit run #7) as direct evidence, not a theoretical gap — filed `BL-0023` (Low-Medium, recommends a one-line `requirements.txt` pinning `pyboy==2.7.0`). Cross-linked R109→R304, R301→R306. **All 39 research topics across R100/R200/R300 are now authored — the entire research backlog is closed out.** Updated `ROADMAP.md`'s research row accordingly. | `Next: 01-vision — review whether the now-complete 39-topic encyclopedia (particularly the R2xx generation-technique topics BL-0020 cites) warrants a MSTR-001/GDS-00 amendment, per the user's explicit "adjust vision as new information comes available through research" directive. Then 03-architecture-design-synthesis (BL-0020, BL-0013, BL-0018). IP-9010/IP-9020's G3 gate remains open but unasked, per explicit user direction.` |
 | 18 | 2026-07-22 | iterate (user-directed, same run as #15-#17) | `01-vision` | Consistency check | Read MSTR-001 (v1.1) and GDS-00 in full to check agreement, per the user's "adjust vision as new information comes available through research" directive. Found real drift: GDS-00 still described the pre-v1.1 bad-zone model (Select as the sole recovery path) even though MSTR-001 C5/GDS-01/GDS-03/`IP-0007` were all amended to the autonomous-recovery model in the same earlier session — GDS-00 was omitted from that amendment's recorded blast radius. Fixed GDS-00's steps 3-4 and recorded the drift-fix rationale inline (dated, not a silent rewrite). Also fixed a stale "MSTR-001 v1.0" reference in `docs/master/INDEX.md`. Authored `docs/architecture/strategic-assumptions-register.md` for the first time (previously a bare `⛔ Planned` row despite being one of this skill's three owned artifacts) — 7 assumptions with triggers, drawing on the now-complete research; A7 (pyboy dependency availability assumed present) already has its trigger fired, per this run's own `R306`/`BL-0023` finding — routed to that entry's existing disposition, not treated as a new vision-level decision. Evaluated whether `BL-0020` (combinable procgen schemes) or any R2xx finding constitutes genuine vision-level tension: determined no — MSTR-001 C6's "generation logic... every frame" already accommodates one or several schemes without contradiction; added a light delegation note to GDS-00 naming it a third "decide at GDS-03" item (alongside input-mapping and the bad-zone metric), no MSTR-001 change. Updated `ROADMAP.md`'s vision row. | `Next: 03-architecture-design-synthesis — BL-0020 (combinable-schemes design), BL-0013 (GDS-03/GDS-07/R204/FR-1090 reconciliation), BL-0018 (GDS-07 missing WRAM addresses). IP-9010/IP-9020's G3 gate remains open but unasked, per explicit user direction.` |
+| 19 | 2026-07-22 | iterate (user-directed, final step of this push) | `03-architecture-design-synthesis` | `BL-0020`, `BL-0013`, `BL-0018` | Three items. (1) `BL-0018`: extended GDS-07 §3 with all six previously-undocumented WRAM addresses (`LFSR_STATE_PB`/`WV`, `NOISE_STEP_IDX`, `SEMI_PA`/`PB`/`WV`), each tagged with its originating package — `DONE`. (2) `BL-0013`: reconciled GDS-03 §4a/§4b and GDS-07 §3/§4 with dated notes describing the shipped period-1/7-entry-interval-class-folded design, marking the fuller period-1-or-2/12-entry versions as a named v2 upgrade path with no fired trigger; also added a §4c note tracing `BL-0017`'s root cause back to this section's own "derive the exact number once preset tables exist" deferral; also fixed a stale GDS-07 §8 note that still described pre-`IP-0007` fixed-seed behavior. R204 SS5/`FR-1090` remain owed to `02-research-game-design`/`04-requirements-engineering` — named, not touched (out of this skill's write-scope) — `BL-0013` flipped to `IN PIPELINE`, not `DONE`. (3) `BL-0020`: authored [`ADS-100`](../architecture/ADS-100-combinable-generation-schemes.md) — one concrete design (not an options menu, per the skill's own discipline): a second "Scheme E" (Euclidean-onset timing reusing the noise channel's existing pattern machinery + a small fixed cycling motif table, grounded in R202/R211/R216) selectable per pitched channel alongside the existing "Scheme W" LFSR walk; "combination" is ensemble-level (different channels, different schemes), never blended within one channel (sidesteps a harder voice-leading/DSP problem R203 doesn't claim solvable on this hardware). Scheme selection rides `IP-9010`'s not-yet-shipped `CHMIX_IDX` mask-byte spare bits rather than a new input control (all 6 physical controls already assigned, `R217`) — recorded as [`ADR-0001`](../architecture/adr/ADR-0001-scheme-selection-rides-chmix-preset-space.md), explicitly contingent on `IP-9010` shipping with its currently-planned bit layout. `BL-0020` flipped to `IN PIPELINE`. Updated `docs/architecture/INDEX.md`, `adr/INDEX.md`, `ROADMAP.md`. **This completes the user's directed push** ("iterate pipeline skill for top tier hierarchy items and all open research topics, adjust vision as new information comes available") — research 39/39, vision consistency-checked (run #18), architecture work done for all three items this run named. | `GATE (standing, not new): G3 authorization for IP-9010/IP-9020 remains the pipeline's actual critical-path blocker, open since run #14, not re-asked this run. Secondary, non-blocking: 04-requirements-engineering could formalize ADS-100's candidate FRs whenever picked up (implementation itself is contingent on IP-9010 shipping first, per ADR-0001 — no rush). This run's directed scope is complete; ending here to report to the user.` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

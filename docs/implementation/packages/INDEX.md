@@ -15,5 +15,5 @@ Owned by `07-implementation-planning` (authoring), `08-*` peers (execution), `09
 | IP-0007 | [Autonomous bad-zone avoidance/recovery + Select randomization](IP-0007-autonomous-recovery-and-randomize.md) | VERIFIED ([VR-0007](../verification/VR-0007-autonomous-recovery-and-randomize.md), fresh-session independent verification — `BL-0017` filed, Medium-High) |
 | IP-9010 | [Channel-mix gating (remediation for `BL-0019`)](IP-9010-channel-mix-gating.md) | NOT STARTED — not authorized (no G3 go-ahead on record) |
 | IP-9020 | [Overload threshold recalibration (remediation for `BL-0017`)](IP-9020-overload-threshold-recalibration.md) | NOT STARTED — not authorized (no G3 go-ahead on record) |
-| IP-1060 | [Arpeggio + duty-cycle variation](IP-1060-arpeggio-and-duty-cycle.md) | COMPLETE — 63/63 tests, self-tested same session as authored; verification pending |
+| IP-1060 | [Arpeggio + duty-cycle variation](IP-1060-arpeggio-and-duty-cycle.md) | VERIFIED ([VR-1060](../verification/VR-1060-arpeggio-and-duty-cycle.md), fresh-session independent verification — two Low doc-coherence findings) |
 | IP-1061 | [Vibrato + portamento](IP-1061-vibrato-and-portamento.md) | COMPLETE — 65/65 tests, self-tested same session as authored; verification pending |

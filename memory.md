@@ -42,6 +42,8 @@ no hangs, bad-zone entry and self-recovery both observed.
 | `0xC016`-`0xC018` | `LFSR_STATE` (PA) / `LFSR_STATE_PB` / `LFSR_STATE_WV` |
 | `0xC019` | `NOISE_STEP_IDX` (0-15) |
 | `0xC01A`-`0xC01C` | `SEMI_PA`/`PB`/`WV` (dissonance-tick scratch, not persisted meaning across frames) |
+| `0xC01D`/`0xC01E` | `ARP_STATE_PA`/`PB` (`IP-1060`) — packed: bits0-3 sub-tick countdown, bits4-5 step index (0-3) |
+| `0xC01F` | `ARP_DEGREE_SCRATCH` (`IP-1060`, shared pa/pb working storage, not persisted across frames) |
 | `0xC050`-`0xC052` | `JOY_PREV`/`JOY_CUR`/`JOY_NEW` |
 | `0xC060` | `VBLANK_FLAG` |
 

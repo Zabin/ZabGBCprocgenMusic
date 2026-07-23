@@ -21,6 +21,7 @@ except what this session authors.
 | [`features/`](features/INDEX.md) | Full Feature Specifications (FS-xxx) | `06-feature-specification` |
 | [`implementation/`](implementation/00-master-build-plan.md) | Master Build Plan, TWBS, packages (IP-xxxx), verification reports (VR-xxxx) | `07-implementation-planning`, stage-08 peers, `09-package-verification` |
 | [`reviews/`](reviews/INDEX.md) | Content reviews, integration reviews, release assessments | `09-content-review`, `10-integration-review`, `11-release-readiness` |
+| [`roadmap/`](roadmap/INDEX.md) | Product Roadmap planning package — product goals, capability map/dependency graph, release sequence (R0-R13), milestones, traceability matrix, development strategy, exit criteria | Cross-cutting TPM synthesis (2026-07-22), feeds `03`/`04`/`05`/`06` as each release is picked up |
 
 Repo-root working docs: `Claude.md` (developer quick-reference) and `memory.md` (runtime notes &
 quick-reference tables), maintained the same way as the reference project's.

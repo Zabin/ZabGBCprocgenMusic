@@ -90,11 +90,26 @@ budget R100 names.
 
 Only the three pitched channels (pulse A, pulse B, wave) participate — noise has no pitch. For
 each of the (at most) 3 pairs of currently-sounding pitched channels, compute the interval between
-their current scale-degree-mapped notes mod 12 semitones, and look up a fixed 12-entry dissonance
-weight table (consonant intervals — unison, major/minor 3rd, perfect 4th/5th, octave — score low;
+their current scale-degree-mapped notes mod 12 semitones, and look up a fixed dissonance weight
+table (consonant intervals — unison, major/minor 3rd, perfect 4th/5th, octave — score low;
 dissonant ones — minor 2nd, tritone, major 7th — score high). Sum across all sounding pairs into
 `DISSONANCE_SCORE` (a single byte is enough headroom: max 3 pairs × a weight table capped at
 0–15 = 45, fits in a byte).
+
+**Reconciled 2026-07-22 (`BL-0013`) against the shipped `IP-0004` implementation**: this level
+originally proposed a literal 12-entry table (one weight per semitone interval, 0-11). The
+shipped table (`music_engine.py:100`, `DISSONANCE_WEIGHT_BY_IC`) is instead a **7-entry
+interval-class table** — intervals and their inversions folded together (e.g. a minor 2nd and a
+major 7th, ic1, share one weight, per standard pitch-class-set-theory practice) — a deliberate
+MVP simplification, not an oversight: it halves the table's ROM footprint and the per-pair lookup
+cost, and R204 SS5's Helmholtz-roughness-cited ordering survives the fold unchanged (inversions
+share the same consonance/dissonance character in the source literature). Both versions were
+independently re-verified as producing musically-sound behavior (`VR-0004`). **The literal
+12-entry table remains a valid v2 upgrade path** (e.g. if a future scheme wants to distinguish an
+interval from its inversion, which the current 7-entry fold cannot) — not scheduled, no trigger
+identified. `docs/requirements/01-functional-requirements.md`'s `FR-1080` text is unaffected
+(it doesn't specify table size); `04-requirements-engineering` should still confirm no other FR
+text implies the literal 12-entry version.
 
 `BAD_DISSONANT = DISSONANCE_SCORE > DISSONANCE_THRESHOLD` (threshold a tunable content constant,
 not fixed here — starting proposal: roughly 60% of the theoretical max, tuned by ear at
@@ -112,6 +127,25 @@ repeats of the same short cycle — long enough not to flag intentional short-te
 sounds fine, short enough to catch a genuinely stuck generator within a few seconds at typical
 tempos).
 
+**Reconciled 2026-07-22 (`BL-0013`) against the shipped `IP-0004` implementation**: this level
+proposed period-1-**or**-2 detection via an 8-entry ring buffer (`HIST_PA`/`PB`/`WV`, reserved at
+GDS-07 §4/`0xC020`-`0xC037`, with write-head pointers at GDS-07 §3/`0xC013`-`0xC015`). The
+shipped detection is **period-1 only** — comparing only the immediately-preceding scale degree
+(`music_engine.py:260-271`) — and does not use the ring buffer or write-head fields at all; those
+WRAM addresses remain reserved but genuinely unused in the shipped ROM (confirmed by grep,
+`10-integration-review`'s Foundation-bucket report). This is a deliberate MVP simplification: a
+period-2 "oscillating between two notes" pattern is real, subtler repetition, but period-1
+"stuck on one note" already catches the more common, more audible degenerate case, and every
+`STALE_COUNT_*` threshold/behavior was independently verified sound at the period-1 scope
+(`VR-0004`, `VR-0005`). **The period-1-or-2 ring-buffer design remains a valid v2 upgrade path** —
+the WRAM fields are already reserved and would need no data-model change to adopt, only new
+comparison logic in `_emit_channel_gen`. Not scheduled; no trigger identified beyond "if
+period-2 stuck states are observed often enough in practice to matter perceptually," which no
+`VR-000x`/content review has reported. `FR-1090`'s text still names the `HIST_PA`/`PB`/`WV` ring
+buffer explicitly — `04-requirements-engineering` should reword it to describe the shipped
+period-1 comparison (or mark the ring buffer explicitly as the v2 path this paragraph names),
+per this reconciliation.
+
 ### 4c. Channel-overload score (tertiary signal)
 
 A rolling onset counter: count note-trigger events (any channel) within the last `W` ticks
@@ -121,6 +155,20 @@ Euclidean preset (§3) would produce across all 4 channels simultaneously at the
 preset — i.e. this should only trip from a generation-logic bug or an edge case the density/tempo
 presets didn't anticipate, not from normal operation at any single preset combination; exact
 number derived once §3's preset tables are authored, at `04-requirements-engineering`).
+
+**Note 2026-07-22 (`BL-0017`, not part of the `BL-0013` reconciliation — a genuine calibration
+miss, not a documented simplification)**: `VR-0007` computed the shipped preset tables' actual
+onset-rate ceiling — `≈8.8` onsets/32-tick window even at the fastest tempo *and* densest preset
+simultaneously — against the shipped `OVERLOAD_THRESHOLD=20`, more than double that ceiling.
+`BAD_OVERLOAD` can therefore never fire under any reachable engine state, not even the
+"generation-logic bug" edge case this section's own text anticipates (a bug would need to more
+than double the theoretical maximum onset rate to ever trip it). This is exactly the
+"derived once §3's preset tables are authored" step this section deferred to
+`04-requirements-engineering` — evidence suggests that derivation either didn't happen or used a
+different basis than the preset tables' actual values. A remediation package (`IP-9020`) is
+already authored recalibrating the constant against this section's own stated intent; this note
+records the architecture-level root cause `BL-0017`'s own finding didn't have space to fully
+diagnose.
 
 ### 4d. Combined flag
 

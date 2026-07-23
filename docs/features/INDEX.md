@@ -21,3 +21,4 @@ the features are unimplemented.
 | FEAT-1030 | FS-103 | fs-103-bad-zone-detection.md | ⛔ Planned (implemented — see IP-0004) |
 | FEAT-1040 | FS-104 | fs-104-minimal-visualizer.md | ⛔ Planned (implemented — see IP-0006) |
 | FEAT-1050 | FS-105 | fs-105-headless-verification-suite.md | ⛔ Planned (implemented — 56/56 checks across T1-T9, `test_rom.py`) |
+| FEAT-1060 | FS-106 | [fs-106-sound-design-techniques.md](fs-106-sound-design-techniques.md) | ✅ Authored 2026-07-22 (`BL-0024`, full 20-field spec — not an abbreviated MVP-push note, no exception granted this time) |

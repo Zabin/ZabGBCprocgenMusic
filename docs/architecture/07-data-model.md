@@ -43,9 +43,19 @@ project's own convention.
 | `0xC010` | `CUR_DEGREE_PA` | Pulse A's current scale-degree index (signed-offset encoding, engine-internal) |
 | `0xC011` | `CUR_DEGREE_PB` | Pulse B's current scale-degree index |
 | `0xC012` | `CUR_DEGREE_WV` | Wave channel's current scale-degree index |
-| `0xC013` | `HIST_HEAD_PA` | Ring-buffer write head (0–7) into `HIST_PA` (§4) |
-| `0xC014` | `HIST_HEAD_PB` | Ring-buffer write head into `HIST_PB` |
-| `0xC015` | `HIST_HEAD_WV` | Ring-buffer write head into `HIST_WV` |
+| `0xC013` | `HIST_HEAD_PA` | Ring-buffer write head (0–7) into `HIST_PA` (§4) — **reserved, unused in the shipped ROM, see §4's own note (`BL-0013`)** |
+| `0xC014` | `HIST_HEAD_PB` | Ring-buffer write head into `HIST_PB` — reserved, unused |
+| `0xC015` | `HIST_HEAD_WV` | Ring-buffer write head into `HIST_WV` — reserved, unused |
+| `0xC016` | `LFSR_STATE` | Pulse A's 8-bit Galois LFSR (full detail at §8 below — kept there for historical reasons, added during `IP-0001` before this §3 table existed in its current form; listed here too only so this table's address range reads contiguously) |
+| `0xC017` | `LFSR_STATE_PB` | **Added `IP-0002`, documented here `BL-0018` (2026-07-22)** — pulse B's own independent LFSR, same mechanism as `0xC016`/§8 |
+| `0xC018` | `LFSR_STATE_WV` | **Added `IP-0002`, documented here `BL-0018`** — the wave channel's own independent LFSR |
+| `0xC019` | `NOISE_STEP_IDX` | **Added `IP-0003`, documented here `BL-0018`** — 0-15, the noise channel's current position in its 16-step Euclidean-gated pattern (§3's density mechanism, R202) |
+| `0xC01A` | `SEMI_PA` | **Added `IP-0004`, documented here `BL-0018`** — pulse A's current note's semitone class (mod 12), scratch state recomputed every `badzone_tick` call (§4a) — not meaningful across frames, a working register more than persistent state |
+| `0xC01B` | `SEMI_PB` | **Added `IP-0004`, documented here `BL-0018`** — pulse B's semitone-class scratch, same role as `SEMI_PA` |
+| `0xC01C` | `SEMI_WV` | **Added `IP-0004`, documented here `BL-0018`** — wave channel's semitone-class scratch, same role |
+| `0xC01D` | `ARP_STATE_PA` | **Added `IP-1060` (2026-07-22)**, **extended `IP-1061` (2026-07-22)** — pulse A's arpeggio + vibrato state, packed: bits0-3 sub-tick countdown, bits4-5 arpeggio step index (0-3, wraps via `AND 0x30`), bits6-7 vibrato phase (0-3, advances every frame via `ADD 0x40`, wraps out of the byte harmlessly) |
+| `0xC01E` | `ARP_STATE_PB` | **Added `IP-1060`, extended `IP-1061`** — pulse B's arpeggio + vibrato state, same packing |
+| `0xC01F` | `ARP_DEGREE_SCRATCH` | **Added `IP-1060`** — shared working storage for the arpeggio tick's effective-degree computation (pa/pb ticks run sequentially within a frame, never concurrently, so sharing one byte is safe — same convention as `SEMI_PA`/`PB`/`WV`'s own "not persisted across frames" scratch role) |
 
 ## §4 Repetition-detection history buffers (§4b's "last 8 notes")
 
@@ -54,6 +64,15 @@ project's own convention.
 | `0xC020`-`0xC027` | `HIST_PA` | 8 bytes — pulse A's last 8 scale-degree values |
 | `0xC028`-`0xC02F` | `HIST_PB` | 8 bytes — pulse B's |
 | `0xC030`-`0xC037` | `HIST_WV` | 8 bytes — wave channel's |
+
+**Reconciled 2026-07-22 (`BL-0013`), matching GDS-03 §4b's own reconciliation note**: these three
+ring buffers (and their `HIST_HEAD_*` write-head pointers, §3) are reserved but **genuinely unused
+in the shipped ROM** — `IP-0004`'s stale/repetition detection is period-1 only (compares only the
+immediately-preceding degree, no buffer needed) rather than the period-1-or-2 design this range
+was reserved for. Confirmed unused by grep across `music_engine.py`/`build_rom.py`/`input_map.py`/
+`visuals.py` (`10-integration-review`'s Foundation-bucket report). The range stays reserved as a
+valid v2 upgrade path (GDS-03 §4b) — not reclaimed for other use, since reclaiming it would create
+a real conflict if the period-1-or-2 design is ever adopted later.
 
 ## §5 Input state
 
@@ -72,7 +91,7 @@ mechanism the reference project already uses for its own menu-navigation edge-tr
 
 | Addr | Name | Meaning |
 |---|---|---|
-| `0xC016` | `LFSR_STATE` | 8-bit Galois LFSR state driving pseudo-random note-walk deltas (§4a below references its consumer). Seeded to a fixed non-zero value at boot/reset, so a fresh run is deterministic (MSTR-001 C6) — same seed each boot is a deliberate v1 simplification; a future package may expose seed variation (e.g. from `DIV` at power-on) as a backlog item, not decided here. |
+| `0xC016` | `LFSR_STATE` | 8-bit Galois LFSR state driving pseudo-random note-walk deltas (§4a below references its consumer). **Updated 2026-07-22, drift fix**: originally seeded to a fixed non-zero value at boot/reset (this row's own text used to say so, framing `DIV`-based seed variation as an undecided future backlog item) — `IP-0007` has since implemented exactly that: each channel's LFSR (this one and its `0xC017`/`0xC018` siblings) is reseeded from the `DIV` register XORed with a fixed per-channel constant on both boot and Select, zero-guarded (`music_engine.py:514-523`), independently verified `VR-0007`. The "same seed each boot" simplification this row described is **no longer true** — this was a stale statement this consistency pass caught, not a new decision. |
 | `0xC060` | `VBLANK_FLAG` | Set to 1 by the VBlank ISR, cleared by the main loop after processing one frame — the reference project's own main-loop-synchronization convention, reused verbatim. |
 
 This section is appended rather than renumbered so `IP-0001`'s own commit diff against this file

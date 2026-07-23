@@ -72,4 +72,6 @@ No current `IP-xxxx` depends on this topic directly; informs future backlog scop
 ## 7. Related Topics
 R201 (melody, already adopted technique), R202 (rhythm/percussion), R115 (noise channel), R212
 (song-structure/tension — the phrase-level gap this topic names is the same gap that section
-covers from the "form" angle).
+covers from the "form" angle), R220 (2026-07-22 — found a cheap song-form-structure partial
+answer via horizontal-resequencing/vertical-layering; this topic's motif-recurrence half remains
+open, see `BL-0010`'s updated note).

@@ -48,6 +48,14 @@ SEMI_PA = 0xC01A
 SEMI_PB = 0xC01B
 SEMI_WV = 0xC01C
 
+# IP-1060: arpeggio state, pulse A/B only (wave keeps its plain bass role, R207) — packed one
+# byte per channel: bits0-3 sub-tick countdown, bits4-5 step index (0-3, wraps via AND 0x30).
+# ARP_DEGREE_SCRATCH is shared working storage (pa/pb ticks run sequentially, never concurrently
+# within a frame), same "not persisted across frames" convention as SEMI_PA/PB/WV.
+ARP_STATE_PA = 0xC01D
+ARP_STATE_PB = 0xC01E
+ARP_DEGREE_SCRATCH = 0xC01F
+
 # IP-0004 thresholds (GDS-03 SS4, R204 SS5) — first-guess placeholders, per BL-0005's own
 # deferred-tuning convention; the dissonance weight table itself is literature-grounded (R204),
 # these threshold *numbers* are not yet tuned by ear.
@@ -121,20 +129,34 @@ LFSR_SEED_PA = 0xA5
 LFSR_SEED_PB = 0x5A
 LFSR_SEED_WV = 0x3C
 
-# ── Channel generation parameters (IP-0002/IP-0004) ──────────────────
+# ── Channel generation parameters (IP-0002/IP-0004/IP-1060) ──────────
 # name, note_timer, cur_degree, lfsr_state, lfsr_seed, freq_lo_reg, freq_hi_reg,
 # octave_delta (subtracted from OCTAVE_IDX, floored at 0), tempo_mult (note duration multiplier),
-# stale_count (IP-0004 repetition counter)
+# stale_count (IP-0004 repetition counter), duty_reg (IP-1060, None if not varied),
+# arp_state (IP-1060 packed arpeggio WRAM byte, None if this channel doesn't arpeggiate)
 CHANNELS = [
-    ('pa', NOTE_TIMER_PA, CUR_DEGREE_PA, LFSR_STATE,    LFSR_SEED_PA, NR13, NR14, 0, 1, STALE_COUNT_PA),
-    ('pb', NOTE_TIMER_PB, CUR_DEGREE_PB, LFSR_STATE_PB, LFSR_SEED_PB, NR23, NR24, 0, 1, STALE_COUNT_PB),
+    ('pa', NOTE_TIMER_PA, CUR_DEGREE_PA, LFSR_STATE,    LFSR_SEED_PA, NR13, NR14, 0, 1, STALE_COUNT_PA, NR11, ARP_STATE_PA),
+    ('pb', NOTE_TIMER_PB, CUR_DEGREE_PB, LFSR_STATE_PB, LFSR_SEED_PB, NR23, NR24, 0, 1, STALE_COUNT_PB, NR21, ARP_STATE_PB),
     # Wave channel: bass/timbre role (R207 finding, BL-0008) — anchored one octave index lower
     # (floored at 0) and half the note rate (tempo_mult=2), matching bass lines moving less often
     # than melody. The wave-channel frequency formula is itself one octave lower than the pulse
     # formula for an identical register value (R108/R114), so reusing the pulse note tables
     # as-is on NR33/NR34 gives an *additional* free octave drop on top of the octave_delta below.
-    ('wv', NOTE_TIMER_WV, CUR_DEGREE_WV, LFSR_STATE_WV, LFSR_SEED_WV, NR33, NR34, -1, 2, STALE_COUNT_WV),
+    # No duty cycle (wave has no duty concept) and no arpeggio (IP-1060: keeps its plain
+    # sustained bass role rather than fast pitch-cycling, a deliberate scope choice).
+    ('wv', NOTE_TIMER_WV, CUR_DEGREE_WV, LFSR_STATE_WV, LFSR_SEED_WV, NR33, NR34, -1, 2, STALE_COUNT_WV, None, None),
 ]
+
+# IP-1060: arpeggio-as-polyphony (R216) — a period-4 up/down offset pattern (root, third, fifth,
+# third, within the active scale's 8-degree table) avoids needing a mod-3 counter (SM83 has no
+# division; a period-4 cycle wraps with a plain AND, R302). First-guess placeholder rate/shape,
+# not tuned by ear (BL-0005's existing disposition covers this).
+ARPEGGIO_OFFSETS = [0, 2, 4, 2]
+ARP_SUBTICK_RELOAD = 6  # frames per chord-tone
+
+# IP-1060: duty-cycle variation (R216) — NR11/NR21 whole-byte values (length bits stay 0, unused,
+# same as the existing fixed-duty boot init), one per CUR_DEGREE mod 4.
+DUTY_BY_DEGREE = [0x00, 0x40, 0x80, 0xC0]  # 12.5% / 25% / 50% / 75%
 
 # ── Noise/density (IP-0003, R202/R115) ───────────────────────────────
 # 8 density steps: k onsets distributed across a fixed n=16-step grid (a 16th-note bar at the
@@ -194,7 +216,7 @@ def _ld_hl_label(rom, label):
 
 
 def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_lo, nr_freq_hi,
-                       octave_delta, tempo_mult, stale_count):
+                       octave_delta, tempo_mult, stale_count, duty_reg=None, portamento=False):
     """One channel's note-generation routine: countdown -> (on expiry) LFSR-picked scale-degree
     step -> table lookup -> register write -> timer reload -> IP-0004 stale/onset-window
     bookkeeping. Parameterized so pulse A/B and the wave channel share one Python-level
@@ -209,6 +231,17 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
 
     rom.LD_A_nn(cur_degree)
     rom.LD_D_A()                       # D = old degree (IP-0004 stale-repetition comparison)
+    if portamento:
+        # IP-1061: stash the pre-onset degree so the trigger write below can start this note at
+        # the *old* pitch (retriggered) rather than jumping straight to the new one — arp_tick,
+        # which already ran earlier this same frame using the still-old CUR_DEGREE, and which
+        # will run again next frame using the now-updated CUR_DEGREE, is what actually carries
+        # the pitch the rest of the way to the target — see engine_tick's call order and this
+        # routine's own onset write below. ARP_DEGREE_SCRATCH is safe to reuse here: arp_tick's
+        # own use of it this frame is already complete by the time gen_tick runs (engine_tick
+        # calls arp_tick before gen_tick), and this stash is both written and consumed within
+        # this same gen_tick call, before arp_tick touches it again next frame.
+        rom.LD_nn_A(ARP_DEGREE_SCRATCH)
 
     # LFSR step (inlined per-channel so each channel's state stays independent).
     rom.LD_A_nn(lfsr_state)
@@ -293,13 +326,30 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
     rom.LD_E_HL(); rom.INC_HL(); rom.LD_D_HL()
     rom.LD_H_D(); rom.LD_L_E()          # HL = the (scale, octave) note table's own address
 
-    rom.LD_A_nn(cur_degree)
+    # IP-1061: portamento channels trigger this onset at the *old* degree (identical to the new
+    # one when the degree didn't change, so this is safe unconditionally) — arp_tick carries the
+    # pitch the rest of the way to the new target over the following frame(s), per this routine's
+    # own portamento stash above.
+    rom.LD_A_nn(ARP_DEGREE_SCRATCH if portamento else cur_degree)
     rom.ADD_A_A()                      # *2 (2 bytes/entry)
     rom.LD_C_A(); rom.LD_B_n(0)
     rom.ADD_HL_BC()
     rom.LD_A_HL(); rom.LDH_n_A(nr_freq_lo)
     rom.INC_HL()
     rom.LD_A_HL(); rom.LDH_n_A(nr_freq_hi)
+
+    # IP-1060: duty-cycle variation (R216) — pulse A/B only (duty_reg is None for the wave
+    # channel, which has no duty concept). Re-reads cur_degree fresh rather than reusing the
+    # value already consumed above, since it was not preserved in a register across the
+    # intervening table-lookup arithmetic.
+    if duty_reg is not None:
+        rom.LD_A_nn(cur_degree)
+        rom.AND_n(0x03)
+        rom.LD_C_A(); rom.LD_B_n(0)
+        _ld_hl_label(rom, 'duty_table')
+        rom.ADD_HL_BC()
+        rom.LD_A_HL()
+        rom.LDH_n_A(duty_reg)
 
     # Reload the timer from the tempo table (doubled for a half-rate channel, e.g. the wave bass).
     rom.LD_A_nn(TEMPO_IDX)
@@ -325,6 +375,118 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
     rom.LD_nn_A(note_timer)
 
     rom.label(f'gt_done_{suffix}')
+    rom.RET()
+
+
+def _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, nr_freq_lo, nr_freq_hi):
+    """IP-1060 arpeggio + IP-1061 vibrato, R216: runs every frame, independent of the channel's
+    own note-timer. Packed arp_state byte: bits0-3 arpeggio sub-tick countdown, bits4-5 arpeggio
+    step (0-3, wraps via AND 0x30), bits6-7 vibrato phase (0-3, advances every frame via a plain
+    ADD 0x40 — 2 bits overflow harmlessly out of the byte with no effect on bits0-5). The
+    chord-tone step only *advances* on sub-tick expiry, but the frequency register is *rewritten*
+    every frame regardless (vibrato needs every-frame updates even between arpeggio steps) —
+    arpeggio's own base note (from the current step) plus vibrato's tiny +-1 low-byte wobble
+    (phase 0 -> +1, phase 2 -> -1, phases 1/3 -> no change; a deliberate scope reduction from a
+    true frequency-domain LFO, R216's own description — the SM83 opcode set this project uses has
+    no ADC/SBC for safe multi-byte carry-chain arithmetic beyond single ±1 steps, so the wobble is
+    kept to the smallest safe unit; an octave-boundary low-byte wrap without a hi-byte carry is a
+    rare, self-healing one-frame edge case, same character as BL-0015's already-accepted
+    COMBINED-bit transient) are combined into one write, with the trigger bit clear (no
+    retrigger) so envelope/duty continue undisturbed — same non-retriggering technique as
+    IP-1060's original arpeggio-only write."""
+    rom.label(f'arp_tick_{suffix}')
+
+    # Vibrato phase advances every frame, unconditionally (bits6-7).
+    rom.LD_A_nn(arp_state)
+    rom.ADD_A_n(0x40)
+    rom.LD_nn_A(arp_state)
+
+    # Arpeggio countdown/step: the step only advances on sub-tick expiry; the write below always
+    # happens regardless of which branch runs.
+    rom.LD_A_nn(arp_state)
+    rom.DEC_A()
+    rom.LD_nn_A(arp_state)
+    rom.AND_n(0x0F)
+    rom.JP_NZ(f'arp_no_advance_{suffix}')
+
+    rom.LD_A_nn(arp_state)
+    rom.AND_n(0xC0)                    # keep vibrato-phase bits, drop the just-zeroed countdown
+    rom.LD_D_A()                       # D = vibrato-phase bits (stashed across the OR below)
+    rom.LD_A_nn(arp_state)
+    rom.ADD_A_n(0x10)
+    rom.AND_n(0x30)                    # A = new_step << 4 (wrapped 3->0)
+    rom.OR_D()                         # combine with the stashed vibrato-phase bits
+    rom.OR_n(ARP_SUBTICK_RELOAD)
+    rom.LD_nn_A(arp_state)
+    rom.label(f'arp_no_advance_{suffix}')
+
+    # Compute this frame's base note from the *current* step (freshly read — whether or not it
+    # just advanced above) and CUR_DEGREE.
+    rom.LD_A_nn(arp_state)
+    rom.AND_n(0x30)
+    rom.SRL_A(); rom.SRL_A(); rom.SRL_A(); rom.SRL_A()   # A = current step (0-3)
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'arpeggio_offsets_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HL()                      # A = ARPEGGIO_OFFSETS[step]
+    rom.LD_B_A()
+    rom.LD_A_nn(cur_degree)
+    rom.ADD_A_B()
+    rom.AND_n(0x07)
+    rom.LD_nn_A(ARP_DEGREE_SCRATCH)    # stash effective_degree (D/E about to be reused below)
+
+    # (scale, octave) note-table base address -> HL, same pattern as _emit_channel_gen's own
+    # lookup, octave_delta=0 always (only pulse A/B arpeggiate, neither has an octave offset).
+    rom.LD_A_nn(SCALE_IDX)
+    rom.ADD_A_A(); rom.ADD_A_A()
+    rom.LD_B_A()
+    rom.LD_A_nn(OCTAVE_IDX)
+    rom.ADD_A_B()
+    rom.ADD_A_A()
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'ptr_table')
+    rom.ADD_HL_BC()
+    rom.LD_E_HL(); rom.INC_HL(); rom.LD_D_HL()
+    rom.LD_H_D(); rom.LD_L_E()
+
+    rom.LD_A_nn(ARP_DEGREE_SCRATCH)
+    rom.ADD_A_A()
+    rom.LD_C_A(); rom.LD_B_n(0)
+    rom.ADD_HL_BC()
+    rom.LD_A_HL(); rom.LD_E_A()        # E = base lo byte (not written yet — vibrato may adjust it)
+    rom.INC_HL()
+    rom.LD_A_HL()
+    rom.AND_n(0x07)                    # clear the trigger bit and any unused high bits
+    rom.LD_D_A()                       # D = base hi byte (0-7)
+
+    # IP-1061 vibrato: read the phase bits fresh and apply the +-1/none adjustment to E (lo),
+    # carrying into D (hi) only on an actual 8-bit overflow/underflow (JP_C/JP_NC-gated, exact
+    # SM83 carry/borrow semantics — not a two's-complement guess).
+    rom.LD_A_nn(arp_state)
+    rom.AND_n(0xC0)
+    rom.JP_Z(f'vib_up_{suffix}')
+    rom.CP_n(0x80)
+    rom.JP_Z(f'vib_down_{suffix}')
+    rom.JP(f'vib_write_{suffix}')
+
+    rom.label(f'vib_up_{suffix}')
+    rom.LD_A_E()
+    rom.ADD_A_n(1)
+    rom.LD_E_A()
+    rom.JP_NC(f'vib_write_{suffix}')
+    rom.LD_A_D(); rom.INC_A(); rom.LD_D_A()
+    rom.JP(f'vib_write_{suffix}')
+
+    rom.label(f'vib_down_{suffix}')
+    rom.LD_A_E()
+    rom.SUB_n(1)
+    rom.LD_E_A()
+    rom.JP_NC(f'vib_write_{suffix}')
+    rom.LD_A_D(); rom.DEC_A(); rom.LD_D_A()
+
+    rom.label(f'vib_write_{suffix}')
+    rom.LD_A_E(); rom.LDH_n_A(nr_freq_lo)
+    rom.LD_A_D(); rom.AND_n(0x07); rom.LDH_n_A(nr_freq_hi)
     rom.RET()
 
 
@@ -507,7 +669,8 @@ def build_engine_asm(rom: ROM) -> dict:
     rom.LD_A_n(PRESET_SCALE_IDX); rom.LD_nn_A(SCALE_IDX)
     rom.LD_A_n(PRESET_DENSITY_IDX); rom.LD_nn_A(DENSITY_IDX)
     rom.LD_A_n(PRESET_CHMIX_IDX); rom.LD_nn_A(CHMIX_IDX)
-    for (suffix, note_timer, cur_degree, lfsr_state, lfsr_seed, *_rest) in CHANNELS:
+    for (suffix, note_timer, cur_degree, lfsr_state, lfsr_seed, *_rest, duty_reg,
+         arp_state) in CHANNELS:
         rom.XOR_A(); rom.LD_nn_A(cur_degree)
         rom.LD_A_n(1); rom.LD_nn_A(note_timer)     # fire the first note on the very next tick
         # IP-0007: randomize each channel's melodic walk seed from the free-running DIV
@@ -523,6 +686,11 @@ def build_engine_asm(rom: ROM) -> dict:
         rom.LD_A_n(1)
         rom.label(f'ie_seed_ok_{suffix}')
         rom.LD_nn_A(lfsr_state)
+        # IP-1060: reset arpeggio state — countdown reloaded (not zeroed, avoiding an
+        # underflow-on-first-tick edge case the way NOTE_TIMER's own "prime to 1" convention
+        # already avoids it), step index back to 0.
+        if arp_state is not None:
+            rom.LD_A_n(ARP_SUBTICK_RELOAD); rom.LD_nn_A(arp_state)
     rom.XOR_A(); rom.LD_nn_A(NOISE_STEP_IDX)
     rom.LD_A_n(1); rom.LD_nn_A(NOTE_TIMER_NZ)
 
@@ -539,7 +707,17 @@ def build_engine_asm(rom: ROM) -> dict:
     rom.RET()
 
     # ── engine_tick: called once per frame from the main loop ────────
+    # IP-1061: arp_tick runs BEFORE gen_tick, deliberately — on an onset frame this means
+    # arp_tick still sees the pre-onset CUR_DEGREE (writing the outgoing note's continued
+    # arpeggio/vibrato), then gen_tick's own onset write lands last this frame using the *old*
+    # degree (portamento's retrigger start point, see _emit_channel_gen's own comment); next
+    # frame, arp_tick runs first again, now seeing the just-updated CUR_DEGREE, carrying the
+    # pitch the rest of the way to the new target. This ordering is what actually produces the
+    # multi-frame glide — reordering these two calls would collapse it back to an instant jump.
     rom.label('engine_tick')
+    for (suffix, *_rest, duty_reg, arp_state) in CHANNELS:
+        if arp_state is not None:
+            rom.CALL(f'arp_tick_{suffix}')
     for (suffix, *_rest) in CHANNELS:
         rom.CALL(f'gen_tick_{suffix}')
     rom.CALL('gen_tick_nz')
@@ -547,9 +725,12 @@ def build_engine_asm(rom: ROM) -> dict:
     rom.RET()
 
     for (suffix, note_timer, cur_degree, lfsr_state, _seed, nr_lo, nr_hi, oct_delta, tempo_mult,
-         stale_count) in CHANNELS:
+         stale_count, duty_reg, arp_state) in CHANNELS:
         _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_lo, nr_hi,
-                           oct_delta, tempo_mult, stale_count)
+                           oct_delta, tempo_mult, stale_count, duty_reg,
+                           portamento=(arp_state is not None))
+        if arp_state is not None:
+            _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, nr_lo, nr_hi)
     _emit_noise_gen(rom)
     _emit_badzone_tick(rom)
 
@@ -575,6 +756,12 @@ def build_engine_asm(rom: ROM) -> dict:
 
     rom.label('wave_table')
     rom.emit(*_wave_table_bytes())
+
+    rom.label('arpeggio_offsets_table')
+    rom.emit(*ARPEGGIO_OFFSETS)
+
+    rom.label('duty_table')
+    rom.emit(*DUTY_BY_DEGREE)
 
     note_table_labels = []
     for si, scale_name in enumerate(SCALES):

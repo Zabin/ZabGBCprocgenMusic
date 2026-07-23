@@ -1,6 +1,9 @@
 # GDS-00 — Vision (design-facing restatement)
 
-- **Owned by:** `01-vision` · **Status:** ✅ Authored, 2026-07-21 · **Source:** `docs/master/MSTR-001-program-vision.md` v1.0
+- **Owned by:** `01-vision` · **Status:** ✅ Authored 2026-07-21; amended 2026-07-22 (v1.1
+  drift fix); amended 2026-07-22 (v1.2 cart-shape/save reopening); amended 2026-07-22 (v1.3
+  research-to-code traceability goal); amended 2026-07-22 (v1.4 — §9 research findings cycled
+  in, see below) · **Source:** `docs/master/MSTR-001-program-vision.md` v1.4
 
 This is the design-facing restatement of MSTR-001, in the vocabulary the GDS ladder builds on.
 MSTR-001 is authoritative for purpose-level statements; this document translates its commitments
@@ -16,13 +19,18 @@ A GBC ROM running one continuous process, every frame:
    `NR52`) accordingly.
 2. **Steer** — the joypad is polled every frame; D-pad/face-button state maps to live adjustments
    of the generator's own parameters (concrete mapping: GDS-03, §"Input → parameter mapping").
-3. **Detect** — the generator's own state is scored against a "bad zone" metric every tick (or on
-   a coarser cadence if per-frame cost is prohibitive — a GDS-03/06 performance question);
-   crossing into the bad zone is itself part of the visible/audible state, not a silent internal
-   flag.
-4. **Reset** — Select forces the generator back to a defined good starting state, regardless of
-   current state (bad zone or not) — same idea as a reference-project "new game," but resetting a
-   generative process instead of starting a playthrough.
+3. **Detect and recover** *(step amended v1.1, matching MSTR-001 C5)* — the generator's own state
+   is scored against a "bad zone" metric every tick (or on a coarser cadence if per-frame cost is
+   prohibitive — a GDS-03/06 performance question); crossing into the bad zone is itself part of
+   the visible/audible state, not a silent internal flag. **Detection alone is not sufficient**:
+   the generator must also autonomously bias its own generation back toward a good state, every
+   frame, with no input required — recovery is not gated behind the player pressing Select.
+4. **Reset (manual override)** *(role reframed v1.1)* — Select unconditionally forces the
+   generator back to a defined good starting state, regardless of current state (bad zone or
+   not), **and randomizes each channel's melodic starting point** — "reset and randomize," a
+   player-available override that exists alongside step 3's autonomous recovery, not the only way
+   out of a bad zone (that was step 4's pre-v1.1 sole role — same idea as a reference-project
+   "new game," but resetting a generative process instead of starting a playthrough).
 5. **Render** — a visualizer routine reads the same tracked generator state (tempo, per-channel
    activity, bad-zone-ness, whatever else GDS-03 defines) and updates BG tile/palette content to
    represent it, on its own cadence (need not be every frame — VBlank-budget dependent).
@@ -40,6 +48,50 @@ concretely (not as an options menu) by `03-architecture-design-synthesis`:
 - The **bad-zone detection metric** (what concretely is measured, thresholded, and how it's
   computed cheaply enough to run continuously on SM83 hardware).
 
+**Added 2026-07-22, not a vision change**: `BL-0020` (a user-filed feature request for multiple
+selectable/combinable generation *schemes*, grounded in the now-complete R2xx research) raises a
+third item of the same shape — how multiple generation approaches would coexist or combine is an
+architecture-level design question, not decided here, and not in tension with anything in
+MSTR-001 (C6's "generation logic... every frame" already accommodates one scheme or several
+without requiring either). Noted here only so `03-architecture-design-synthesis` picks it up with
+the same "propose one concrete design, not an options menu" discipline the other two items
+already carry, when it takes up `BL-0020`.
+
+**Added 2026-07-22 (v1.4), two more of the same shape**: MSTR-001 §9's research now grounds two
+further concretely-groundable candidates — a **song-form/style-drift state machine** (R220: a
+parameter-envelope mechanism over already-tracked engine state, extending `BL-0010`) and an
+**emotional/energy read-layer** (R221: a valence-arousal mapping over the same already-tracked
+state). Neither is decided here; both are now cheaper to design than they were before this
+research landed, since the underlying mechanism (a state machine driving existing WRAM
+parameters) is shared with the bad-zone detect/recover loop `IP-0007` already ships — `03-
+architecture-design-synthesis` should note that shared shape if/when it picks either up.
+
+## Cart shape and persistence — reopened, not decided (v1.2)
+
+Earlier drafts of this document (and MSTR-001 v1.0/v1.1) treated "single 32KB bank, no SRAM save"
+as settled shape. MSTR-001 v1.2 reopened both — the project owner named this as an arbitrary
+decision that had been mistaken for a firm one. **This document still does not decide the
+replacement** — that stays `03-architecture-design-synthesis`'s call. What has changed as of
+v1.4: the research MSTR-001 §9 commissioned has now landed (R106 extended, R302 §8-9 addendum) —
+MBC5 is the concrete hardware recommendation if bank-switching or save is ever adopted, PyBoy
+natively supports both (not a verification blocker), and bank-switching specifically is real
+assembler-architecture work in `gbc_lib.py`/`build_rom.py` (per-bank label addressing, cross-bank
+call safety), not a small patch. `03-architecture-design-synthesis` now has real facts to decide
+from instead of an open question to research first — the decision itself (adopt or not, and when)
+is still not made here or by that research, only the facts it needs are now available.
+
+## Research-to-code traceability goal (v1.3)
+
+MSTR-001 C10 (added v1.3): every authored research topic must be directly traceable forward to a
+design feature actually implemented in code, or carry an honestly-named exception. This sits
+alongside the existing testability requirement below — both are forms of the same discipline
+(nothing this project records stays untethered from the shipped ROM), just running in different
+directions: testability ties shipped behavior back to an assertion; C10 ties an authored topic
+forward to a shipped behavior. Auditing which of the 39 currently-authored `R1xx`/`R2xx`/`R3xx`
+topics already satisfy this and which don't is downstream work (not performed by this vision-tier
+amendment) — likely `04-requirements-engineering` (when it next reconciles the traceability
+matrix) or `10-integration-review`'s traceability-coherence dimension.
+
 ## Testability requirement carried down from MSTR-001 C9
 
 Every shipped behavior must be expressible as: boot the ROM headlessly, drive a button sequence,
@@ -50,5 +102,15 @@ WRAM home even though nothing saves them to SRAM (MSTR-001 C2), specifically so 
 and the visualizer have something authoritative to read without re-deriving it from register
 state (which PyBoy can also read directly, but a WRAM mirror is cheaper to assert on and is also
 what the visualizer routine itself will read).
+
+## Amendment note (2026-07-22)
+
+MSTR-001 C5 was amended to v1.1 on 2026-07-21 (autonomous bad-zone recovery required; Select
+reframed as "reset and randomize") and GDS-01/GDS-03 were updated the same session — but this
+document (GDS-00, also owned by `01-vision`) was missed from that amendment's recorded blast
+radius and kept describing the pre-v1.1 model until this drift was caught during a
+`01-vision` consistency check the following day. Fixed above (steps 3-4); no new decision made
+here, only a lagging restatement brought back into agreement with MSTR-001 §8's already-recorded
+v1.1 change.
 
 **Gate:** closed 2026-07-21. Next: GDS-01 (Concept of Play) via `03-architecture-design-synthesis`.

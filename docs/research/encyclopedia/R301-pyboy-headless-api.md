@@ -63,4 +63,5 @@ All of `test_rom.py`, NFR-1020, `IP-0001`'s T1-T5 suites.
 ## 7. Related Topics
 
 R108 (what the memory reads this API performs actually mean), R305 (test-design patterns built on
-top of this API).
+top of this API), R306 (toolchain portability — the `pyboy` dependency-management gap this topic's
+own citation trail helped surface).

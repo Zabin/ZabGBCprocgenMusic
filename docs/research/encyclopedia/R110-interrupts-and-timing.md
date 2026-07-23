@@ -46,4 +46,6 @@ NFR-1010 (per-frame budget), GDS-03 SS2 (main loop structure), `IP-0001`'s T2/T3
 
 ## 7. Related Topics
 R108 (what happens inside a tick — the register writes this cadence gates), R305 (test-design
-implications of the boot-frame-count discovery).
+implications of the boot-frame-count discovery). R102 (the PPU-mode timing the VBlank interrupt
+is keyed to), R105 (OAM DMA — a case where the CPU is HRAM-restricted, relevant if this project
+ever combines DMA with the existing VBlank ISR).

@@ -18,6 +18,9 @@ Suites:
   T8  Bad-zone detection (IP-0004): dissonance/flags shape, Select clears state on the reset frame
   T9  Visualizer (IP-0006): tile indicators track NR52, LCD on
   T10 Autonomous bad-zone avoidance/recovery (IP-0007): the engine climbs out on its own
+  T11 Arpeggio + vibrato + duty-cycle variation (IP-1060/IP-1061): per-note chord-tone
+      cycling, periodic pitch wobble, varying timbre (portamento verified by code review only,
+      see t11's own docstring — no PSG-frequency-register readback is possible)
 
 Run from the repo root: python3 test_rom.py
 Requires: pyboy (pinned 2.7.0, matching the reference project), numpy.
@@ -40,12 +43,13 @@ CUR_DEGREE_PB = 0xC011; CUR_DEGREE_WV = 0xC012
 NOISE_STEP_IDX = 0xC019
 BAD_ZONE_FLAGS = 0xC005; DISSONANCE_SCORE = 0xC006
 STALE_COUNT_PA = 0xC007; ONSET_WINDOW_COUNT = 0xC00A
+ARP_STATE_PA = 0xC01D; ARP_STATE_PB = 0xC01E
 LCDC = 0xFF40
 CHANNEL_CELLS = [0x9800, 0x9801, 0x9802, 0x9803]
 BCPD = 0xFF69
 
 # Sound registers (I/O, 0xFF00+offset)
-NR13 = 0xFF13; NR14 = 0xFF14; NR52 = 0xFF26
+NR11 = 0xFF11; NR13 = 0xFF13; NR14 = 0xFF14; NR52 = 0xFF26
 
 from music_engine import PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX, PRESET_SCALE_IDX
 
@@ -375,6 +379,61 @@ def t5_reset():
     pb.stop(save=False)
 
 
+def t11_arpeggio_vibrato_duty():
+    """IP-1060/IP-1061 (R216): arpeggio cycles the frequency register through a small chord-tone
+    pattern within a single note's duration, vibrato adds a periodic +-1 wobble on top every
+    frame, and duty-cycle varies per onset. NR13/NR14's frequency bits are write-only (confirmed
+    empirically during IP-0001's own verification, per this file's own established convention) —
+    verified via ARP_STATE_PA's own step-index/vibrato-phase bits (bits4-5/bits6-7) instead of
+    trying to read the frequency registers back, the same "WRAM mirror, not raw PSG readback"
+    testing philosophy every other suite here already uses. Portamento (IP-1061) has no WRAM
+    mirror of its own — its glide state lives only in the write-only PSG registers themselves,
+    briefly, within a single frame's shared ARP_DEGREE_SCRATCH stash-then-read (consumed before
+    the next channel's own use of that same shared byte, so nothing meaningful survives to be
+    read back after a frame completes) — verified by code review (register-lifetime tracing) and
+    by this suite's regression/stress coverage (no hang, no NR52 dropout with the new onset-write
+    behavior active), not by a dedicated assertion, the same limitation R108/VR-0001 already
+    established for direct frequency-register reads."""
+    pb = fresh_boot()
+    seen_arp_steps = set()
+    seen_vib_phases = set()
+    seen_duty = set()
+    for _ in range(400):
+        pb.tick()
+        seen_arp_steps.add((pb.memory[ARP_STATE_PA] >> 4) & 0x03)
+        seen_vib_phases.add((pb.memory[ARP_STATE_PA] >> 6) & 0x03)
+        seen_duty.add(pb.memory[NR11] & 0xC0)
+    check("T11.1 Pulse A's arpeggio step index cycles through more than one value over a "
+          "sustained run (chord-tone cycling is live, not frozen)",
+          len(seen_arp_steps) > 1, f"distinct steps seen: {sorted(seen_arp_steps)}")
+    check("T11.2 Pulse A's duty-cycle bits (NR11) take more than one value across onsets",
+          len(seen_duty) > 1, f"distinct duty values seen: {sorted(hex(d) for d in seen_duty)}")
+    check("T11.4 Pulse A's vibrato phase cycles through all 4 values every frame (live, not "
+          "frozen)", seen_vib_phases == {0, 1, 2, 3}, f"phases seen: {sorted(seen_vib_phases)}")
+
+    # Select-reset must zero the new arpeggio/vibrato state (countdown reloaded, step and phase
+    # both back to 0) — same audit standard IP-0005/VR-0005 already applied to every other
+    # per-channel field.
+    pb.button_press('select')
+    pb.tick()
+    pb.button_release('select')
+    state_after_reset = pb.memory[ARP_STATE_PA]
+    check("T11.3 Select resets the arpeggio step index to 0 (read on the exact reset frame)",
+          (state_after_reset >> 4) & 0x03 == 0, f"got {(state_after_reset >> 4) & 0x03}")
+    # Same "same-frame-fires-immediately" pattern documented elsewhere in this suite (e.g.
+    # T8.7c): arp_tick runs unconditionally every frame, including the reset frame itself, and
+    # it runs *after* apply_input's own init_engine call within that frame — so vibrato's phase
+    # has already advanced by exactly one step (0 -> 1) by the time this read happens, which is
+    # correct live behavior, not a reset defect (unlike the arpeggio *step*, which only advances
+    # on its own multi-frame sub-tick expiry and so reads back cleanly at 0 here).
+    vib_phase_after_reset = (state_after_reset >> 6) & 0x03
+    check("T11.5 Select resets the vibrato phase to 0 or 1 (0 = the resolved value; 1 = one "
+          "same-frame arp_tick step already advanced it, the same effect T8.7c documents "
+          "elsewhere — both are correct, not a reset defect)",
+          vib_phase_after_reset in (0, 1), f"got {vib_phase_after_reset}")
+    pb.stop(save=False)
+
+
 def main():
     t1_header()
     t2_boot()
@@ -386,6 +445,7 @@ def main():
     t8_bad_zone()
     t9_visualizer()
     t10_bad_zone_recovery()
+    t11_arpeggio_vibrato_duty()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

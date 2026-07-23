@@ -64,7 +64,7 @@ supersession-sweep, and split rationale.
 | IP | Package | Requirements | Status |
 |---|---|---|---|
 | IP-1060 | Arpeggio + duty-cycle variation | FR-1130, FR-1160 | **VERIFIED** ([package](packages/IP-1060-arpeggio-and-duty-cycle.md), 65/65 tests against the current tree; [VR-1060](verification/VR-1060-arpeggio-and-duty-cycle.md), fresh-session independent verification — non-default scale/octave independently driven live, two Low doc-coherence findings) |
-| IP-1061 | Vibrato + portamento | FR-1140, FR-1150 | **COMPLETE** — [package](packages/IP-1061-vibrato-and-portamento.md), 65/65 tests, 8000+ frame stress run clean; verification pending |
+| IP-1061 | Vibrato + portamento | FR-1140, FR-1150 | **VERIFIED** ([package](packages/IP-1061-vibrato-and-portamento.md), 65/65 tests; [VR-1061](verification/VR-1061-vibrato-and-portamento.md), fresh-session independent verification — one Medium finding on portamento's design-doc-vs-shipped gap, routed to `07`/`06`) |
 
 **G3 authorization for `IP-1060`/`IP-1061`**: the user's request that filed `BL-0024` — "Iterating
 the pipeline skill run through to implantation the concepts in R216... Iterate until they are all

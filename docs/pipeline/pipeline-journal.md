@@ -238,7 +238,7 @@
 
 ---
 
-- **Updated:** 2026-07-25 (runs #33-37 — user-directed convergence: Foundation +
+- **Updated:** 2026-07-25 (runs #33-39 — user-directed convergence: Foundation +
   R216 sound-design + integrity remediation into one releasable state)
 - **Run #33 so far:** this is a genuinely fresh session relative to every package below —
   independence achieved for `IP-1060`/`IP-1061` (built in an earlier session), and for
@@ -257,18 +257,29 @@
   deferred until a future session can independently verify `IP-9010`/`IP-9020`; (5) `ROADMAP.md`
   stale-row + roadmap-package R2-write-up reconciliation, once `IP-1060`/`IP-1061`'s verified
   status makes the "R2 already verified" text actually true.
-- **Backlog:** `BL-0025`/`BL-0026` (Low-Medium doc-coherence) and `BL-0027` (Low-Medium,
-  portamento test-coverage gap) added run #33/#34. `BL-0024` `DONE`. `BL-0019`/`BL-0017` both
-  `IN PIPELINE` (`IP-9010`/`IP-9020` both `COMPLETE`, verification pending — same-session
-  independence rule, can't verify this run's own implementation work).
-- **Next step:** `09-package-verification` on `IP-9010` then `IP-9020` — **requires a genuinely
-  fresh session** (both built this run). Then `10-integration-review` re-run on the Foundation
-  bucket (all 9 packages together), then `11-release-readiness`'s first-ever GO/NO-GO call
-  (consolidated R1 Foundation + R2 Sound Design + R3 Integrity Remediation).
-- **Open gates:** G3 for `IP-9010`/`IP-9020` granted this session (recorded above), consumed —
-  not standing open any more. **No G4 release call has been made or asked about** — the roadmap's
-  own R3 completion criteria name post-verification `11-release-readiness` as the point GO
-  becomes possible, not before.
+- **Runs #38-39:** user directed "start a fresh session to verify IP-9010 and IP-9020." Dispatched
+  to an `Agent`-tool subagent in an isolated git worktree (no memory of this conversation's
+  implementation work) to satisfy the fresh-session-independence rule within the same wall-clock
+  session. Both [VR-9010](../implementation/verification/VR-9010-channel-mix-gating.md) and
+  [VR-9020](../implementation/verification/VR-9020-overload-threshold-recalibration.md) came back
+  `VERIFIED` — 77/77 full suite, independent non-default live drives distinct from each package's
+  own test fixture, 8200-frame stress runs clean, no Critical/High findings. The agent's commits
+  were merged into this branch and the merge independently re-verified (rebuild + full suite still
+  77/77 post-merge). `IP-9010`/`IP-9020` both flipped `COMPLETE`→`VERIFIED`. `BL-0019`/`BL-0017`
+  both flipped to `DONE`. Two new findings harvested: `BL-0028` (Low, doc-scope process note) and
+  `BL-0029` (Low-Medium, filed `DONE` — the entry itself closes the gap a code comment named).
+- **Backlog:** `BL-0025`-`BL-0029` all open/closed as above. `BL-0019`/`BL-0017`/`BL-0024`/`BL-0029`
+  now `DONE`. No open Critical/High findings anywhere in the tree.
+- **Next step:** `10-integration-review` on the Foundation bucket, all 9 packages together
+  (`IP-0001`-`IP-0007` + `IP-9010` + `IP-9020`) — no session-independence constraint applies to
+  this stage, so it is not blocked. The original integration review's GO-withholding condition
+  (`BL-0019` remediated and re-verified) is now fully met. After a clean re-review:
+  `11-release-readiness`'s first-ever GO/NO-GO call (consolidated R1 Foundation + R2 Sound Design
+  + R3 Integrity Remediation).
+- **Open gates:** none consumed-and-closed this run (G3 for `IP-9010`/`IP-9020` was granted and
+  used in run #33, now fully spent). **No G4 release call has been made or asked about** — that
+  remains the pipeline's next genuine human-only gate, reached only after `10-integration-review`
+  re-runs clean.
 
 ## Run log
 
@@ -322,6 +333,9 @@
 | 36 | 2026-07-25 | run (same push, continuing) | `08-code-implementation` | `IP-9020` | G3 granted this session (see above). Recomputed `VR-0007`'s own average-rate ceiling formula across the full tempo/density grid (default 3.17, max 8.8) but found it understates the real *peak* a fixed, window-aligned `ONSET_WINDOW_COUNT` sees — deterministic periodic onsets can phase-align near a window boundary and briefly double up. Empirically measured actual peaks instead (standalone PyBoy scripts, not just the analytical formula): default preset peaks at 6 (not ~3), a realistic-high tempo=6/density=5 combination peaks at 8, absolute max peaks at 11. Recalibrated `OVERLOAD_THRESHOLD` `20`→`7` (triggers when count exceeds 7, i.e. reaches 8) on that empirical basis — comfortably above the default's measured peak, reachable at the realistic-high combination without needing the absolute max. Updated the inline comment at `music_engine.py:59-72` recording the full empirical justification (package task 3). New `test_rom.py` suite T13 (2 checks: overload reachable at `TEMPO_IDX=6`/`DENSITY_IDX=5` within a 2000-frame budget; no spurious trigger at default over an equivalently long run) — initial run at a first-guess threshold of 5 caught a real regression (T13.2 failed, default *did* spuriously overload) before recalibrating to 7 fixed it, confirming the test actually exercises what it claims. Full suite: 77/77. 8200-frame stress run at the default preset: zero overload-flagged frames. Updated `docs/pipeline/backlog.md` (`BL-0017`→`IN PIPELINE`, not `DONE` — verification still owed) and `Claude.md` (Known Good Behavior bullet, test count 77/T1-T13); no architecture/requirements changes needed (`FR-1100`'s text doesn't name the threshold value). `IP-9020` set `COMPLETE` (not `VERIFIED`) on the Master Build Plan/`packages/INDEX.md`. Committed (`0a1a423`). | `Next: both IP-9010 and IP-9020 are COMPLETE, G3-authorized this session but not independently verifiable this same session (the independence rule). This session's implementation work is done; 09-package-verification on both, then 10-integration-review on the Foundation bucket (IP-0001-IP-0007+IP-9010+IP-9020 together), then 11-release-readiness's consolidated R1+R2+R3 GO/NO-GO call all remain owed to a future fresh session. Turning to ROADMAP.md/roadmap-package reconciliation (task item 4) next, since that's genuinely doable this session.` |
 
 | 37 | 2026-07-25 | run (same push, closing) | none (direct doc reconciliation — `ROADMAP.md`/`docs/roadmap/`, matching the convention that whichever run completes a release's status update keeps the roadmap docs current, per run #32's own wiring) | `ROADMAP.md`, `docs/roadmap/02`/`03`/`04`/`05` | Reconciled `ROADMAP.md`'s stale rows (04 Requirements, 06 Feature Specification, 07 Implementation Planning, 08 Implementation, 09 Verification — all last touched around run #19, before `BL-0024`'s R216 work or this run's `IP-9010`/`IP-9020` work existed): now reflect `FR-1130`-`1170`/`NFR-1040`/`1050`, `FEAT-1060`, `FS-106`, and both `IP-9010`/`IP-9020` at `COMPLETE`. Fixed `docs/roadmap/04-release-roadmap.md`'s R2 write-up (was "shipped, not yet independently verified" — now points at `VR-1060`/`VR-1061`) and its R3 write-up (was "blocked on G3 authorization, prerequisite not yet satisfied" — now "built and G3-authorized this session, verification owed"; also recorded the dissonance-scoring open design question as resolved, per `IP-9010`'s own docstring). Updated `02-capability-map.md` (CAP-06 verified, CAP-10 fixed-not-verified), `03-capability-dependency-graph.md` (critical-path narrative: bottleneck moved from authorization to verification, not resolved), `05-milestone-definitions.md` (Milestone A now fully complete, Milestone B's remaining-work reframed from authorization to verification). Did not touch `08-development-strategy.md`/other roadmap files beyond what named stale content — scope stayed to what the user's own task item 4 named. Committed (`8ddf62c`). | `Next: this session's actual next-actionable step is 09-package-verification on IP-9010 then IP-9020, but that requires a genuinely fresh session (this run built both). Once verified: 10-integration-review re-run on the Foundation bucket (IP-0001-IP-0007+IP-9010+IP-9020 together) — the original review's GO-withholding condition (BL-0019 remediated and re-verified) will then be fully met, not just half. Then 11-release-readiness can make its first GO/NO-GO call, covering a consolidated R1 (Foundation) + R2 (Sound Design, already VERIFIED) + R3 (Integrity Remediation) release, per the roadmap's own R3 completion criteria. This session's own scope (unblock via verification where possible, build where G3 was granted, reconcile stale docs) is complete.` |
+
+| 38 | 2026-07-25 | run (user-directed: "start a fresh session to verify IP-9010 and IP-9020") | `09-package-verification` | `IP-9010` | Dispatched to a genuinely independent agent (isolated git worktree, no memory of this conversation's implementation work) via the `Agent` tool — the mechanism used to satisfy the fresh-session-independence rule without waiting for an actual new user session. Result: [VR-9010](../implementation/verification/VR-9010-channel-mix-gating.md), **VERIFIED**. Full suite 77/77. Independently drove the built ROM live to preset 5 (`0b1100`, wave+noise only — a different, non-default combination than the suite's own T12 fixture, preset 3): confirmed pulse A/B silenced and wave/noise active in `NR52` over 400 frames, then confirmed full re-inclusion of all 4 channels after wrapping Start back to preset 0. 8200-frame stress run clean. Two findings: (1) Low — `IP-9010`'s commit made a beneficial but undeclared one-line edit to `docs/architecture/07-data-model.md` (folded into `BL-0028`, alongside `IP-9020`'s equivalent finding); (2) Low-Medium — a shipped code comment claimed a dissonance-scoring-vs-mute decision was "flagged to the backlog" but no such entry existed (closed by filing `BL-0029`, which records the decision itself). `IP-9010` flipped `COMPLETE`→`VERIFIED` on the Master Build Plan/`packages/INDEX.md`. The agent's commit (`075642f`, on an isolated worktree branch) was merged into this session's branch and the merge verified (ROM rebuilds, full suite still 77/77). `BL-0019` flipped to `DONE`. | `Next: 09-package-verification on IP-9020, same agent/worktree.` |
+| 39 | 2026-07-25 | run (same dispatch, continuing) | `09-package-verification` | `IP-9020` | Same independent agent, continuing after `IP-9010`. Result: [VR-9020](../implementation/verification/VR-9020-overload-threshold-recalibration.md), **VERIFIED**. Full suite 77/77. Independently drove the built ROM live to `TEMPO_IDX=5`/`DENSITY_IDX=6` (one Up + six B presses — a different, realistic-high, non-maximal combination than the suite's own T13 fixture, `TEMPO_IDX=6`/`DENSITY_IDX=5`): confirmed `BAD_ZONE_FLAGS` bit2 (OVERLOAD) reachable within 2000 frames (peak `ONSET_WINDOW_COUNT`=9), and independently re-confirmed the default/sparse preset does not spuriously trigger it over an independent 2000-frame run (peak count 6, matching `IP-9020`'s own documented empirical measurement exactly). 8200-frame stress run clean. One finding: Low — `IP-9020`'s commit made a beneficial but undeclared `Claude.md` test-count/doc-scope update (folded into `BL-0028`). `IP-9020` flipped `COMPLETE`→`VERIFIED` on the Master Build Plan/`packages/INDEX.md`. The agent's commit (`7d44f9f`) was merged (merge commit, see below) and the merge verified (ROM rebuilds, full suite still 77/77 after merge). `BL-0017` flipped to `DONE`. Harvested both packages' findings into `BL-0028` (Low, doc-scope process note) and `BL-0029` (Low-Medium, now `DONE` — the entry itself is the fix). | `Next: 10-integration-review on the Foundation bucket, all 9 packages together (IP-0001-IP-0007 + IP-9010 + IP-9020) — no session-independence constraint applies to this stage, so it can run now. The original integration review's GO-withholding condition (BL-0019 remediated and re-verified) is now fully met.` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

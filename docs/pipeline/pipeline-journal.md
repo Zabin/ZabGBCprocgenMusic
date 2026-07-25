@@ -232,11 +232,37 @@
   gate for `IP-9010`/`IP-9020`** (open since run #14) — now doubly load-bearing, since the roadmap
   confirms it blocks not just the Foundation bucket's own release-readiness but the entire
   Milestone B/D chain (Multi-Scheme, Style Engine, Genre Blending).
-- **Open gates:** **G3 authorization for `IP-9010` and `IP-9020`** — open since run #14, untouched
-  this run; still the standing blocker for `10-integration-review`'s eventual re-run and
-  `11-release-readiness`. **Independent verification owed for `IP-1060`/`IP-1061`** — not a G3
-  gate (both already build-authorized), but `09-package-verification`'s own fresh-session rule,
-  unmet this run same as every same-session-authored package before a later independent pass.
+- **Open gates (superseded by run #33, see below):** ~~G3 authorization for `IP-9010`/`IP-9020`~~
+  — **granted explicitly by the user in run #33**, this session. ~~Independent verification owed
+  for `IP-1060`/`IP-1061`~~ — **`IP-1060` verified run #33**; `IP-1061` next.
+
+---
+
+- **Updated:** 2026-07-25 (run #33, in progress — user-directed convergence: Foundation +
+  R216 sound-design + integrity remediation into one releasable state)
+- **Run #33 so far:** this is a genuinely fresh session relative to every package below —
+  independence achieved for `IP-1060`/`IP-1061` (built in an earlier session), and for
+  `IP-9010`/`IP-9020` (never built at all, contrary to this run's initial premise — see below).
+  **Reconciliation finding (Step 1):** the run's directing prompt assumed `IP-9010`/`IP-9020` were
+  already `COMPLETE` and that `IP-1060`/`IP-1061` were already `VERIFIED` — neither matched the
+  tree. Master Build Plan/`packages/INDEX.md` showed `IP-9010`/`IP-9020` still `NOT STARTED`, no
+  G3 on record anywhere in git history (checked both branches); `IP-1060`/`IP-1061` still
+  `COMPLETE`, not `VERIFIED`. Surfaced this to the user via `AskUserQuestion` before proceeding
+  (per the manager's own "verify against real ledgers, don't trust blind" rule) — user chose:
+  grant G3 for `IP-9010`/`IP-9020` now, build them this session, accept that their verification
+  moves to a future fresh session (can't verify same-session work). Re-sequenced this run's
+  actual steps accordingly: (1) `09-package-verification` on `IP-1060` — done, see run-log row
+  below; (2) `09-package-verification` on `IP-1061` — next; (3) `08-code-implementation` on
+  `IP-9010` then `IP-9020` (G3 now granted); (4) `10-integration-review`/`11-release-readiness`
+  deferred until a future session can independently verify `IP-9010`/`IP-9020`; (5) `ROADMAP.md`
+  stale-row + roadmap-package R2-write-up reconciliation, once `IP-1060`/`IP-1061`'s verified
+  status makes the "R2 already verified" text actually true.
+- **Backlog:** `BL-0025` (new, Low-Medium doc-coherence — `IP-1060` package doc's stale
+  3-entry/mod-3 arpeggio text) added this run. `BL-0024` updated (`IP-1060` verified).
+- **Next step:** `09-package-verification` on `IP-1061`.
+- **Open gates:** none new this run yet; G3 for `IP-9010`/`IP-9020` granted by explicit user
+  decision this session (recorded above) — not re-litigated, but any G4 release call remains
+  fully open and unaddressed until asked.
 
 ## Run log
 
@@ -280,6 +306,8 @@
 | 31 | 2026-07-22 | run (user-directed, explicit Lead-Systems-Architect/TPM framing) | cross-cutting planning synthesis (no single numbered skill — spans what `03-architecture-design-synthesis`/`05-feature-decomposition` would normally own at a higher grain, per the user's explicit permission to adjust deliverables to fit the existing pipeline) | `docs/roadmap/01-10.md` + `INDEX.md` | Authored the full requested planning package from the existing Vision (MSTR-001 v1.4) and Research Encyclopedia (42 topics) only — no new research performed, per instruction. 21-capability map with honest shipped/partial/broken/planned status; dependency graph naming `CAP-10`'s fix (`BL-0019`) as the true critical-path blocker and identifying two parallel streams (Integrity & Diversity vs. Musical Maturity) converging only at the visualizer; 14-release sequence `R0`-`R13` (`R0`-`R2` shipped, included for continuity/traceability only) mapping the user's requested capability arc onto this session's own research findings (R219/R220/R221, R106/R302); six milestones; catalog-grain `RM-xxxx` features (distinct from, feeding, the live `FEAT-xxxx`/`FS-xxx` grain); a full traceability matrix with one deliberately-named gap (L-system motif recurrence, correctly excluded, not silently dropped); a development strategy restating already-proven pipeline practice at roadmap scale; per-release exit criteria; and a genuinely critical final review (5 ranked findings) whose top finding — cart-shape decision bundled too late — was **applied directly** (new `R4.5` checkpoint release) rather than left as a dangling note. No implementation details, algorithms, source code, APIs, or file structures named anywhere, per the user's explicit scope limit. Authorizes nothing (G3 unchanged); cross-linked from `docs/INDEX.md`/`ROADMAP.md`. | `Next: R3 (integrity remediation) is the roadmap's own named critical-path-first release, blocked on the standing G3 gate for IP-9010/IP-9020 (open since run #14) — same gate as before, now with the roadmap's own dependency analysis confirming its downstream blast radius (Milestones B and D both wait on it). Once authorized: R4.5 (cart-shape decision) and R6 (song-form/style-drift, parallelizable) are next. Unrelated, still owed: visual-evolution research (now also R9's named prerequisite), the C10 forward-traceability audit, and 09-package-verification on IP-1060/IP-1061.` |
 
 | 32 | 2026-07-22 | run (user-directed, doc-governance work) | none (direct edits to `.claude/skills/README.md`/`00-pipeline-manager/SKILL.md`/`docs/roadmap/INDEX.md` — meta-pipeline wiring, not a stage-skill invocation) | `docs/roadmap/` integration | User directed integrating the run #31 roadmap package with the pipeline manager's actual process, not just cross-linking it as a passive reference. Added `docs/roadmap/04-release-roadmap.md`/`INDEX.md` to `00-pipeline-manager`'s Step 1 reconciliation ledger list; added explicit Step 3 guidance treating the roadmap's release sequence as a tie-breaker among already-unblocked, backlog-cleared candidates, never an override of gates/tier-precedence/stage-order, with backlog winning any conflict (journaled, not silently resolved). Added a matching "Product Roadmap" section to `README.md` and an "Integration with `00-pipeline-manager`" section to `docs/roadmap/INDEX.md` so the mechanics are documented from both directions. Established write ownership explicitly: the manager reads/flags-drift only, never writes `docs/roadmap/`, consistent with its existing guardrail — whichever skill completes a named release keeps that release's status line current, mirroring the existing `ROADMAP.md` per-stage-row convention. | `Next: unchanged from run #31 — R3 (integrity remediation) remains the roadmap's own named critical-path-first release, blocked on the standing G3 gate for IP-9010/IP-9020 (open since run #14). This run's own scope (wiring the roadmap into the manager's process) is complete; the wiring itself doesn't change what's next, only how the manager will reason about it going forward.` |
+
+| 33 | 2026-07-25 | run (user-directed convergence: "Foundation + R216 + integrity remediation into one releasable state") | `00-pipeline-manager` (Step 1 reconciliation) → `09-package-verification` | `IP-1060` | **Reconciliation finding:** the run's directing premise (`IP-9010`/`IP-9020` built `COMPLETE`; `IP-1060`/`IP-1061` already `VERIFIED`) didn't match the tree — Master Build Plan/`packages/INDEX.md` showed `IP-9010`/`IP-9020` still `NOT STARTED` with no G3 on record in git history on either branch, and `IP-1060`/`IP-1061` still `COMPLETE` not `VERIFIED`. Surfaced via `AskUserQuestion` before proceeding rather than assuming; user chose to grant G3 for `IP-9010`/`IP-9020` now, accepting their verification moves to a future session. **09-package-verification on `IP-1060`:** genuinely fresh session (built in an earlier session, per journal run #22) — [VR-1060](../implementation/verification/VR-1060-arpeggio-and-duty-cycle.md). Rebuilt ROM (32768 bytes, valid header), ran full suite (65/65). Independently drove a non-default combination (`OCTAVE_IDX=3`, `SCALE_IDX=2`, via a standalone PyBoy script pressing `right`x2/`a`x2) confirming arpeggio step (`ARP_STATE_PA` bits4-5) and duty-cycle (`NR11` bits6-7) both cycle through all 4 values off the default preset, per this project's tunable-parameter verification standard. Ran an 8200-frame stress run, no hang. One finding: `IP-1060`'s own package doc still describes a stale 3-entry/mod-3 arpeggio table; GDS-07 and the shipped code both correctly describe the actual 4-entry/mod-4 design — filed `BL-0025` (Low-Medium, doc-coherence). `IP-1060` flipped `COMPLETE`→`VERIFIED` on the Master Build Plan and `packages/INDEX.md`. Committed (`5ba9c86`). | `Next: 09-package-verification on IP-1061 (vibrato + portamento), same session — genuinely fresh relative to its build session.` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

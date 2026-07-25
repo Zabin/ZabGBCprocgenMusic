@@ -238,7 +238,7 @@
 
 ---
 
-- **Updated:** 2026-07-25 (runs #33-42 — user-directed convergence: Foundation +
+- **Updated:** 2026-07-25 (runs #33-43 — user-directed convergence: Foundation +
   R216 sound-design + integrity remediation into one releasable state)
 - **Run #33 so far:** this is a genuinely fresh session relative to every package below —
   independence achieved for `IP-1060`/`IP-1061` (built in an earlier session), and for
@@ -280,15 +280,16 @@
   exercised the arpeggio/vibrato-vs-channel-mix seam live, confirmed clean. No new findings.
 - **Backlog:** `BL-0025`-`BL-0031` all open/closed as above. `BL-0019`/`BL-0017`/`BL-0024`/`BL-0029`/
   `BL-0031` `DONE`; `BL-0030` `SCHEDULED` (non-blocking). No open Critical/High findings anywhere.
-- **Next step:** `11-release-readiness`, re-run for the consolidated R1+R2+R3 release — the
-  evidence chain is now complete. **This is the pipeline's G4 gate.** The user already answered
-  "run the assessment" once (with the standing instruction that any GO still needs a separate,
-  explicit confirmation before any baseline flip) — re-running the assessment itself continues
-  that same authorization, not a new gate. The loop stops here again only if/when the assessment
-  reaches GO and a baseline flip would be needed — that flip itself always needs the user's
-  separate, explicit confirmation, never assumed.
-- **Open gates:** **G4 — release GO/NO-GO for the consolidated R1+R2+R3 release** — ripe, not yet
-  asked. G3 for `IP-9010`/`IP-9020` (run #33) is fully spent, not standing open.
+- **Run #43:** `11-release-readiness` re-assessed post-`BL-0031` closure — **GO recommended**
+  (advisory). No baseline record touched.
+- **Next step:** the pipeline recommends GO, but the actual release decision — and any resulting
+  flip of `ROADMAP.md`/Feature Catalog/`Claude.md`'s status line/affected `INDEX.md` files — is a
+  **G4 gate** requiring the user's separate, explicit confirmation. Every open backlog item is
+  either `DONE` or a non-blocking `SCHEDULED`/`DEFERRED` item with no Critical/High severity — the
+  queue is otherwise empty. This is the loop's genuine stopping point.
+- **Open gates:** **G4 — release GO/NO-GO decision for the consolidated R1+R2+R3 release, ripe and
+  awaiting the user's explicit confirmation before any baseline flip.** G3 for `IP-9010`/`IP-9020`
+  (run #33) is fully spent, not standing open.
 
 ## Run log
 
@@ -351,6 +352,8 @@
 | 41 | 2026-07-25 | run (G4 gate stop → user chose "run the assessment," with explicit instruction not to flip baseline without separate confirmation) | `11-release-readiness` | Consolidated R1+R2+R3 | Reconstructed the promise from `docs/feature-planning/01-feature-catalog.md`'s single Foundation bucket plus `docs/roadmap/04-release-roadmap.md`'s own R1/R2/R3 definitions (no formal `01-release-plan.md` exists in this tree). Scope-audited every `FEAT-10xx` + both `BL-xxxx` remediations against their packages/VRs — all 11 packages `VERIFIED`. Full suite re-run against commit `f8ab88e`: 77/77. **Found a real blocking gap**: `FEAT-1060` (`IP-1060`/`IP-1061`) has never been covered by any `10-integration-review` pass — grepped `docs/reviews/` and confirmed zero mentions in either the original or the re-reviewed integration report, despite sharing code paths with `IP-9010`/`IP-9020`. Per this skill's own explicit rule ("a missing report is a NO-GO input, not a gap to fill in-pass"), did not re-run integration review itself. Wrote [release-assessment-r1-r2-r3.md](../reviews/release-assessment-r1-r2-r3.md): **NO-GO**, with the missing `FEAT-1060` coverage as the sole blocking item (every other dimension — VRs, deviations, residual risks — already supports GO). No baseline record touched (`ROADMAP.md`, release plan, `Claude.md` status line all untouched), consistent with NO-GO and the user's own explicit instruction not to flip anything without separate confirmation. Filed `BL-0031` (High — blocked the assessment, not a functional defect) for the coverage gap. Updated `docs/reviews/INDEX.md`. Committed (`05bb463`), pushed. | `Next: 10-integration-review, re-run at the full 11-package scope (IP-0001-IP-0007 + IP-1060 + IP-1061 + IP-9010 + IP-9020) — not a gate (integration review doesn't flip baseline records), so the iterate loop continues rather than stopping again. If that review comes back clean, 11-release-readiness can be re-run and would very likely support a GO.` |
 
 | 42 | 2026-07-25 | run (same push, continuing — not a gate, no baseline-flip risk in this stage) | `10-integration-review` | All 11 packages (`IP-0001`-`IP-0007` + `IP-1060` + `IP-1061` + `IP-9010` + `IP-9020`) | Closed the coverage gap `BL-0031` named. Confirmed all 11 packages `VERIFIED` before starting. Full suite against commit `36740e6`: 77/77. Exercised the actual new seam **live**, not just by reading code: stepped `CHMIX_IDX` to preset 4 (`0b0110`, excludes pulse A — which arpeggiates/vibratos/duty-varies), settled past one note-cycle, sampled 500 frames. Result: pulse A stayed inactive in `NR52` throughout even though `arp_tick` kept computing and writing frequency/vibrato every frame (it has no mask-awareness of its own, by design — `_emit_channel_gen`'s DAC-off write already guarantees silence regardless); duty-cycle write correctly skipped while muted. No leakage, no flicker, no defect — confirmed, not assumed. Interface-consistency check of the 15-field `CHANNELS` tuple (now carrying 4 packages' worth of per-channel parameters across 4 separate unpacking sites) found no positional drift. No new findings; `BL-0030` (unrelated to this scope) remains the only open item anywhere in the tree. Updated `docs/reviews/integration-review-foundation-bucket.md` (third section appended), `docs/reviews/INDEX.md`, `ROADMAP.md`'s stage-10 row. `BL-0031` flipped to `DONE`. Committed (`29fb988`), pushed. | `Next: 11-release-readiness, re-run for the consolidated R1+R2+R3 release — the evidence chain is now complete (all 11 packages VERIFIED, full 11-package integration review clean). This is the G4 gate again; the user already answered "run the assessment" once and it came back NO-GO on a now-closed gap — re-running the assessment itself is not a new gate (it's the same recommendation-only step already authorized), but any resulting GO still requires the user's separate explicit confirmation before any baseline flip, per their own standing instruction.` |
+
+| 43 | 2026-07-25 | run (continuation of the same standing authorization — user answered "run the assessment" once, with the standing instruction that any GO still needs separate explicit confirmation before a baseline flip) | `11-release-readiness` | Consolidated R1+R2+R3, re-assessment | Re-audited the scope now that `BL-0031` is closed. `FEAT-1060`'s previously-missing integration coverage row now shows the 11-package re-review's live-exercised confirmation. Full suite re-confirmed 77/77 against commit `c62cea2`. Every deviation still has its authorization trail; every residual risk still has an honest, non-blocking disposition; zero unadjudicated Critical/High findings anywhere in the tree. **Assessment: GO recommended** (advisory) — appended as a re-assessment section to [release-assessment-r1-r2-r3.md](../reviews/release-assessment-r1-r2-r3.md), preserving the original NO-GO pass as history. Updated `docs/reviews/INDEX.md`. **No baseline record touched** — `ROADMAP.md`, Feature Catalog, `Claude.md`'s status line all untouched, per this skill's own rule and the user's standing instruction that the recommendation is not itself authorization. Committed (`872b081`), pushed. | `GATE: G4 — the pipeline recommends GO for the consolidated R1+R2+R3 release, but the actual release decision and any resulting baseline-record flip (ROADMAP.md, Feature Catalog, Claude.md status line, affected INDEX files) requires the user's separate, explicit confirmation. This is the loop's genuine stopping point — every open backlog item is either DONE or a non-blocking SCHEDULED/DEFERRED item with no Critical/High severity, so nothing else is actionable without this decision.` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

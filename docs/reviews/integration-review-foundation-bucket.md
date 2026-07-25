@@ -286,3 +286,94 @@ not need to block `11-release-readiness` for the current R1+R2+R3 scope** — it
 gap suitable for a follow-up remediation package, not a defect in what either package promised to
 deliver. `11-release-readiness` can proceed to make its GO/NO-GO call with this finding named as a
 known, non-blocking issue.
+
+---
+
+## Re-review — 2026-07-25 (11-package superset, closing the `FEAT-1060` coverage gap)
+
+- **Scope:** All 11 shipped Implementation Packages — the 9 already covered by the prior
+  re-review (`IP-0001`-`IP-0007`, `IP-9010`, `IP-9020`) plus `IP-1060` (arpeggio + duty-cycle) and
+  `IP-1061` (vibrato + portamento), which
+  [`release-assessment-r1-r2-r3.md`](release-assessment-r1-r2-r3.md) found had never been covered
+  by any integration review despite sharing code paths with `IP-9010`/`IP-9020`. This review
+  supersedes both prior sections for the purposes of a consolidated release; neither prior section
+  is invalidated, both are preserved above as the historical record.
+- **Commit reviewed:** `36740e6`
+- **Date:** 2026-07-25
+- **Pre-condition check:** all 11 packages confirmed `VERIFIED` on the Master Build Plan before
+  starting (`VR-0001`-`VR-0007`, `VR-1060`, `VR-1061`, `VR-9010`, `VR-9020`).
+- **Result:** ✅ **Clean** — the one open finding (`BL-0030`) is unchanged/re-confirmed, not new;
+  no additional Critical/High/Medium finding surfaced by exercising `IP-1060`/`IP-1061` alongside
+  `IP-9010`/`IP-9020`.
+
+### Full-suite gate
+
+- `python3 build_rom.py Driftune.gbc` → 32768 bytes, valid header.
+- `python3 test_rom.py` → **77 PASS, 0 FAIL out of 77** (T1-T13).
+
+### Dimension 1 — Interface consistency
+
+The seam this review exists to check: `IP-1060`/`IP-1061` extended the same `CHANNELS`-tuple
+parameterization (`duty_reg`, `arp_state`) that `IP-9010` later extended again (`dac_reg`,
+`dac_on`, `bit_index`) — four packages' worth of per-channel parameters coexisting in one 15-field
+tuple, unpacked at four separate call sites (`init_engine`, two loops in `engine_tick`, the final
+`_emit_channel_gen`/`_emit_arpeggio_tick` emission loop). Re-read all four unpacking sites in full:
+field order and count agree at every site, no positional drift (this is exactly the class of
+defect that would silently swap e.g. `dac_on` for `bit_index` if any one site fell out of sync —
+confirmed none did). **Clean.**
+
+### Dimension 2 — Invariant sweep
+
+No new WRAM addresses since the prior re-review (`IP-1060`/`IP-1061` landed before it and were
+already reflected in GDS-07). ROM budget unchanged at exactly 32768 bytes. **Clean.**
+
+### Dimension 3 — Behavioral coherence — the actual new seam, exercised live
+
+Read `_emit_arpeggio_tick` (shared by `IP-1060`/`IP-1061`) against `_emit_channel_gen`'s `IP-9010`
+gate: `arp_tick` runs **unconditionally every frame** for every arpeggiating channel (pulse A/B),
+regardless of `CHMIX_MASKS`'s current mute state for that channel — it has no mask-awareness of
+its own, by design (the package doc never asked for it, and `_emit_channel_gen`'s DAC-off write
+already guarantees silence independent of what frequency/vibrato values `arp_tick` continues to
+compute and write).
+
+Verified this holds, not just read it, via a standalone PyBoy drive: stepped `CHMIX_IDX` to preset
+4 (`0b0110` — pulse A excluded, pulse B/wave included), settled 60 frames (past pulse A's own
+30-frame note cycle, satisfying the "within one note-cycle" allowance every mute/re-mute already
+carries), then sampled 500 frames. Result: pulse A's `NR52` bit stayed `0` throughout (never
+active) even though `ARP_STATE_PA`'s step/vibrato-phase bits kept cycling through all 4 values the
+entire time (`arp_tick` never stopped computing) and `NR11`'s duty bits stayed frozen at their
+last pre-mute value (the onset block's duty write is correctly skipped for a muted channel, same
+gate as the frequency write). No audio leakage, no `NR52` flicker, no interaction defect — muting
+a channel that also arpeggiates/vibratos behaves exactly as both packages' own documented designs
+predict when read together, now actually confirmed together for the first time.
+
+This closes `BL-0031` — the coverage gap the release assessment found — with a genuinely clean
+result, not an assumed one.
+
+### Dimension 4 — Traceability coherence
+
+Master Build Plan, `packages/INDEX.md`, `verification/INDEX.md`: all 11 packages `VERIFIED`,
+cross-references bidirectional. `FEAT-1060` (Feature Catalog) now traces to an integration review
+for the first time — closing the exact gap `release-assessment-r1-r2-r3.md` named. `ROADMAP.md`
+already reflects the current 11-package `VERIFIED` state (updated in the prior run). **Clean.**
+
+### Dimension 5 — Documentation coherence
+
+`Claude.md`/`memory.md` already describe arpeggio/vibrato/duty-cycle and channel-mix gating
+accurately (both were updated by their own implementing packages); no new gap found by reviewing
+them against this expanded scope. **Clean.**
+
+## Findings (11-package re-review)
+
+No new findings. `BL-0030` (filed by the prior 9-package re-review) remains open and unchanged —
+it does not involve `IP-1060`/`IP-1061` and this review's own dedicated check of the
+`IP-1060`/`IP-1061` × `IP-9010` seam found no analogous or additional issue.
+
+## Verdict (11-package re-review)
+
+The full 11-package tranche integrates cleanly, including the one seam
+(`FEAT-1060` × channel-mix gating) that had never been exercised together before. `BL-0031` (the
+coverage gap) is closed. The only standing finding across the entire tree remains `BL-0030`
+(Medium, non-blocking, unrelated to this review's new scope). **Recommend: `11-release-readiness`
+can now be re-run with a complete evidence chain — every dimension this consolidated release's own
+assessment needs is now on file.**

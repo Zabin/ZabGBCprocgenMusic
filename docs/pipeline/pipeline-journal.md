@@ -238,7 +238,7 @@
 
 ---
 
-- **Updated:** 2026-07-25 (runs #33-40 — user-directed convergence: Foundation +
+- **Updated:** 2026-07-25 (runs #33-42 — user-directed convergence: Foundation +
   R216 sound-design + integrity remediation into one releasable state)
 - **Run #33 so far:** this is a genuinely fresh session relative to every package below —
   independence achieved for `IP-1060`/`IP-1061` (built in an earlier session), and for
@@ -273,15 +273,20 @@
   level. One new Medium finding filed (`BL-0030` — channel-mix/overload-counting inconsistency
   within `IP-9010` itself, non-blocking per the review's own verdict). `ROADMAP.md`/`docs/roadmap/`
   updated to show all 11 packages `VERIFIED` and the review re-run clean.
-- **Backlog:** `BL-0025`-`BL-0030` all open/closed as above. `BL-0019`/`BL-0017`/`BL-0024`/`BL-0029`
-  `DONE`; `BL-0030` `NEW`→`SCHEDULED` (non-blocking, folds into a future `CAP-09`-adjacent touch).
-  No open Critical/High findings anywhere in the tree.
-- **Next step:** `11-release-readiness` for the consolidated R1 (Foundation) + R2 (Sound Design) +
-  R3 (Integrity Remediation) release — **this is the pipeline's G4 gate**. Every upstream
-  precondition is now met (all 11 packages `VERIFIED`, integration review clean, no unadjudicated
-  Critical/High findings) — the loop stops here to ask the user, not because anything is still
-  technically blocked, but because a release GO/NO-GO call and any resulting baseline-record flip
-  is a human-only decision per the manager's own gate rules.
+- **Run #41:** `11-release-readiness` assessed the consolidated R1+R2+R3 release —
+  **NO-GO**: found `FEAT-1060` (`IP-1060`/`IP-1061`) had never been integration-reviewed. Filed
+  `BL-0031` (High, blocked the assessment). No baseline flipped.
+- **Run #42:** `10-integration-review` re-ran at the full 11-package scope, closing `BL-0031` —
+  exercised the arpeggio/vibrato-vs-channel-mix seam live, confirmed clean. No new findings.
+- **Backlog:** `BL-0025`-`BL-0031` all open/closed as above. `BL-0019`/`BL-0017`/`BL-0024`/`BL-0029`/
+  `BL-0031` `DONE`; `BL-0030` `SCHEDULED` (non-blocking). No open Critical/High findings anywhere.
+- **Next step:** `11-release-readiness`, re-run for the consolidated R1+R2+R3 release — the
+  evidence chain is now complete. **This is the pipeline's G4 gate.** The user already answered
+  "run the assessment" once (with the standing instruction that any GO still needs a separate,
+  explicit confirmation before any baseline flip) — re-running the assessment itself continues
+  that same authorization, not a new gate. The loop stops here again only if/when the assessment
+  reaches GO and a baseline flip would be needed — that flip itself always needs the user's
+  separate, explicit confirmation, never assumed.
 - **Open gates:** **G4 — release GO/NO-GO for the consolidated R1+R2+R3 release** — ripe, not yet
   asked. G3 for `IP-9010`/`IP-9020` (run #33) is fully spent, not standing open.
 
@@ -344,6 +349,8 @@
 | 40 | 2026-07-25 | run (user directed: "iterate pipeline skill following the release roadmap, only stop when all open tasks are blocked") | `10-integration-review` | Foundation bucket, all 9 packages (`IP-0001`-`IP-0007` + `IP-9010` + `IP-9020`) | Re-reviewed the Foundation bucket at its expanded 9-package scope (commit `c4f12b5`, all packages confirmed `VERIFIED` before starting). Full suite 77/77. Confirmed `BL-0019` and `BL-0017` both genuinely remediated at the integration level (re-traced every `CHMIX_IDX` reference, confirmed the gate is real; re-confirmed `OVERLOAD_THRESHOLD=7` is reachable). Exercising the two remediation packages *together* (the vantage point neither `VR-9010` nor `VR-9020` alone had) surfaced a new Medium finding: `_emit_channel_gen`'s `ONSET_WINDOW_COUNT` increment runs before `IP-9010`'s channel-mix gate, so a muted pitched channel still counts toward the overload window identically to when active — `_emit_noise_gen`'s equivalent path deliberately excludes this (explicit code comment), an inconsistency within `IP-9010` itself. Empirically confirmed via a standalone PyBoy drive: peak onset count unchanged (6) whether pulse B/wave are muted or not; muting noise instead measurably drops it to 5. Filed `BL-0030` (Medium, non-blocking per the review's own verdict — no crash, no requirement violated, both packages independently satisfy their own DoD). Updated `docs/reviews/integration-review-foundation-bucket.md` (re-review section appended, original preserved), `docs/reviews/INDEX.md`, `ROADMAP.md` (stages 08-11 now show all 11 packages `VERIFIED`, integration re-reviewed clean, release-readiness ready for the user's G4 call), and `docs/roadmap/02`/`03`/`04`/`05` (capability map, dependency graph, release roadmap, milestone definitions all updated to match). Committed (`4458f9a`), pushed. | `Next: 11-release-readiness for the consolidated R1 (Foundation) + R2 (Sound Design) + R3 (Integrity Remediation) release — this is a G4 gate (release GO/NO-GO), the pipeline's own rules require stopping and asking the user before any release-readiness run that would flip baseline records. Per this run's own directive ("iterate... only stop when all open tasks are blocked"), this is exactly that stop: G4 is a genuine human-only gate, not a step the pipeline can execute on its own judgment.` |
 
 | 41 | 2026-07-25 | run (G4 gate stop → user chose "run the assessment," with explicit instruction not to flip baseline without separate confirmation) | `11-release-readiness` | Consolidated R1+R2+R3 | Reconstructed the promise from `docs/feature-planning/01-feature-catalog.md`'s single Foundation bucket plus `docs/roadmap/04-release-roadmap.md`'s own R1/R2/R3 definitions (no formal `01-release-plan.md` exists in this tree). Scope-audited every `FEAT-10xx` + both `BL-xxxx` remediations against their packages/VRs — all 11 packages `VERIFIED`. Full suite re-run against commit `f8ab88e`: 77/77. **Found a real blocking gap**: `FEAT-1060` (`IP-1060`/`IP-1061`) has never been covered by any `10-integration-review` pass — grepped `docs/reviews/` and confirmed zero mentions in either the original or the re-reviewed integration report, despite sharing code paths with `IP-9010`/`IP-9020`. Per this skill's own explicit rule ("a missing report is a NO-GO input, not a gap to fill in-pass"), did not re-run integration review itself. Wrote [release-assessment-r1-r2-r3.md](../reviews/release-assessment-r1-r2-r3.md): **NO-GO**, with the missing `FEAT-1060` coverage as the sole blocking item (every other dimension — VRs, deviations, residual risks — already supports GO). No baseline record touched (`ROADMAP.md`, release plan, `Claude.md` status line all untouched), consistent with NO-GO and the user's own explicit instruction not to flip anything without separate confirmation. Filed `BL-0031` (High — blocked the assessment, not a functional defect) for the coverage gap. Updated `docs/reviews/INDEX.md`. Committed (`05bb463`), pushed. | `Next: 10-integration-review, re-run at the full 11-package scope (IP-0001-IP-0007 + IP-1060 + IP-1061 + IP-9010 + IP-9020) — not a gate (integration review doesn't flip baseline records), so the iterate loop continues rather than stopping again. If that review comes back clean, 11-release-readiness can be re-run and would very likely support a GO.` |
+
+| 42 | 2026-07-25 | run (same push, continuing — not a gate, no baseline-flip risk in this stage) | `10-integration-review` | All 11 packages (`IP-0001`-`IP-0007` + `IP-1060` + `IP-1061` + `IP-9010` + `IP-9020`) | Closed the coverage gap `BL-0031` named. Confirmed all 11 packages `VERIFIED` before starting. Full suite against commit `36740e6`: 77/77. Exercised the actual new seam **live**, not just by reading code: stepped `CHMIX_IDX` to preset 4 (`0b0110`, excludes pulse A — which arpeggiates/vibratos/duty-varies), settled past one note-cycle, sampled 500 frames. Result: pulse A stayed inactive in `NR52` throughout even though `arp_tick` kept computing and writing frequency/vibrato every frame (it has no mask-awareness of its own, by design — `_emit_channel_gen`'s DAC-off write already guarantees silence regardless); duty-cycle write correctly skipped while muted. No leakage, no flicker, no defect — confirmed, not assumed. Interface-consistency check of the 15-field `CHANNELS` tuple (now carrying 4 packages' worth of per-channel parameters across 4 separate unpacking sites) found no positional drift. No new findings; `BL-0030` (unrelated to this scope) remains the only open item anywhere in the tree. Updated `docs/reviews/integration-review-foundation-bucket.md` (third section appended), `docs/reviews/INDEX.md`, `ROADMAP.md`'s stage-10 row. `BL-0031` flipped to `DONE`. Committed (`29fb988`), pushed. | `Next: 11-release-readiness, re-run for the consolidated R1+R2+R3 release — the evidence chain is now complete (all 11 packages VERIFIED, full 11-package integration review clean). This is the G4 gate again; the user already answered "run the assessment" once and it came back NO-GO on a now-closed gap — re-running the assessment itself is not a new gate (it's the same recommendation-only step already authorized), but any resulting GO still requires the user's separate explicit confirmation before any baseline flip, per their own standing instruction.` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

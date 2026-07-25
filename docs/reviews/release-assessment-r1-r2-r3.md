@@ -175,3 +175,89 @@ own workflow ("on the user's explicit GO — update the baseline").
 `docs/feature-planning/INDEX.md`, `Claude.md` (Known Good Behavior heading), `docs/roadmap/`
 (release roadmap R1/R2/R3 status, milestone definitions Milestone A/B status). See each file's own
 diff for the exact wording; this assessment is the authoritative record of the decision itself.
+
+---
+
+## Re-assessment — 2026-07-25 (adding R4 scope, +`IP-1070`)
+
+- **Commit assessed:** `03c0b53`
+- **Trigger:** per the standing "iterate pipeline skill following the release roadmap, only stop
+  when all open tasks are blocked" instruction. Since the R1+R2+R3 GO above, `BL-0020`
+  (combinable generation schemes, `docs/roadmap/04-release-roadmap.md`'s **R4 — Multi-Scheme
+  Foundation**) ran the full `04`→`05`→`06`→`07` planning chain, stopped at a genuine G3 gate,
+  was explicitly authorized by the user ("Yes, authorize and build it"), built (`IP-1070`),
+  independently `VERIFIED` (fresh-session `Agent`, [VR-1070](../implementation/verification/VR-1070-combinable-generation-schemes.md)),
+  and just passed a 12-package `10-integration-review` re-run
+  ([re-review section](integration-review-foundation-bucket.md#re-review--2026-07-25-12-package-scope-ip-1070))
+  with one new Low, non-blocking finding (`BL-0033`). R4 has never had its own release assessment
+  — this run evaluates whether adding it to the already-shipped R1+R2+R3 baseline is release-worthy.
+
+### Scope audit (R4 addition)
+
+`docs/roadmap/04-release-roadmap.md`'s R4 completion criteria: "New implementation package(s)
+`VERIFIED`." R4 introduces exactly one feature per the Feature Catalog:
+
+| Feature/Fix | FS/Spec | Package(s) | VR(s) | Integration coverage | Delivered? |
+|---|---|---|---|---|---|
+| `FEAT-1070` (combinable generation schemes) | [`FS-107`](../features/fs-107-combinable-generation-schemes.md) (full 20-field spec) | `IP-1070` | [VR-1070](../implementation/verification/VR-1070-combinable-generation-schemes.md) | ✅ [12-package re-review](integration-review-foundation-bucket.md#re-review--2026-07-25-12-package-scope-ip-1070) | Yes |
+
+Every `FEAT-1000`-`FEAT-1060` row from the original R1+R2+R3 scope audit is unchanged and still
+holds (already-shipped, not re-litigated here).
+
+### Evidence (R4 addition)
+
+- **ROM build:** `python3 build_rom.py Driftune.gbc` → 32768 bytes, valid header — re-confirmed
+  against commit `03c0b53`.
+- **Full test suite:** **85 PASS, 0 FAIL out of 85** (T1-T14) — re-confirmed.
+- **VR inventory relied on:** all of R1+R2+R3's original 11, plus `VR-1070` — **12/12 packages
+  independently `VERIFIED`**, zero package still `COMPLETE`-only.
+- **Integration coverage relied on:** the
+  [12-package re-review](integration-review-foundation-bucket.md#re-review--2026-07-25-12-package-scope-ip-1070)
+  — supersedes the prior 11-package review for this consolidated release's purposes; exercised
+  the actual new seam (Scheme E vs. `IP-9010`'s channel-mix mute-check) live where constructible,
+  and by code-reading where the emulator's read-only cart ROM made a live construction impossible
+  (the muted+Scheme-E combination — see `BL-0033`). No Critical/High/Medium finding anywhere.
+
+### Deviations
+
+- `FEAT-1070`/`IP-1070` followed the full, non-abbreviated planning path (`04`→`05`→`06`→`07`→`08`→`09`),
+  the same rigor `FEAT-1060` used — not a deviation, the project's now-standard practice for any
+  feature added after the original MVP-pace exception (`BL-0012`).
+- `IP-1070` required an explicit G3 stop-and-ask (unlike `IP-9010`/`IP-9020`/`IP-1060`/`IP-1061`,
+  which each had a standing authorization basis from their own filing language) — not a deviation,
+  the gate rule working as designed: `07-implementation-planning` correctly recorded "NOT
+  authorized" rather than assuming it, and the user then explicitly granted it via
+  `AskUserQuestion`. The authorization trail is on record in pipeline-journal.md run #48/#49.
+- No feature in R4's scope was deferred, descoped, or split without a recorded authorization
+  trail.
+
+### Residual risks (accepted if GO is given, per each item's own disposition)
+
+All residual risks from the original R1+R2+R3 assessment still apply unchanged (see above; none
+newly resolved or newly invalidated by R4). New items surfaced by R4:
+
+| Item | Severity | Disposition |
+|---|---|---|
+| `BL-0032` — `CHMIX_MASKS` assigns Scheme E to exactly one preset (wave only); pulse A/B's Scheme-E path is fully wired/correct but unreachable via any shipped preset, so `BL-0020`'s "solo or in combination" ask is only partially realized in shipped data | Medium | `SCHEDULED`, non-blocking — the mechanism is correct and tested; this is a preset-data completeness gap, not a functional defect |
+| `BL-0033` — a pitched channel that is both `CHMIX`-muted and assigned Scheme E is safe by code inspection (mute gate is scheme-agnostic, applied after both schemes converge) but has zero shipped-preset/test coverage | Low | `SCHEDULED`, non-blocking — reasoned-safe by construction; folds into `BL-0032`'s own follow-up preset-data package |
+
+### Assessment
+
+**GO** — recommended, advisory, for adding R4 (`FEAT-1070`/`IP-1070`) to the shipped baseline
+alongside R1+R2+R3:
+
+- `FEAT-1070` traces to a `VERIFIED` package with a real VR (`VR-1070`), same evidentiary bar as
+  every other shipped feature.
+- That package is now covered by a clean `10-integration-review` pass (the 12-package re-review),
+  with zero Critical/High/Medium findings anywhere in the tree — the two new findings (`BL-0032`
+  Medium, `BL-0033` Low) are both explicitly non-blocking per the integration review's own verdict.
+- Every deviation has a recorded authorization trail (including the G3 gate this package
+  correctly stopped at); none is unauthorized drift.
+- Every residual risk — old and new — carries an explicit, honest disposition; none is a
+  silently-accepted Critical/High item.
+
+**No baseline record has been touched by this run.** Per the user's own standing instruction, this
+GO recommendation is not itself authorization to flip `ROADMAP.md`, the Feature Catalog,
+`Claude.md`'s status line, or any other tracker to reflect R4 as shipped — that flip happens only
+after the user's separate, explicit confirmation of this GO decision (G4). This assessment's job
+ends at the recommendation.

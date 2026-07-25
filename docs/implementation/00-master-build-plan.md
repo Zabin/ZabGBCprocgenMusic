@@ -66,6 +66,19 @@ supersession-sweep, and split rationale.
 | IP-1060 | Arpeggio + duty-cycle variation | FR-1130, FR-1160 | **VERIFIED** — [package](packages/IP-1060-arpeggio-and-duty-cycle.md), [VR-1060](verification/VR-1060-arpeggio-and-duty-cycle.md): 65/65 tests, non-default `OCTAVE_IDX=3`/`SCALE_IDX=2` independently re-driven, 8200-frame stress run clean |
 | IP-1061 | Vibrato + portamento | FR-1140, FR-1150 | **VERIFIED** — [package](packages/IP-1061-vibrato-and-portamento.md), [VR-1061](verification/VR-1061-vibrato-and-portamento.md): 65/65 tests, non-default `TEMPO_IDX=7`/`OCTAVE_IDX=3` independently re-driven, 8200-frame stress run clean |
 
+## Technical Work Breakdown (TWBS) — Combinable Generation Schemes (`FS-107`, `BL-0020`)
+
+| IP | Package | Requirements | Status |
+|---|---|---|---|
+| IP-1070 | Combinable generation schemes — Scheme E (Euclidean onset timing + fixed-motif pitch selection) | FR-1180...FR-1220, NFR-1060, NFR-1070 | **NOT STARTED** — fully specified, [package](packages/IP-1070-combinable-generation-schemes.md) written; depends only on already-`VERIFIED` code (`IP-0001`-`IP-0003`, `IP-9010`); **not `READY` in the authorization sense — no G3 go-ahead on record** |
+
+**G3 authorization for `IP-1070`**: none yet. Unlike `IP-1060`/`IP-1061` (where the `BL-0024`
+filing request itself carried explicit "build and ship" language) and `IP-9010`/`IP-9020` (G3
+granted explicitly, run #33), `BL-0020`'s filing request asked only for the feature to exist, not
+for an immediate build — `03`/`04`/`05`/`06`'s work proceeded on design/requirements/planning
+merit alone, per this skill's own "authoring is not authorization" rule. The user's explicit
+per-package go-ahead is needed before `08-code-implementation` may build `IP-1070`.
+
 **G3 authorization for `IP-1060`/`IP-1061`**: the user's request that filed `BL-0024` — "Iterating
 the pipeline skill run through to implantation the concepts in R216... Iterate until they are all
 in a committed and pushed ROM" — is explicit, direct authorization to build and verify this

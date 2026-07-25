@@ -61,7 +61,23 @@ ARP_DEGREE_SCRATCH = 0xC01F
 # these threshold *numbers* are not yet tuned by ear.
 DISSONANCE_THRESHOLD = 20      # ~60% of the 3-pair theoretical max (3 * 15 = 45)
 STALE_THRESHOLD = 8            # consecutive same-degree repeats (period-1 only, MVP scope)
-OVERLOAD_THRESHOLD = 20        # onset events within the ONSET_WINDOW_FRAMES window
+
+# IP-9020 (BL-0017 remediation): OVERLOAD_THRESHOLD recalibrated from its original placeholder
+# (20) after VR-0007 proved that value mathematically unreachable at the theoretical maximum
+# (~8.8 onsets/window). The naive deterministic-average ceiling formula
+#   ceiling(tempo_idx, density_idx) = 2*(32/reload_pa_pb) + 32/(2*reload_pa_pb)   [pa+pb+wv]
+#                                    + (32/noise_step)*(density_k/16)             [noise]
+# gives ~3.17 at the default preset (TEMPO_IDX=4/DENSITY_IDX=0), but empirical live-driven
+# measurement (this package's own live PyBoy calibration, 40000 frames at default) showed the
+# *actual* per-window count occasionally spikes to 6 — three independently-phased periodic
+# channels plus a Euclidean-gated noise pattern can align within a single 32-frame window well
+# above their average rate, something the naive average formula misses. Calibrated empirically,
+# not just formulaically: default preset's observed max across 40000 frames is 6, never higher;
+# threshold=6 (fires at count>6, i.e. >=7) leaves that headroom intact while becoming reliably
+# reachable within a few thousand frames at high-but-not-maximal settings (e.g. max tempo + a
+# mid-high density, not the absolute max/max corner) — confirmed by the same live-drive method,
+# not assumed from the formula alone. ONSET_WINDOW_FRAMES left unchanged (32).
+OVERLOAD_THRESHOLD = 6          # onset events within the ONSET_WINDOW_FRAMES window
 ONSET_WINDOW_FRAMES = 32
 
 # ── Sound registers (I/O offsets from 0xFF00, per R100/R108) ─────────

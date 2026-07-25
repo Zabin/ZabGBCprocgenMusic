@@ -23,6 +23,8 @@ Suites:
       see t11's own docstring — no PSG-frequency-register readback is possible)
   T12 Channel-mix gating (IP-9010): CHMIX_IDX-selected masks actually gate PSG output —
       excluded channels silence (NR52), re-included channels resume
+  T13 Overload threshold recalibration (IP-9020): OVERLOAD is reachable at realistic-high
+      settings and does not spuriously fire at the default preset
 
 Run from the repo root: python3 test_rom.py
 Requires: pyboy (pinned 2.7.0, matching the reference project), numpy.
@@ -493,6 +495,51 @@ def t12_channel_mix_gating():
     pb.stop(save=False)
 
 
+def t13_overload_recalibration():
+    """IP-9020 (BL-0017): OVERLOAD_THRESHOLD, recalibrated from its original mathematically-
+    unreachable placeholder (20, per VR-0007's own computed ~8.8-onset/window ceiling), must be
+    empirically reachable at realistic-but-not-maximal settings and must NOT spuriously fire at
+    the default/sparse preset -- the exact regression guard BL-0017's root cause (an untested,
+    unreachable branch) was missing. Direct regression guard for the constant itself, not a
+    re-test of the (already-VERIFIED) OVERLOAD detection/recovery *mechanism* T8/T10 cover."""
+    pb = fresh_boot()
+
+    # Default preset: must NOT spuriously trigger OVERLOAD over a long run (the opposite failure
+    # mode this package's own Risks section warns against).
+    overload_at_default = False
+    for _ in range(6000):
+        pb.tick()
+        if pb.memory[BAD_ZONE_FLAGS] & 0x04:
+            overload_at_default = True
+    check("T13.1 OVERLOAD does not spuriously trigger at the default/sparse preset over a "
+          "sustained run", not overload_at_default,
+          f"overload observed: {overload_at_default}")
+    pb.stop(save=False)
+
+    # Realistic-high, not maximal: max tempo (Up x3) + a mid-high, non-maximal density (B x5) --
+    # a combination reachable through ordinary play, not the absolute max/max corner VR-0007
+    # used only to prove the old threshold unreachable.
+    pb = fresh_boot()
+    for _ in range(3):
+        tap(pb, 'up')
+    for _ in range(5):
+        tap(pb, 'b')
+    check("T13.setup TEMPO_IDX reached 7", pb.memory[TEMPO_IDX] == 7,
+          f"got {pb.memory[TEMPO_IDX]}")
+    check("T13.setup DENSITY_IDX reached 5", pb.memory[DENSITY_IDX] == 5,
+          f"got {pb.memory[DENSITY_IDX]}")
+    overload_triggered = False
+    for _ in range(6000):
+        pb.tick()
+        if pb.memory[BAD_ZONE_FLAGS] & 0x04:
+            overload_triggered = True
+            break
+    check("T13.2 OVERLOAD is empirically reachable at a realistic-high (not maximal) "
+          "tempo/density combination within a bounded frame budget",
+          overload_triggered, f"overload observed within 6000 frames: {overload_triggered}")
+    pb.stop(save=False)
+
+
 def main():
     t1_header()
     t2_boot()
@@ -506,6 +553,7 @@ def main():
     t10_bad_zone_recovery()
     t11_arpeggio_vibrato_duty()
     t12_channel_mix_gating()
+    t13_overload_recalibration()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

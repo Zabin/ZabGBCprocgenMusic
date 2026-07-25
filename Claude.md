@@ -165,8 +165,12 @@ per-channel `STALE_COUNT_*`, overload via the rolling onset window) — see
   reads inactive) within one note-cycle, a re-included channel resumes generating and sounding,
   confirmed live at a non-default preset in addition to the shared test fixture's default
   (`IP-9010`, `BL-0019`)
+- `OVERLOAD_THRESHOLD` recalibrated (20 → 6, empirically calibrated, not just formula-derived —
+  see the constant's own comment in `music_engine.py`): OVERLOAD is now genuinely reachable at
+  realistic-high tempo/density settings, without spuriously firing at the default preset
+  (`IP-9020`, `BL-0017`)
 
-**74/74 `test_rom.py` checks pass** (T1-T12). An 8000+ frame stress run with continuous input
+**78/78 `test_rom.py` checks pass** (T1-T13). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

@@ -14,6 +14,6 @@ Owned by `07-implementation-planning` (authoring), `08-*` peers (execution), `09
 | IP-0006 | [Minimal visualizer](IP-0006-minimal-visualizer.md) | VERIFIED ([VR-0006](../verification/VR-0006-minimal-visualizer.md), fresh-session independent verification — `BL-0016` filed) |
 | IP-0007 | [Autonomous bad-zone avoidance/recovery + Select randomization](IP-0007-autonomous-recovery-and-randomize.md) | VERIFIED ([VR-0007](../verification/VR-0007-autonomous-recovery-and-randomize.md), fresh-session independent verification — `BL-0017` filed, Medium-High) |
 | IP-9010 | [Channel-mix gating (remediation for `BL-0019`)](IP-9010-channel-mix-gating.md) | COMPLETE — 74/74 tests, self-tested same session as authored; verification pending |
-| IP-9020 | [Overload threshold recalibration (remediation for `BL-0017`)](IP-9020-overload-threshold-recalibration.md) | READY — G3-authorized 2026-07-25 (run #33) |
+| IP-9020 | [Overload threshold recalibration (remediation for `BL-0017`)](IP-9020-overload-threshold-recalibration.md) | COMPLETE — 78/78 tests, self-tested same session as authored; verification pending |
 | IP-1060 | [Arpeggio + duty-cycle variation](IP-1060-arpeggio-and-duty-cycle.md) | VERIFIED ([VR-1060](../verification/VR-1060-arpeggio-and-duty-cycle.md), fresh-session independent verification — two Low doc-coherence findings) |
 | IP-1061 | [Vibrato + portamento](IP-1061-vibrato-and-portamento.md) | VERIFIED ([VR-1061](../verification/VR-1061-vibrato-and-portamento.md), fresh-session independent verification — one Medium finding, `BL-0027`) |

@@ -8,7 +8,7 @@
 [PASS] T2.3 Boot preset: TEMPO_IDX at known-good value
 [PASS] T2.4 Boot preset: OCTAVE_IDX at known-good value
 [PASS] T2.5 Boot preset: SCALE_IDX at known-good value
-[PASS] T3.1 CUR_DEGREE_PA changes over time (engine is walking, not frozen)  (distinct degrees seen: [0, 1, 5, 6, 7])
+[PASS] T3.1 CUR_DEGREE_PA changes over time (engine is walking, not frozen)  (distinct degrees seen: [0, 1])
 [PASS] T3.2 NOTE_TIMER_PA counts down and reloads repeatedly (generation cadence is live)  (distinct timer values seen: 30)
 [PASS] T3.3 Channel 1 still reports active after sustained play
 [PASS] T4.1 D-pad Up steps TEMPO_IDX  (0xc000: 4 -> 5)
@@ -33,18 +33,18 @@
 [PASS] T6.1 Channel 2 (pulse B) reports active in NR52  (NR52=0xf7)
 [PASS] T6.2 Channel 3 (wave) reports active in NR52  (NR52=0xf7)
 [PASS] T6.3 CUR_DEGREE_PB changes over time (pulse B is walking independently)  (distinct degrees: [3, 4, 5, 6])
-[PASS] T6.4 CUR_DEGREE_WV changes over time (wave channel is walking independently)  (distinct degrees: [0, 1, 7])
+[PASS] T6.4 CUR_DEGREE_WV changes over time (wave channel is walking independently)  (distinct degrees: [0, 1, 5, 6, 7])
 [PASS] T6.5 All three pitched channels still report active after sustained play  (NR52=0xf7)
 [PASS] T7.setup DENSITY_IDX reached 0  (got 0)
 [PASS] T7.0.1 Noise step index cycles through all 16 steps at density 0  (seen: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
 [PASS] T7.0.2 Channel 4 (noise) triggers at least once at density 0  (onset-frame count: 137)
 [PASS] T7.setup DENSITY_IDX reached 7  (got 7)
 [PASS] T7.7.1 Noise step index cycles through all 16 steps at density 7  (seen: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
-[PASS] T7.7.2 Channel 4 (noise) triggers at least once at density 7  (onset-frame count: 546)
-[PASS] T7.3 Denser preset (max DENSITY_IDX) produces more onset-frames than the sparsest  (onset_counts={0: 137, 7: 546})
+[PASS] T7.7.2 Channel 4 (noise) triggers at least once at density 7  (onset-frame count: 545)
+[PASS] T7.3 Denser preset (max DENSITY_IDX) produces more onset-frames than the sparsest  (onset_counts={0: 137, 7: 545})
 [PASS] T8.1 DISSONANCE_SCORE at boot is within the theoretical 0-45 range  (got 29)
 [PASS] T8.2 BAD_ZONE_FLAGS at boot is a valid 4-bit combination
-[PASS] T8.3 DISSONANCE_SCORE varies over time (three independently-walking channels produce a changing interval mix)  (distinct scores: [0, 2, 4, 6, 13, 15, 18, 19, 22, 24, 29, 30])
+[PASS] T8.3 DISSONANCE_SCORE varies over time (three independently-walking channels produce a changing interval mix)  (distinct scores: [0, 2, 6, 13, 15, 18, 22, 24, 26, 29, 30])
 [PASS] T8.4 BAD_ZONE_FLAGS bit3 (COMBINED) matches bit0 (DISSONANT) on almost every frame (at most a rare, self-healing one-frame transient, not a sustained mismatch)  (0/2000 mismatched frames; flags seen: [0, 9, 10])
 [PASS] T8.5 At least one bad-zone entry (DISSONANT or COMBINED) was observed over a long run  (flags seen: [0, 9, 10])
 [PASS] T8.6 Select clears BAD_ZONE_FLAGS (read on the exact reset frame)  (got 0)
@@ -59,7 +59,7 @@
 [PASS] T10.1 The engine entered a bad-zone state at least once over a long run
 [PASS] T10.2 The engine recovered out of a bad-zone state on its own (no Select pressed), confirming autonomous avoidance/recovery works, not just detection
 [PASS] T11.1 Pulse A's arpeggio step index cycles through more than one value over a sustained run (chord-tone cycling is live, not frozen)  (distinct steps seen: [0, 1, 2, 3])
-[PASS] T11.2 Pulse A's duty-cycle bits (NR11) take more than one value across onsets  (distinct duty values seen: ['0x0', '0x40', '0x80', '0xc0'])
+[PASS] T11.2 Pulse A's duty-cycle bits (NR11) take more than one value across onsets  (distinct duty values seen: ['0x0', '0x40'])
 [PASS] T11.4 Pulse A's vibrato phase cycles through all 4 values every frame (live, not frozen)  (phases seen: [0, 1, 2, 3])
 [PASS] T11.3 Select resets the arpeggio step index to 0 (read on the exact reset frame)  (got 0)
 [PASS] T11.5 Select resets the vibrato phase to 0 or 1 (0 = the resolved value; 1 = one same-frame arp_tick step already advanced it, the same effect T8.7c documents elsewhere — both are correct, not a reset defect)  (got 1)
@@ -75,5 +75,13 @@
 [PASS] T13.setup DENSITY_IDX reached 5  (got 5)
 [PASS] T13.1 BAD_ZONE_FLAGS bit2 (OVERLOAD) is observed set at a realistic-high, non-maximal tempo/density combination within a bounded frame budget  (got overload_seen=True)
 [PASS] T13.2 The default/sparse preset does not spuriously trigger OVERLOAD over an equivalently long run  (got spurious_overload=False)
+[PASS] T14.setup CHMIX_IDX reached preset 6  (got 6)
+[PASS] T14.1 Wave channel's Euclidean-pattern step (Scheme E onset timing) cycles through all 16 positions  (seen: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+[PASS] T14.2 Wave channel's motif step (Scheme E pitch selection) cycles through all 8 positions  (seen: [0, 1, 2, 3, 4, 5, 6, 7])
+[PASS] T14.3 Wave channel's scale-degree sequence stays within the fixed motif's value set (plus bad-zone-override reachable degrees)  (seen: [0, 1, 2, 3, 4, 5, 6, 7])
+[PASS] T14.4 Pulse A (still Scheme W at preset 6) never advances its own Scheme-E state  (got 0)
+[PASS] T14.5 With a Scheme-E channel active, the engine still enters a bad-zone state over a long run  (got bad_zone_seen=True)
+[PASS] T14.6 With a Scheme-E channel active, the engine still autonomously recovers from a bad-zone state  (got recovered=True)
+[PASS] T14.7 Select resets MOTIF_STEP_WV to 0 (read on the exact reset frame)  (got 0)
 
-77 PASS, 0 FAIL
+85 PASS, 0 FAIL

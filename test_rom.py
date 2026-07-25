@@ -25,6 +25,9 @@ Suites:
       each channel's NR52-visible activity, not just its own index value
   T13 Overload recalibration (IP-9020, BL-0017): OVERLOAD_THRESHOLD is reachable at a
       realistic-high tempo/density combination, and does not spuriously fire at default
+  T14 Combinable generation schemes (IP-1070, BL-0020): a channel assigned Scheme E cycles
+      through a fixed motif on a Euclidean-pattern-gated onset schedule, a channel left on
+      Scheme W is unaffected, and bad-zone detection/recovery still applies
 
 Run from the repo root: python3 test_rom.py
 Requires: pyboy (pinned 2.7.0, matching the reference project), numpy.
@@ -48,6 +51,7 @@ NOISE_STEP_IDX = 0xC019
 BAD_ZONE_FLAGS = 0xC005; DISSONANCE_SCORE = 0xC006
 STALE_COUNT_PA = 0xC007; ONSET_WINDOW_COUNT = 0xC00A
 ARP_STATE_PA = 0xC01D; ARP_STATE_PB = 0xC01E
+MOTIF_STEP_PA = 0xC038; MOTIF_STEP_PB = 0xC039; MOTIF_STEP_WV = 0xC03A
 LCDC = 0xFF40
 CHANNEL_CELLS = [0x9800, 0x9801, 0x9802, 0x9803]
 BCPD = 0xFF69
@@ -526,6 +530,81 @@ def t13_overload_recalibration():
     pb2.stop(save=False)
 
 
+def t14_combinable_generation_schemes():
+    """IP-1070 (BL-0020): CHMIX_IDX preset 6 assigns Scheme E to the wave channel (pulse A/B stay
+    on Scheme W). Scheme E's packed state (MOTIF_STEP_WV) is bits0-3 Euclidean-pattern step
+    (0-15), bits4-6 motif step (0-7)."""
+    pb = fresh_boot()
+    for _ in range(6):
+        tap(pb, 'start')
+    check("T14.setup CHMIX_IDX reached preset 6", pb.memory[CHMIX_IDX] == 6,
+          f"got {pb.memory[CHMIX_IDX]}")
+
+    seen_euclid = set()
+    seen_motif = set()
+    seen_wv_degrees = set()
+    for _ in range(2000):
+        pb.tick()
+        st = pb.memory[MOTIF_STEP_WV]
+        seen_euclid.add(st & 0x0F)
+        seen_motif.add((st >> 4) & 0x07)
+        seen_wv_degrees.add(pb.memory[CUR_DEGREE_WV])
+    check("T14.1 Wave channel's Euclidean-pattern step (Scheme E onset timing) cycles through "
+          "all 16 positions", seen_euclid == set(range(16)), f"seen: {sorted(seen_euclid)}")
+    check("T14.2 Wave channel's motif step (Scheme E pitch selection) cycles through all 8 "
+          "positions", seen_motif == set(range(8)), f"seen: {sorted(seen_motif)}")
+    check("T14.3 Wave channel's scale-degree sequence stays within the fixed motif's value set "
+          "(plus bad-zone-override reachable degrees)", seen_wv_degrees.issubset(set(range(8))),
+          f"seen: {sorted(seen_wv_degrees)}")
+    pb.stop(save=False)
+
+    # Regression: a channel left on Scheme W (pulse A, bit4 clear at preset 6) is unaffected —
+    # MOTIF_STEP_PA should stay at 0 (never advanced, Scheme-W path never touches it).
+    pb2 = fresh_boot()
+    for _ in range(6):
+        tap(pb2, 'start')
+    for _ in range(500):
+        pb2.tick()
+    check("T14.4 Pulse A (still Scheme W at preset 6) never advances its own Scheme-E state",
+          pb2.memory[MOTIF_STEP_PA] == 0, f"got {pb2.memory[MOTIF_STEP_PA]}")
+    pb2.stop(save=False)
+
+    # Bad-zone detection/recovery (FR-1220) must apply identically with a Scheme-E channel active.
+    pb3 = fresh_boot()
+    for _ in range(6):
+        tap(pb3, 'start')
+    bad_zone_seen = False
+    recovered = False
+    was_bad = False
+    for _ in range(8000):
+        pb3.tick()
+        combined = pb3.memory[BAD_ZONE_FLAGS] & 0x08
+        if combined:
+            bad_zone_seen = True
+            was_bad = True
+        elif was_bad:
+            recovered = True
+            was_bad = False
+    check("T14.5 With a Scheme-E channel active, the engine still enters a bad-zone state over "
+          "a long run", bad_zone_seen, f"got bad_zone_seen={bad_zone_seen}")
+    check("T14.6 With a Scheme-E channel active, the engine still autonomously recovers from a "
+          "bad-zone state", recovered, f"got recovered={recovered}")
+    pb3.stop(save=False)
+
+    # Select resets MOTIF_STEP_WV (Euclidean step + motif step both back to 0).
+    pb4 = fresh_boot()
+    for _ in range(6):
+        tap(pb4, 'start')
+    for _ in range(50):
+        pb4.tick()
+    pb4.button_press('select')
+    pb4.tick()
+    pb4.button_release('select')
+    check("T14.7 Select resets MOTIF_STEP_WV to 0 (read on the exact reset frame)",
+          pb4.memory[MOTIF_STEP_WV] == 0, f"got {pb4.memory[MOTIF_STEP_WV]}")
+    pb4.stop(save=False)
+
+
 def main():
     t1_header()
     t2_boot()
@@ -540,6 +619,7 @@ def main():
     t11_arpeggio_vibrato_duty()
     t12_channel_mix_gating()
     t13_overload_recalibration()
+    t14_combinable_generation_schemes()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

@@ -23,7 +23,7 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers)
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 77 checks across T1-T13
+                    sound registers + WRAM engine state) — 85 checks across T1-T14
 ```
 
 ### Data layout, WRAM map
@@ -129,6 +129,15 @@ recovery path short of Select). Gating itself lives in `_emit_channel_gen`'s and
 adding that channel's `dac_reg`/`dac_on`/`bit_index` to its `CHANNELS` entry (or, for a
 non-`CHANNELS` channel like noise, following `_emit_noise_gen`'s own inline pattern).
 
+### Change Scheme E's motif table or scheme assignment
+`MOTIF_TABLE` in `music_engine.py` (8 absolute scale-degree targets, 0-7, shared by every
+Scheme-E channel) — a first-guess placeholder shape, not tuned by ear (`BL-0005`). Which
+`CHMIX_IDX` presets assign Scheme E to which channel is `CHMIX_MASKS`'s bits4-6 (pa=4, pb=5,
+wv=6, 0=Scheme W/1=Scheme E) — preset 0 must stay all-Scheme-W (no regression to the shipped
+default). Scheme E's onset-timing/pitch-selection logic itself lives in `_emit_channel_gen`'s
+note-selection step (`IP-1070`/`BL-0020`) — extending it to a new scheme means adding another
+branch there, keyed off a new bit in the same spare-bit range (`ADR-0001`).
+
 ## Known Good Behavior (v1.0 — Foundation + Sound Design + Integrity Remediation, GO 2026-07-25)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
@@ -166,8 +175,13 @@ non-`CHANNELS` channel like noise, following `_emit_noise_gen`'s own inline patt
   recalibrated from `20` (mathematically unreachable) to `7`, based on measured peak onset counts
   (not just the analytical average-rate formula, which understated real bursts) — reachable at a
   realistic-high tempo/density combination, not spuriously reachable at the sparse default.
+- Combinable generation schemes (`IP-1070`/`BL-0020`): each pitched channel can independently run
+  Scheme W (the original LFSR walk) or Scheme E (a Euclidean-pattern-gated onset schedule + a
+  fixed 8-step motif), selected per `CHMIX_IDX` preset (preset 6 assigns Scheme E to the wave
+  channel, per `ADS-100`'s own worked example — a recognizable repeating bass motif against pulse
+  A/B's freer drift). Bad-zone detection/recovery applies identically regardless of scheme.
 
-**77/77 `test_rom.py` checks pass** (T1-T13). An 8000+ frame stress run with continuous input
+**85/85 `test_rom.py` checks pass** (T1-T14). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

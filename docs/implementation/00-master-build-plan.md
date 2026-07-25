@@ -70,7 +70,7 @@ supersession-sweep, and split rationale.
 
 | IP | Package | Requirements | Status |
 |---|---|---|---|
-| IP-1070 | Combinable generation schemes — Scheme E (Euclidean onset timing + fixed-motif pitch selection) | FR-1180...FR-1220, NFR-1060, NFR-1070 | **NOT STARTED** — fully specified, [package](packages/IP-1070-combinable-generation-schemes.md) written; depends only on already-`VERIFIED` code (`IP-0001`-`IP-0003`, `IP-9010`); **not `READY` in the authorization sense — no G3 go-ahead on record** |
+| IP-1070 | Combinable generation schemes — Scheme E (Euclidean onset timing + fixed-motif pitch selection) | FR-1180...FR-1220, NFR-1060, NFR-1070 | **COMPLETE** — [package](packages/IP-1070-combinable-generation-schemes.md), new T14 suite (7 checks), 85/85 full-suite tests, 8200-frame stress run clean; verification pending |
 
 **G3 authorization for `IP-1070`**: **granted explicitly by the user, 2026-07-25** (asked directly
 via `AskUserQuestion`, confirmed "Yes, authorize and build it" — not assumed from ambiguous

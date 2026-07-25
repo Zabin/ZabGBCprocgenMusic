@@ -18,7 +18,7 @@ project's own convention.
 | `0xC001` | `OCTAVE_IDX` | 0–7 | Index into the octave-range preset table (D-pad Left/Right) |
 | `0xC002` | `SCALE_IDX` | 0–3 | Index into the scale/mode table (A) |
 | `0xC003` | `DENSITY_IDX` | 0–7 | Index into the Euclidean-density preset table (B) |
-| `0xC004` | `CHMIX_IDX` | 0–7 | Index into `CHMIX_MASKS` (`music_engine.py`), a real per-preset 4-bit channel-activity mask consumed by `_emit_channel_gen`/`_emit_noise_gen` (**Added `IP-9010` 2026-07-25**, closing `BL-0019` — previously stepped by input but consumed nowhere) |
+| `0xC004` | `CHMIX_IDX` | 0–7 | Index into `CHMIX_MASKS` (`music_engine.py`) — bits0-3 a real per-preset channel-activity mask consumed by `_emit_channel_gen`/`_emit_noise_gen` (**Added `IP-9010` 2026-07-25**, closing `BL-0019`); bits4-6 a per-channel generation-scheme select (pa/pb/wv, 0=Scheme W/1=Scheme E), consumed by `_emit_channel_gen`'s note-selection step (**Added `IP-1070` 2026-07-25**, closing `BL-0020`, per `ADR-0001`'s spare-bit reuse) |
 
 ## §2 Bad-zone state (GDS-03 §4)
 
@@ -56,6 +56,9 @@ project's own convention.
 | `0xC01D` | `ARP_STATE_PA` | **Added `IP-1060` (2026-07-22)**, **extended `IP-1061` (2026-07-22)** — pulse A's arpeggio + vibrato state, packed: bits0-3 sub-tick countdown, bits4-5 arpeggio step index (0-3, wraps via `AND 0x30`), bits6-7 vibrato phase (0-3, advances every frame via `ADD 0x40`, wraps out of the byte harmlessly) |
 | `0xC01E` | `ARP_STATE_PB` | **Added `IP-1060`, extended `IP-1061`** — pulse B's arpeggio + vibrato state, same packing |
 | `0xC01F` | `ARP_DEGREE_SCRATCH` | **Added `IP-1060`** — shared working storage for the arpeggio tick's effective-degree computation (pa/pb ticks run sequentially within a frame, never concurrently, so sharing one byte is safe — same convention as `SEMI_PA`/`PB`/`WV`'s own "not persisted across frames" scratch role) |
+| `0xC038` | `MOTIF_STEP_PA` | **Added `IP-1070` (2026-07-25, `BL-0020`)** — pulse A's packed Scheme-E state: bits0-3 this channel's own Euclidean-pattern step (0-15, independent of the noise channel's `NOISE_STEP_IDX`), bits4-6 its current motif step (0-7); bit7 unused. Only advances when this channel's `CHMIX_MASKS` scheme-select bit (bit4) is set; stays at 0 while running Scheme W. |
+| `0xC039` | `MOTIF_STEP_PB` | **Added `IP-1070`** — same packing/role as `MOTIF_STEP_PA`, pulse B's scheme-select bit is bit5 |
+| `0xC03A` | `MOTIF_STEP_WV` | **Added `IP-1070`** — same packing/role, wave channel's scheme-select bit is bit6 |
 
 ## §4 Repetition-detection history buffers (§4b's "last 8 notes")
 

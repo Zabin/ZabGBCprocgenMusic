@@ -21,6 +21,8 @@ Suites:
   T11 Arpeggio + vibrato + duty-cycle variation (IP-1060/IP-1061): per-note chord-tone
       cycling, periodic pitch wobble, varying timbre (portamento verified by code review only,
       see t11's own docstring — no PSG-frequency-register readback is possible)
+  T12 Channel-mix gating (IP-9010, BL-0019): Start-stepped CHMIX_IDX presets actually gate
+      each channel's NR52-visible activity, not just its own index value
 
 Run from the repo root: python3 test_rom.py
 Requires: pyboy (pinned 2.7.0, matching the reference project), numpy.
@@ -434,6 +436,55 @@ def t11_arpeggio_vibrato_duty():
     pb.stop(save=False)
 
 
+def t12_channel_mix_gating():
+    """IP-9010 (BL-0019): CHMIX_IDX must actually gate which channels sound, not merely step its
+    own WRAM index (T4.7 already confirms the stepping; this suite confirms the consumer)."""
+    pb = fresh_boot()
+    # Noise is percussive/gated (density-pattern hits, on for only a fraction of frames per T7's
+    # own onset-frame-count evidence), not continuously active like the pitched channels — sample
+    # over a window and accept any frame where all 4 read active, same "at least once" style T7
+    # already uses for this same channel, rather than a single-frame snapshot.
+    all_four_seen = False
+    for _ in range(300):
+        pb.tick()
+        if (pb.memory[NR52] & 0x0F) == 0x0F:
+            all_four_seen = True
+    check("T12.1 Boot preset (CHMIX_IDX=0): all 4 channels report active in NR52 at least once "
+          "over a sustained run (regression guard — CHMIX_MASKS[0] must stay 0b1111)",
+          all_four_seen, f"NR52 sample at end={bin(pb.memory[NR52])}")
+
+    # Preset 3 = 0b1001 (pulse A + noise only, pulse B + wave excluded) — Start steps CHMIX_IDX
+    # by +1 per press (mask 0x07, wraps every 8).
+    for _ in range(3):
+        tap(pb, 'start')
+    check("T12.2 CHMIX_IDX reached preset 3", pb.memory[CHMIX_IDX] == 3,
+          f"got {pb.memory[CHMIX_IDX]}")
+    for _ in range(200):
+        pb.tick()
+    nr52 = pb.memory[NR52]
+    check("T12.3 Excluded pulse B (bit1) reads inactive in NR52 within one note-cycle of the "
+          "mask change", (nr52 & 0x02) == 0, f"NR52={bin(nr52)}")
+    check("T12.4 Excluded wave channel (bit2) reads inactive in NR52 within one note-cycle of "
+          "the mask change", (nr52 & 0x04) == 0, f"NR52={bin(nr52)}")
+    check("T12.5 Included pulse A (bit0) remains active in NR52 while excluded",
+          (nr52 & 0x01) != 0, f"NR52={bin(nr52)}")
+
+    # Step back to preset 0 (3 + 5 = 8, wraps to 0) — confirm the previously-excluded channels
+    # resume generating and reporting active.
+    for _ in range(5):
+        tap(pb, 'start')
+    check("T12.6 CHMIX_IDX wrapped back to preset 0", pb.memory[CHMIX_IDX] == 0,
+          f"got {pb.memory[CHMIX_IDX]}")
+    for _ in range(200):
+        pb.tick()
+    nr52 = pb.memory[NR52]
+    check("T12.7 Re-included pulse B (bit1) resumes reporting active in NR52",
+          (nr52 & 0x02) != 0, f"NR52={bin(nr52)}")
+    check("T12.8 Re-included wave channel (bit2) resumes reporting active in NR52",
+          (nr52 & 0x04) != 0, f"NR52={bin(nr52)}")
+    pb.stop(save=False)
+
+
 def main():
     t1_header()
     t2_boot()
@@ -446,6 +497,7 @@ def main():
     t9_visualizer()
     t10_bad_zone_recovery()
     t11_arpeggio_vibrato_duty()
+    t12_channel_mix_gating()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

@@ -129,14 +129,21 @@ LFSR_SEED_PA = 0xA5
 LFSR_SEED_PB = 0x5A
 LFSR_SEED_WV = 0x3C
 
-# ── Channel generation parameters (IP-0002/IP-0004/IP-1060) ──────────
+# ── Channel generation parameters (IP-0002/IP-0004/IP-1060/IP-9010) ──
 # name, note_timer, cur_degree, lfsr_state, lfsr_seed, freq_lo_reg, freq_hi_reg,
 # octave_delta (subtracted from OCTAVE_IDX, floored at 0), tempo_mult (note duration multiplier),
 # stale_count (IP-0004 repetition counter), duty_reg (IP-1060, None if not varied),
-# arp_state (IP-1060 packed arpeggio WRAM byte, None if this channel doesn't arpeggiate)
+# arp_state (IP-1060 packed arpeggio WRAM byte, None if this channel doesn't arpeggiate),
+# dac_reg (IP-9010: the register whose DAC/envelope power this channel's channel-mix gate
+# toggles — NR12/NR22 envelope-volume for pulse A/B, NR30 DAC-power bit for wave; writing 0
+# there silences the channel and clears its NR52 bit within this same onset), dac_on (the value
+# restored when this channel's mix bit is active — matches this channel's boot-time envelope/DAC
+# value exactly, so re-enabling produces identical tone to a fresh boot), bit_index (this
+# channel's bit position in CHMIX_MASKS/NR52 — pa=0, pb=1, wv=2, matching NR52's own channel-bit
+# order, per BL-0019/IP-9010's package doc)
 CHANNELS = [
-    ('pa', NOTE_TIMER_PA, CUR_DEGREE_PA, LFSR_STATE,    LFSR_SEED_PA, NR13, NR14, 0, 1, STALE_COUNT_PA, NR11, ARP_STATE_PA),
-    ('pb', NOTE_TIMER_PB, CUR_DEGREE_PB, LFSR_STATE_PB, LFSR_SEED_PB, NR23, NR24, 0, 1, STALE_COUNT_PB, NR21, ARP_STATE_PB),
+    ('pa', NOTE_TIMER_PA, CUR_DEGREE_PA, LFSR_STATE,    LFSR_SEED_PA, NR13, NR14, 0, 1, STALE_COUNT_PA, NR11, ARP_STATE_PA, NR12, 0xF3, 0),
+    ('pb', NOTE_TIMER_PB, CUR_DEGREE_PB, LFSR_STATE_PB, LFSR_SEED_PB, NR23, NR24, 0, 1, STALE_COUNT_PB, NR21, ARP_STATE_PB, NR22, 0xF3, 1),
     # Wave channel: bass/timbre role (R207 finding, BL-0008) — anchored one octave index lower
     # (floored at 0) and half the note rate (tempo_mult=2), matching bass lines moving less often
     # than melody. The wave-channel frequency formula is itself one octave lower than the pulse
@@ -144,7 +151,29 @@ CHANNELS = [
     # as-is on NR33/NR34 gives an *additional* free octave drop on top of the octave_delta below.
     # No duty cycle (wave has no duty concept) and no arpeggio (IP-1060: keeps its plain
     # sustained bass role rather than fast pitch-cycling, a deliberate scope choice).
-    ('wv', NOTE_TIMER_WV, CUR_DEGREE_WV, LFSR_STATE_WV, LFSR_SEED_WV, NR33, NR34, -1, 2, STALE_COUNT_WV, None, None),
+    ('wv', NOTE_TIMER_WV, CUR_DEGREE_WV, LFSR_STATE_WV, LFSR_SEED_WV, NR33, NR34, -1, 2, STALE_COUNT_WV, None, None, NR30, 0x80, 2),
+]
+
+# IP-9010 (BL-0019): channel-mix gating — an 8-entry table of 4-bit masks, one per CHMIX_IDX
+# preset, indexed the same way as every other preset table (GDS-03 SS6). bit0=pulse A,
+# bit1=pulse B, bit2=wave, bit3=noise — matching NR52's own channel-bit order for a direct,
+# low-risk lookup (no remapping needed anywhere a mask bit is tested against an NR52 bit).
+# Preset 0 (PRESET_CHMIX_IDX) MUST be "all 4 active" (0b1111) — every pre-existing test (T2/T3/
+# T6/T7/T9) assumes all channels active at boot/reset. The remaining 7 presets explore useful
+# combinations (GDS-03 SS3's own example: "a channel-mix preset using only the two pulse
+# channels" is preset 1 below) — first-guess placeholders, not tuned by ear, same convention as
+# every other untuned preset table (BL-0005's existing disposition covers this). Every entry is
+# deliberately nonzero (Risks section, IP-9010 package doc) — an all-silent preset would leave
+# the engine audibly dead with no recovery path short of Select.
+CHMIX_MASKS = [
+    0b1111,  # 0: all four (preset default — required, see above)
+    0b0011,  # 1: pulse A + pulse B (GDS-03 SS3's own example)
+    0b0101,  # 2: pulse A + wave
+    0b1001,  # 3: pulse A + noise
+    0b0110,  # 4: pulse B + wave
+    0b1100,  # 5: wave + noise
+    0b0111,  # 6: pulse A + pulse B + wave (no noise)
+    0b1011,  # 7: pulse A + pulse B + noise (no wave)
 ]
 
 # IP-1060: arpeggio-as-polyphony (R216) — a period-4 up/down offset pattern (root, third, fifth,
@@ -216,12 +245,26 @@ def _ld_hl_label(rom, label):
 
 
 def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_lo, nr_freq_hi,
-                       octave_delta, tempo_mult, stale_count, duty_reg=None, portamento=False):
+                       octave_delta, tempo_mult, stale_count, duty_reg=None, portamento=False,
+                       dac_reg=None, dac_on=None, bit_index=None):
     """One channel's note-generation routine: countdown -> (on expiry) LFSR-picked scale-degree
     step -> table lookup -> register write -> timer reload -> IP-0004 stale/onset-window
     bookkeeping. Parameterized so pulse A/B and the wave channel share one Python-level
     implementation (GDS-03 SS1's "one job per file" applied at the routine level, not just the
-    file level) even though each emits its own SM83 bytes."""
+    file level) even though each emits its own SM83 bytes.
+
+    IP-9010 (BL-0019): dac_reg/dac_on/bit_index gate this channel's frequency/duty writes on
+    CHMIX_MASKS[CHMIX_IDX]'s bit_index bit. Stale/onset-window bookkeeping above this check
+    always runs regardless of the mix — an excluded channel's internal walk/repetition state
+    keeps evolving so it resumes musically-appropriate the moment its mix bit re-enables, per
+    the package doc's own task 2. Dissonance scoring (_emit_pairwise_dissonance) deliberately
+    still reads every pitched channel's cur_degree unconditionally, mix-excluded or not — a
+    documented choice (not the package's alternate "skip excluded channels" option), because
+    each channel's own melodic walk keeps evolving while muted (per the paragraph above) and
+    letting dissonance scoring track that evolution means a channel that gets re-included lands
+    back in a harmonically-current position rather than a stale one frozen at mute-time; this
+    trades a small, bounded inaccuracy (a muted channel's silent degree can influence
+    BAD_ZONE_FLAGS) for that continuity. Flagged to the backlog, not silently decided."""
     rom.label(f'gen_tick_{suffix}')
     rom.LD_A_nn(note_timer)
     rom.DEC_A()
@@ -308,6 +351,31 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
     rom.INC_A()
     rom.LD_nn_A(ONSET_WINDOW_COUNT)
 
+    # IP-9010 (BL-0019): channel-mix gating. Test CHMIX_MASKS[CHMIX_IDX]'s bit for this channel
+    # *before* computing the note-table address (HL is free here — the table-address computation
+    # below needs it fresh regardless of which branch is taken, so no stash/restore is needed).
+    # Muted: force this channel's DAC/envelope off (guarantees NR52 reads inactive within this
+    # same onset, not merely "stopped retriggering" — the package doc's own non-negotiable DoD
+    # point) and skip straight to the timer-reload section, bypassing the frequency/duty writes
+    # entirely. Active: restore this channel's boot-time DAC/envelope value (idempotent if it was
+    # already on) and fall through into the existing note-table addressing/write code unchanged.
+    if dac_reg is not None:
+        rom.LD_A_nn(CHMIX_IDX)
+        rom.LD_C_A(); rom.LD_B_n(0)
+        _ld_hl_label(rom, 'chmix_masks_table')
+        rom.ADD_HL_BC()
+        rom.LD_A_HL()
+        rom.BIT_b_A(bit_index)
+        rom.JR_Z(f'gt_muted_{suffix}')
+        rom.LD_A_n(dac_on)
+        rom.LDH_n_A(dac_reg)
+        rom.JR(f'gt_unmuted_{suffix}')
+        rom.label(f'gt_muted_{suffix}')
+        rom.XOR_A()
+        rom.LDH_n_A(dac_reg)
+        rom.JR(f'gt_reload_{suffix}')
+        rom.label(f'gt_unmuted_{suffix}')
+
     # effective_octave = OCTAVE_IDX (+ octave_delta, floored at 0); table_idx = SCALE_IDX*4 + that
     rom.LD_A_nn(SCALE_IDX)
     rom.ADD_A_A(); rom.ADD_A_A()
@@ -350,6 +418,9 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
         rom.ADD_HL_BC()
         rom.LD_A_HL()
         rom.LDH_n_A(duty_reg)
+
+    if dac_reg is not None:
+        rom.label(f'gt_reload_{suffix}')
 
     # Reload the timer from the tempo table (doubled for a half-rate channel, e.g. the wave bass).
     rom.LD_A_nn(TEMPO_IDX)
@@ -515,6 +586,23 @@ def _emit_noise_gen(rom):
     _ld_hl_label(rom, 'noise_pattern_table')
     rom.ADD_HL_BC()
     rom.LD_A_HL()
+    rom.LD_D_A()                       # D = this step's pattern-hit bit, stashed (IP-9010 needs
+                                        # A/B/C/HL free below for the CHMIX_MASKS lookup)
+
+    # IP-9010 (BL-0019): channel-mix gating, noise's bit3. Muted: force NR42's DAC off
+    # (guarantees NR52 reads inactive within this same note-cycle even if a previous hit left the
+    # channel playing/decaying) and skip the hit check entirely — no phantom onset counted for a
+    # channel that made no sound. Active: fall through to the existing pattern-hit logic
+    # unchanged, using the stashed pattern bit in D.
+    rom.LD_A_nn(CHMIX_IDX)
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'chmix_masks_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HL()
+    rom.BIT_b_A(3)
+    rom.JR_Z('gt_nz_muted')
+
+    rom.LD_A_D()
     rom.OR_A()
     rom.JR_Z('gt_nz_no_hit')
 
@@ -527,6 +615,9 @@ def _emit_noise_gen(rom):
     rom.INC_A()
     rom.LD_nn_A(ONSET_WINDOW_COUNT)
 
+    rom.JR('gt_nz_no_hit')
+    rom.label('gt_nz_muted')
+    rom.XOR_A(); rom.LDH_n_A(NR42)         # force DAC off — guarantee inactive in NR52
     rom.label('gt_nz_no_hit')
     rom.LD_A_nn(TEMPO_IDX)
     rom.LD_C_A(); rom.LD_B_n(0)
@@ -670,7 +761,7 @@ def build_engine_asm(rom: ROM) -> dict:
     rom.LD_A_n(PRESET_DENSITY_IDX); rom.LD_nn_A(DENSITY_IDX)
     rom.LD_A_n(PRESET_CHMIX_IDX); rom.LD_nn_A(CHMIX_IDX)
     for (suffix, note_timer, cur_degree, lfsr_state, lfsr_seed, *_rest, duty_reg,
-         arp_state) in CHANNELS:
+         arp_state, _dac_reg, _dac_on, _bit_index) in CHANNELS:
         rom.XOR_A(); rom.LD_nn_A(cur_degree)
         rom.LD_A_n(1); rom.LD_nn_A(note_timer)     # fire the first note on the very next tick
         # IP-0007: randomize each channel's melodic walk seed from the free-running DIV
@@ -715,7 +806,7 @@ def build_engine_asm(rom: ROM) -> dict:
     # pitch the rest of the way to the new target. This ordering is what actually produces the
     # multi-frame glide — reordering these two calls would collapse it back to an instant jump.
     rom.label('engine_tick')
-    for (suffix, *_rest, duty_reg, arp_state) in CHANNELS:
+    for (suffix, *_rest, duty_reg, arp_state, _dac_reg, _dac_on, _bit_index) in CHANNELS:
         if arp_state is not None:
             rom.CALL(f'arp_tick_{suffix}')
     for (suffix, *_rest) in CHANNELS:
@@ -725,10 +816,11 @@ def build_engine_asm(rom: ROM) -> dict:
     rom.RET()
 
     for (suffix, note_timer, cur_degree, lfsr_state, _seed, nr_lo, nr_hi, oct_delta, tempo_mult,
-         stale_count, duty_reg, arp_state) in CHANNELS:
+         stale_count, duty_reg, arp_state, dac_reg, dac_on, bit_index) in CHANNELS:
         _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_lo, nr_hi,
                            oct_delta, tempo_mult, stale_count, duty_reg,
-                           portamento=(arp_state is not None))
+                           portamento=(arp_state is not None),
+                           dac_reg=dac_reg, dac_on=dac_on, bit_index=bit_index)
         if arp_state is not None:
             _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, nr_lo, nr_hi)
     _emit_noise_gen(rom)
@@ -762,6 +854,9 @@ def build_engine_asm(rom: ROM) -> dict:
 
     rom.label('duty_table')
     rom.emit(*DUTY_BY_DEGREE)
+
+    rom.label('chmix_masks_table')
+    rom.emit(*CHMIX_MASKS)
 
     note_table_labels = []
     for si, scale_name in enumerate(SCALES):

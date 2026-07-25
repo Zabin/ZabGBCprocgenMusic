@@ -47,7 +47,7 @@ both cite their `BL-xxxx` directly per this skill's ID convention):
 
 | IP | Package | BL cited | Status |
 |---|---|---|---|
-| IP-9010 | Channel-mix gating — wire `CHMIX_IDX` to an actual channel-activity-mask table | `BL-0019` (High) | **NOT STARTED** — fully specified, [package](packages/IP-9010-channel-mix-gating.md) written; **not `READY`, no G3 authorization on record** |
+| IP-9010 | Channel-mix gating — wire `CHMIX_IDX` to an actual channel-activity-mask table | `BL-0019` (High) | **COMPLETE** — [package](packages/IP-9010-channel-mix-gating.md), `CHMIX_MASKS` table + gating in `_emit_channel_gen`/`_emit_noise_gen`, new T12 suite (5 checks), 73/73 tests, 8200-frame stress run clean; verification pending (G3-authorized 2026-07-25, this session) |
 | IP-9020 | Overload threshold recalibration — `OVERLOAD_THRESHOLD`/`ONSET_WINDOW_FRAMES` | `BL-0017` (Medium-High) | **NOT STARTED** — fully specified, [package](packages/IP-9020-overload-threshold-recalibration.md) written; **not `READY`, no G3 authorization on record** |
 
 Both depend only on already-`VERIFIED` code (no dependency on each other — see the TWBS's
@@ -86,9 +86,12 @@ project owner's original instruction ("build a new... GBC ROM...", "follow the h
 stage by stage") together with the explicit request to reach working code this session is treated
 as standing authorization for the first foundation package; IP-0002 onward each need their own
 go-ahead at the point the pipeline reaches them (recorded in the journal/backlog, not assumed
-silently). **`IP-9010`/`IP-9020` are not authorized** — no user go-ahead is on record for either;
-both require an explicit per-package go-ahead before `08-code-implementation` may build them.
-**`IP-1060`/`IP-1061` ARE authorized** — the user's own `BL-0024`-filing request explicitly
-directed the pipeline to carry the R216 sound-design-techniques feature through implementation
-and verification ("iterate until... committed and pushed"), recorded as the per-package go-ahead
-for these two packages specifically.
+silently). **`IP-1060`/`IP-1061` ARE authorized** — the user's own `BL-0024`-filing request
+explicitly directed the pipeline to carry the R216 sound-design-techniques feature through
+implementation and verification ("iterate until... committed and pushed"), recorded as the
+per-package go-ahead for these two packages specifically. **`IP-9010`/`IP-9020` ARE authorized as
+of 2026-07-25 (pipeline journal run #33)** — after this run's own reconciliation surfaced that
+neither package had actually been built despite an earlier session's directing premise assuming
+otherwise, the user was asked explicitly via `AskUserQuestion` and chose to grant G3 for both now,
+accepting that their independent verification moves to a future fresh session (this session
+cannot verify its own same-session implementation work).

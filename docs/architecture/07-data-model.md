@@ -18,7 +18,7 @@ project's own convention.
 | `0xC001` | `OCTAVE_IDX` | 0–7 | Index into the octave-range preset table (D-pad Left/Right) |
 | `0xC002` | `SCALE_IDX` | 0–3 | Index into the scale/mode table (A) |
 | `0xC003` | `DENSITY_IDX` | 0–7 | Index into the Euclidean-density preset table (B) |
-| `0xC004` | `CHMIX_IDX` | 0–7 | Index into the channel-activity-mask preset table (Start) |
+| `0xC004` | `CHMIX_IDX` | 0–7 | Index into `CHMIX_MASKS` (`music_engine.py`), a real per-preset 4-bit channel-activity mask consumed by `_emit_channel_gen`/`_emit_noise_gen` (**Added `IP-9010` 2026-07-25**, closing `BL-0019` — previously stepped by input but consumed nowhere) |
 
 ## §2 Bad-zone state (GDS-03 §4)
 

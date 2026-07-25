@@ -23,14 +23,15 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers)
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 60 checks across T1-T10
+                    sound registers + WRAM engine state) — 73 checks across T1-T12
 ```
 
 ### Data layout, WRAM map
 
 Authoritative source: [`docs/architecture/07-data-model.md`](docs/architecture/07-data-model.md)
 (GDS-07). Quick orientation: parameter indices at `0xC000`-`0xC004` (tempo/octave/scale/density/
-channel-mix — channel-mix wired but not yet consumed by any channel), bad-zone state at
+channel-mix — channel-mix now gates each channel's own generation routine, `IP-9010`/`BL-0019`),
+bad-zone state at
 `0xC005`-`0xC00B` (dissonance score, per-channel stale counts, onset-window counter/timer),
 per-channel generation state (note timers, scale degrees, LFSR states) at `0xC00C`+, joypad state
 at `0xC050`-`0xC052`, noise step index at `0xC019`, **arpeggio state (`IP-1060`) at `0xC01D`-
@@ -45,7 +46,7 @@ SRAM** — this project makes no save/battery commitment (MSTR-001 C2).
 | D-pad Right/Left | Octave step +/- |
 | A | Next scale/mode |
 | B | Next density preset (noise-channel Euclidean pattern) |
-| Start | Next channel-mix preset (wired, not yet consumed) |
+| Start | Next channel-mix preset (`CHMIX_MASKS`-gated — only the preset's included channels sound, `IP-9010`) |
 | Select | Reset all channels + bad-zone state to the known-good preset **and randomize each channel's melodic seed** (unconditional, manual override — not the only recovery path, see below) |
 
 All edge-triggered (rising edge only — holding does not repeat).
@@ -119,6 +120,15 @@ per-channel `STALE_COUNT_*`, overload via the rolling onset window) — see
 `visuals.py` — tile data (`_tile_off_bytes`/`_tile_on_bytes`), the 4 channel-indicator cells
 (`CHANNEL_CELLS`), or the calm/bad-zone palettes (`CALM_PALETTE`/`BAD_PALETTE`).
 
+### Change channel-mix presets
+`CHMIX_MASKS` in `music_engine.py` (8 entries, bit0=pulse A/bit1=pulse B/bit2=wave/bit3=noise,
+matching `NR52`'s own bit order) — preset 0 must stay `0b1111` (every pre-existing test assumes
+all channels active at boot/reset) and every entry must stay nonzero (an all-silent preset has no
+recovery path short of Select). Gating itself lives in `_emit_channel_gen`'s and
+`_emit_noise_gen`'s onset blocks (`IP-9010`/`BL-0019`) — extending it to a new channel means
+adding that channel's `dac_reg`/`dac_on`/`bit_index` to its `CHANNELS` entry (or, for a
+non-`CHANNELS` channel like noise, following `_emit_noise_gen`'s own inline pattern).
+
 ## Known Good Behavior (MVP — Foundation release bucket, self-tested this session)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
@@ -146,8 +156,14 @@ per-channel `STALE_COUNT_*`, overload via the rolling onset window) — see
   no envelope retrigger), vibrato-wobble every frame, glide (portamento) from the old pitch to
   the new one across a degree-changing onset, and vary duty cycle per onset (`IP-1060`/`IP-1061`,
   `R216`)
+- Start-stepped channel-mix presets (`CHMIX_MASKS`, `IP-9010`/`BL-0019`) actually gate which
+  channels sound: an excluded channel's frequency/duty writes are skipped and its DAC/envelope is
+  explicitly forced off, clearing its `NR52` bit within one note-cycle; a re-included channel
+  resumes generating and reporting active on its own next onset. Internal bookkeeping
+  (stale/onset-window counters, the melodic walk itself) keeps running for an excluded channel so
+  it resumes musically-current, not frozen, when re-enabled.
 
-**65/65 `test_rom.py` checks pass** (T1-T11). An 8000+ frame stress run with continuous input
+**73/73 `test_rom.py` checks pass** (T1-T12). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

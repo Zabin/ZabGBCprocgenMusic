@@ -44,7 +44,7 @@
 [PASS] T7.3 Denser preset (max DENSITY_IDX) produces more onset-frames than the sparsest  (onset_counts={0: 137, 7: 560})
 [PASS] T8.1 DISSONANCE_SCORE at boot is within the theoretical 0-45 range  (got 29)
 [PASS] T8.2 BAD_ZONE_FLAGS at boot is a valid 4-bit combination
-[PASS] T8.3 DISSONANCE_SCORE varies over time (three independently-walking channels produce a changing interval mix)  (distinct scores: [0, 1, 2, 3, 4, 6, 11, 12, 13, 14, 15, 18, 19, 22, 24, 29, 30])
+[PASS] T8.3 DISSONANCE_SCORE varies over time (three independently-walking channels produce a changing interval mix)  (distinct scores: [0, 2, 4, 6, 13, 15, 18, 19, 22, 24, 29, 30])
 [PASS] T8.4 BAD_ZONE_FLAGS bit3 (COMBINED) matches bit0 (DISSONANT) on almost every frame (at most a rare, self-healing one-frame transient, not a sustained mismatch)  (0/2000 mismatched frames; flags seen: [0, 9, 10])
 [PASS] T8.5 At least one bad-zone entry (DISSONANT or COMBINED) was observed over a long run  (flags seen: [0, 9, 10])
 [PASS] T8.6 Select clears BAD_ZONE_FLAGS (read on the exact reset frame)  (got 0)
@@ -63,5 +63,13 @@
 [PASS] T11.4 Pulse A's vibrato phase cycles through all 4 values every frame (live, not frozen)  (phases seen: [0, 1, 2, 3])
 [PASS] T11.3 Select resets the arpeggio step index to 0 (read on the exact reset frame)  (got 0)
 [PASS] T11.5 Select resets the vibrato phase to 0 or 1 (0 = the resolved value; 1 = one same-frame arp_tick step already advanced it, the same effect T8.7c documents elsewhere — both are correct, not a reset defect)  (got 1)
+[PASS] T12.1 Boot preset (CHMIX_IDX=0): all 4 channels report active in NR52 at least once over a sustained run (regression guard — CHMIX_MASKS[0] must stay 0b1111)  (NR52 sample at end=0b11110111)
+[PASS] T12.2 CHMIX_IDX reached preset 3  (got 3)
+[PASS] T12.3 Excluded pulse B (bit1) reads inactive in NR52 within one note-cycle of the mask change  (NR52=0b11110001)
+[PASS] T12.4 Excluded wave channel (bit2) reads inactive in NR52 within one note-cycle of the mask change  (NR52=0b11110001)
+[PASS] T12.5 Included pulse A (bit0) remains active in NR52 while excluded  (NR52=0b11110001)
+[PASS] T12.6 CHMIX_IDX wrapped back to preset 0  (got 0)
+[PASS] T12.7 Re-included pulse B (bit1) resumes reporting active in NR52  (NR52=0b11110111)
+[PASS] T12.8 Re-included wave channel (bit2) resumes reporting active in NR52  (NR52=0b11110111)
 
-65 PASS, 0 FAIL
+73 PASS, 0 FAIL

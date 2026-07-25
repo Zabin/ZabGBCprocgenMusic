@@ -44,7 +44,7 @@
 [PASS] T7.3 Denser preset (max DENSITY_IDX) produces more onset-frames than the sparsest  (onset_counts={0: 137, 7: 560})
 [PASS] T8.1 DISSONANCE_SCORE at boot is within the theoretical 0-45 range  (got 29)
 [PASS] T8.2 BAD_ZONE_FLAGS at boot is a valid 4-bit combination
-[PASS] T8.3 DISSONANCE_SCORE varies over time (three independently-walking channels produce a changing interval mix)  (distinct scores: [0, 1, 2, 3, 4, 6, 11, 12, 13, 14, 15, 18, 19, 22, 24, 29, 30])
+[PASS] T8.3 DISSONANCE_SCORE varies over time (three independently-walking channels produce a changing interval mix)  (distinct scores: [0, 2, 4, 6, 13, 15, 18, 19, 22, 24, 29, 30])
 [PASS] T8.4 BAD_ZONE_FLAGS bit3 (COMBINED) matches bit0 (DISSONANT) on almost every frame (at most a rare, self-healing one-frame transient, not a sustained mismatch)  (0/2000 mismatched frames; flags seen: [0, 9, 10])
 [PASS] T8.5 At least one bad-zone entry (DISSONANT or COMBINED) was observed over a long run  (flags seen: [0, 9, 10])
 [PASS] T8.6 Select clears BAD_ZONE_FLAGS (read on the exact reset frame)  (got 0)
@@ -63,5 +63,14 @@
 [PASS] T11.4 Pulse A's vibrato phase cycles through all 4 values every frame (live, not frozen)  (phases seen: [0, 1, 2, 3])
 [PASS] T11.3 Select resets the arpeggio step index to 0 (read on the exact reset frame)  (got 0)
 [PASS] T11.5 Select resets the vibrato phase to 0 or 1 (0 = the resolved value; 1 = one same-frame arp_tick step already advanced it, the same effect T8.7c documents elsewhere — both are correct, not a reset defect)  (got 1)
+[PASS] T12.1 Boot preset (CHMIX_IDX=0): pulse A/B/wave all active in NR52  (NR52=0xf7)
+[PASS] T12.2 Boot preset (CHMIX_IDX=0): noise produces onsets over a sustained window  (onset-frame count: 137)
+[PASS] T12.setup CHMIX_IDX reached 1  (got 1)
+[PASS] T12.3 Excluded wave channel (bit2) reads inactive in NR52  (NR52=0xf3)
+[PASS] T12.4 Still-included pulse A (bit0) remains active in NR52  (NR52=0xf3)
+[PASS] T12.5 Still-included pulse B (bit1) remains active in NR52  (NR52=0xf3)
+[PASS] T12.6 Excluded noise channel produces zero onsets over a sustained window  (onset-frame count: 0)
+[PASS] T12.7 Re-included wave channel resumes (active in NR52) after reset to preset 0  (NR52=0xff)
+[PASS] T12.8 Re-included noise channel resumes producing onsets over a sustained window  (onset-frame count: 142)
 
-65 PASS, 0 FAIL
+74 PASS, 0 FAIL

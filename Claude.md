@@ -30,7 +30,8 @@ test_rom.py      — headless PyBoy verification harness (drives button sequence
 
 Authoritative source: [`docs/architecture/07-data-model.md`](docs/architecture/07-data-model.md)
 (GDS-07). Quick orientation: parameter indices at `0xC000`-`0xC004` (tempo/octave/scale/density/
-channel-mix — channel-mix wired but not yet consumed by any channel), bad-zone state at
+channel-mix — `CHMIX_IDX` selects an 8-entry `CHMIX_MASKS` table, `IP-9010`, gating which of the
+4 channels generate/sound), bad-zone state at
 `0xC005`-`0xC00B` (dissonance score, per-channel stale counts, onset-window counter/timer),
 per-channel generation state (note timers, scale degrees, LFSR states) at `0xC00C`+, joypad state
 at `0xC050`-`0xC052`, noise step index at `0xC019`, **arpeggio state (`IP-1060`) at `0xC01D`-
@@ -45,7 +46,7 @@ SRAM** — this project makes no save/battery commitment (MSTR-001 C2).
 | D-pad Right/Left | Octave step +/- |
 | A | Next scale/mode |
 | B | Next density preset (noise-channel Euclidean pattern) |
-| Start | Next channel-mix preset (wired, not yet consumed) |
+| Start | Next channel-mix preset — mutes/unmutes whichever channels the new preset excludes (`IP-9010`) |
 | Select | Reset all channels + bad-zone state to the known-good preset **and randomize each channel's melodic seed** (unconditional, manual override — not the only recovery path, see below) |
 
 All edge-triggered (rising edge only — holding does not repeat).
@@ -67,6 +68,20 @@ longer the only way out:
 Recovery acts at the granularity of each channel's own note cadence (it changes what plays next,
 not what's already sounding), so it takes effect within roughly one note duration per channel, not
 instantly — see `docs/architecture/03-architecture.md` §5's amendment for the full rationale.
+
+### Channel-mix gating (`IP-9010`, `BL-0019`)
+
+`CHMIX_IDX` (stepped by Start) indexes an 8-entry `CHMIX_MASKS` table (one 4-bit mask per preset,
+bit0=pulse A/bit1=pulse B/bit2=wave/bit3=noise, matching `NR52`'s own channel-bit order). Each
+channel's generation routine checks its own bit before writing its onset/hit registers: included
+→ normal write (plus restoring the channel's DAC/envelope in case it was previously silenced);
+excluded → the channel's DAC is explicitly turned off (`NR12`/`NR22`/`NR30`/`NR42` written `0x00`),
+which hardware-clears the channel's `NR52` bit immediately rather than merely skipping the next
+trigger. Note-timer/degree/stale/onset-window bookkeeping still runs every frame regardless of
+inclusion, so an excluded channel's internal walk stays live and it resumes cleanly the instant
+its mask bit is re-enabled. Preset 0 (`PRESET_CHMIX_IDX`) is always "all 4 active." Dissonance
+scoring deliberately still reads all 3 pitched channels' semitones regardless of exclusion — an
+explicit, documented design decision (see `_emit_badzone_tick`'s own docstring), not an oversight.
 
 ### Sound design techniques (`IP-1060`/`IP-1061`, R216)
 
@@ -146,8 +161,12 @@ per-channel `STALE_COUNT_*`, overload via the rolling onset window) — see
   no envelope retrigger), vibrato-wobble every frame, glide (portamento) from the old pitch to
   the new one across a degree-changing onset, and vary duty cycle per onset (`IP-1060`/`IP-1061`,
   `R216`)
+- Start-button channel-mix presets actually gate output: an excluded channel silences (`NR52`
+  reads inactive) within one note-cycle, a re-included channel resumes generating and sounding,
+  confirmed live at a non-default preset in addition to the shared test fixture's default
+  (`IP-9010`, `BL-0019`)
 
-**65/65 `test_rom.py` checks pass** (T1-T11). An 8000+ frame stress run with continuous input
+**74/74 `test_rom.py` checks pass** (T1-T12). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

@@ -47,7 +47,7 @@ both cite their `BL-xxxx` directly per this skill's ID convention):
 
 | IP | Package | BL cited | Status |
 |---|---|---|---|
-| IP-9010 | Channel-mix gating — wire `CHMIX_IDX` to an actual channel-activity-mask table | `BL-0019` (High) | **READY** — fully specified, [package](packages/IP-9010-channel-mix-gating.md) written; **G3-authorized 2026-07-25 (run #33)** |
+| IP-9010 | Channel-mix gating — wire `CHMIX_IDX` to an actual channel-activity-mask table | `BL-0019` (High) | **IN PROGRESS** — G3-authorized 2026-07-25 (run #33), [package](packages/IP-9010-channel-mix-gating.md) |
 | IP-9020 | Overload threshold recalibration — `OVERLOAD_THRESHOLD`/`ONSET_WINDOW_FRAMES` | `BL-0017` (Medium-High) | **READY** — fully specified, [package](packages/IP-9020-overload-threshold-recalibration.md) written; **G3-authorized 2026-07-25 (run #33)** |
 
 Both depend only on already-`VERIFIED` code (no dependency on each other — see the TWBS's

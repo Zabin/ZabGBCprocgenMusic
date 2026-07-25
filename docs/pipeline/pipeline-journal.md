@@ -238,9 +238,10 @@
 
 ---
 
-- **Updated:** 2026-07-25 (runs #33-44 — user-directed convergence: Foundation +
+- **Updated:** 2026-07-25 (runs #33-45 — user-directed convergence: Foundation +
   R216 sound-design + integrity remediation into one releasable state; **GO confirmed, R1+R2+R3
-  shipped**)
+  shipped**; now iterating into R4 Multi-Scheme Foundation per the standing "iterate until
+  blocked" instruction)
 - **Run #33 so far:** this is a genuinely fresh session relative to every package below —
   independence achieved for `IP-1060`/`IP-1061` (built in an earlier session), and for
   `IP-9010`/`IP-9020` (never built at all, contrary to this run's initial premise — see below).
@@ -286,10 +287,12 @@
 - **Run #44:** User confirmed **GO**. Baseline flipped: `ROADMAP.md`, Feature Catalog + its
   `INDEX.md`, `Claude.md`'s Known Good Behavior heading (now v1.0), `docs/roadmap/04`/`05`. R1
   (Foundation) + R2 (Sound Design) + R3 (Integrity Remediation) are now the shipped baseline.
-- **Next step:** `04-requirements-engineering` on `BL-0020` (combinable generation schemes,
-  `ADS-100`) — its own `SCHEDULED` disposition named this exact ride, contingent on `IP-9010`
-  shipping first (per `ADR-0001`); that contingency is now cleared. Not gated (no G3 — this is a
-  requirements-authoring step, not implementation; no G4; no ripe `NEEDS-USER`).
+- **Run #45:** `04-requirements-engineering` formalized `ADS-100`'s candidate FRs/NFRs
+  (`FR-1180`-`FR-1220`, `NFR-1060`/`1070`) for `BL-0020` — `IP-9010`'s `ADR-0001` contingency
+  confirmed satisfied. Delta review clean.
+- **Next step:** `05-feature-decomposition` to add a Feature Catalog row for combinable generation
+  schemes, tracing the new FR/NFR set. Not gated (no G3 — planning/decomposition, not
+  implementation; no G4; no ripe `NEEDS-USER`).
 - **Open gates:** none. G3 (run #33) and G4 (run #44) are both spent, not standing open.
 
 ## Run log
@@ -357,6 +360,8 @@
 | 43 | 2026-07-25 | run (continuation of the same standing authorization — user answered "run the assessment" once, with the standing instruction that any GO still needs separate explicit confirmation before a baseline flip) | `11-release-readiness` | Consolidated R1+R2+R3, re-assessment | Re-audited the scope now that `BL-0031` is closed. `FEAT-1060`'s previously-missing integration coverage row now shows the 11-package re-review's live-exercised confirmation. Full suite re-confirmed 77/77 against commit `c62cea2`. Every deviation still has its authorization trail; every residual risk still has an honest, non-blocking disposition; zero unadjudicated Critical/High findings anywhere in the tree. **Assessment: GO recommended** (advisory) — appended as a re-assessment section to [release-assessment-r1-r2-r3.md](../reviews/release-assessment-r1-r2-r3.md), preserving the original NO-GO pass as history. Updated `docs/reviews/INDEX.md`. **No baseline record touched** — `ROADMAP.md`, Feature Catalog, `Claude.md`'s status line all untouched, per this skill's own rule and the user's standing instruction that the recommendation is not itself authorization. Committed (`872b081`), pushed. | `GATE: G4 — the pipeline recommends GO for the consolidated R1+R2+R3 release, but the actual release decision and any resulting baseline-record flip (ROADMAP.md, Feature Catalog, Claude.md status line, affected INDEX files) requires the user's separate, explicit confirmation. This is the loop's genuine stopping point — every open backlog item is either DONE or a non-blocking SCHEDULED/DEFERRED item with no Critical/High severity, so nothing else is actionable without this decision.` |
 
 | 44 | 2026-07-25 | run (G4 confirmed — user replied "Go") | `11-release-readiness` (baseline update step only) | Consolidated R1+R2+R3 | User gave explicit GO confirmation. Recorded the confirmation in [release-assessment-r1-r2-r3.md](../reviews/release-assessment-r1-r2-r3.md)'s own "G4 — User confirmation" section (the authoritative decision trail) and flipped the baseline records this skill's workflow names: `ROADMAP.md` (stage 11 row → ✅ shipped), `docs/feature-planning/01-feature-catalog.md` (bucket status header → SHIPPED) + its `INDEX.md`, `Claude.md` (Known Good Behavior heading → "v1.0 — Foundation + Sound Design + Integrity Remediation, GO 2026-07-25"), `docs/roadmap/04-release-roadmap.md` (R3 header → "(shipped)", status text records the GO), `docs/roadmap/05-milestone-definitions.md` (Milestone B status → shipped, CAP-09/CAP-11 unblocked). ROM rebuilt (32768 bytes) and full suite re-confirmed (77/77) before committing. Committed (`ce48407`), pushed. | `Next: the increment is closed. Per this skill's own "next step" convention for a GO ("00-pipeline-manager to survey the tree, then typically 05/06 for the next bucket"): BL-0020 (combinable generation schemes) was SCHEDULED to ride 04-requirements-engineering next, contingent on IP-9010 shipping — now shipped and GO'd, so that contingency is cleared. Per the standing "iterate until blocked" instruction, continuing to 04-requirements-engineering on BL-0020/ADS-100 next, since it is not gated (no G3/G4, no ripe NEEDS-USER, no unadjudicated Critical/High finding).` |
+
+| 45 | 2026-07-25 | run (continuing per the standing "iterate until blocked" instruction — not gated) | `04-requirements-engineering` | `BL-0020` / `ADS-100` | Delta update (not a wholesale regeneration, per the skill's own convention). Confirmed `ADR-0001`'s contingency satisfied: `IP-9010` shipped with bits 0-3 as channel-active, exactly as `ADS-100`/`ADR-0001` assumed. Formalized `ADS-100` §5's four FR-candidates as `FR-1180` (scheme-select bit determines strategy), `FR-1190` (switch takes effect at next onset), `FR-1200`/`FR-1210` (Scheme E onset timing/pitch selection — split from one candidate for atomicity), `FR-1220` (bad-zone detection/recovery scheme-agnostic); §6's two NFR-candidates as `NFR-1060` (ROM/WRAM budget), `NFR-1070` (no new WRAM control byte/input control). Delta review (inline, matching this project's established single-file convention — no separate `02`/`03`/`04` requirements files exist) found no conflicts, no architecture violations, complete candidate coverage; forward traceability (Module/FS/IP/Test) left `UNASSIGNED` honestly. Updated `docs/requirements/INDEX.md`, `ROADMAP.md`'s stage-04 row. `BL-0020` updated: `SCHEDULED` to ride `05-feature-decomposition` next. Committed (`16961ef`), pushed. | `Next: 05-feature-decomposition to add a Feature Catalog row (FEAT-1070-equivalent) for combinable generation schemes, tracing FR-1180-FR-1220/NFR-1060/1070. Not gated.` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

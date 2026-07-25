@@ -40,8 +40,8 @@
 [PASS] T7.0.2 Channel 4 (noise) triggers at least once at density 0  (onset-frame count: 137)
 [PASS] T7.setup DENSITY_IDX reached 7  (got 7)
 [PASS] T7.7.1 Noise step index cycles through all 16 steps at density 7  (seen: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
-[PASS] T7.7.2 Channel 4 (noise) triggers at least once at density 7  (onset-frame count: 560)
-[PASS] T7.3 Denser preset (max DENSITY_IDX) produces more onset-frames than the sparsest  (onset_counts={0: 137, 7: 560})
+[PASS] T7.7.2 Channel 4 (noise) triggers at least once at density 7  (onset-frame count: 546)
+[PASS] T7.3 Denser preset (max DENSITY_IDX) produces more onset-frames than the sparsest  (onset_counts={0: 137, 7: 546})
 [PASS] T8.1 DISSONANCE_SCORE at boot is within the theoretical 0-45 range  (got 29)
 [PASS] T8.2 BAD_ZONE_FLAGS at boot is a valid 4-bit combination
 [PASS] T8.3 DISSONANCE_SCORE varies over time (three independently-walking channels produce a changing interval mix)  (distinct scores: [0, 2, 4, 6, 13, 15, 18, 19, 22, 24, 29, 30])
@@ -71,5 +71,9 @@
 [PASS] T12.6 CHMIX_IDX wrapped back to preset 0  (got 0)
 [PASS] T12.7 Re-included pulse B (bit1) resumes reporting active in NR52  (NR52=0b11110111)
 [PASS] T12.8 Re-included wave channel (bit2) resumes reporting active in NR52  (NR52=0b11110111)
+[PASS] T13.setup TEMPO_IDX reached 6  (got 6)
+[PASS] T13.setup DENSITY_IDX reached 5  (got 5)
+[PASS] T13.1 BAD_ZONE_FLAGS bit2 (OVERLOAD) is observed set at a realistic-high, non-maximal tempo/density combination within a bounded frame budget  (got overload_seen=True)
+[PASS] T13.2 The default/sparse preset does not spuriously trigger OVERLOAD over an equivalently long run  (got spurious_overload=False)
 
-73 PASS, 0 FAIL
+77 PASS, 0 FAIL

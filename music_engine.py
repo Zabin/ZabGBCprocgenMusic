@@ -61,7 +61,21 @@ ARP_DEGREE_SCRATCH = 0xC01F
 # these threshold *numbers* are not yet tuned by ear.
 DISSONANCE_THRESHOLD = 20      # ~60% of the 3-pair theoretical max (3 * 15 = 45)
 STALE_THRESHOLD = 8            # consecutive same-degree repeats (period-1 only, MVP scope)
-OVERLOAD_THRESHOLD = 20        # onset events within the ONSET_WINDOW_FRAMES window
+# IP-9020 (BL-0017): OVERLOAD_THRESHOLD=20 was mathematically unreachable — VR-0007 computed the
+# engine's own *average* onset-rate ceiling (2*(W/tempo_reload) [pa+pb] + W/(2*tempo_reload)
+# [wave, half-rate] + (W/noise_step_interval)/16*density_k [noise]) across the full tempo/density
+# preset grid: 3.17 at the default preset (tempo=4, density=0) up to 8.8 at the absolute max
+# (tempo=7, density=7) — every combination stays under 9, so 20 could never fire. That average-
+# rate formula understates the real *peak* count a fixed, window-aligned counter can see, though:
+# deterministic periodic onsets can phase-align near a window boundary and briefly double up, so
+# this package empirically measured the actual peak ONSET_WINDOW_COUNT (not just the analytical
+# average) across representative presets before picking a value — default peaks at 6 (not the
+# ~3 the average formula suggests), a realistic-high (not maximal) tempo=6/density=5 combination
+# peaks at 8, and the absolute max peaks at 11. Recalibrated to 7 (triggers when the count
+# exceeds it, i.e. reaches 8): comfortably above the default preset's own empirically-measured
+# peak (no spurious triggering), reachable at realistic-high combinations well short of the
+# absolute max, per the package's "reachable during genuinely dense play" goal.
+OVERLOAD_THRESHOLD = 7         # onset events within the ONSET_WINDOW_FRAMES window
 ONSET_WINDOW_FRAMES = 32
 
 # ── Sound registers (I/O offsets from 0xFF00, per R100/R108) ─────────

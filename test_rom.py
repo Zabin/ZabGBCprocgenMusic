@@ -23,6 +23,8 @@ Suites:
       see t11's own docstring — no PSG-frequency-register readback is possible)
   T12 Channel-mix gating (IP-9010, BL-0019): Start-stepped CHMIX_IDX presets actually gate
       each channel's NR52-visible activity, not just its own index value
+  T13 Overload recalibration (IP-9020, BL-0017): OVERLOAD_THRESHOLD is reachable at a
+      realistic-high tempo/density combination, and does not spuriously fire at default
 
 Run from the repo root: python3 test_rom.py
 Requires: pyboy (pinned 2.7.0, matching the reference project), numpy.
@@ -485,6 +487,45 @@ def t12_channel_mix_gating():
     pb.stop(save=False)
 
 
+def t13_overload_recalibration():
+    """IP-9020 (BL-0017): OVERLOAD_THRESHOLD recalibrated from 20 (mathematically unreachable,
+    VR-0007) to 7 — reachable at realistic-high, non-maximal tempo/density combinations, still
+    implausible at the sparse default preset."""
+    # Realistic-high, not maximal: TEMPO_IDX 4->6 (2 Up presses), DENSITY_IDX 0->5 (5 B presses) —
+    # empirically measured peak ONSET_WINDOW_COUNT of 8 at this combination, above
+    # OVERLOAD_THRESHOLD=7 (triggers at count>7); the default preset's own peak is 6.
+    pb = fresh_boot()
+    for _ in range(2):
+        tap(pb, 'up')
+    for _ in range(5):
+        tap(pb, 'b')
+    check("T13.setup TEMPO_IDX reached 6", pb.memory[TEMPO_IDX] == 6, f"got {pb.memory[TEMPO_IDX]}")
+    check("T13.setup DENSITY_IDX reached 5", pb.memory[DENSITY_IDX] == 5,
+          f"got {pb.memory[DENSITY_IDX]}")
+    overload_seen = False
+    for _ in range(2000):
+        pb.tick()
+        if pb.memory[BAD_ZONE_FLAGS] & 0x04:
+            overload_seen = True
+    check("T13.1 BAD_ZONE_FLAGS bit2 (OVERLOAD) is observed set at a realistic-high, "
+          "non-maximal tempo/density combination within a bounded frame budget",
+          overload_seen, f"got overload_seen={overload_seen}")
+    pb.stop(save=False)
+
+    # Opposite failure mode (Risks section): the sparse default preset must NOT spuriously
+    # overload over an equivalently long run.
+    pb2 = fresh_boot()
+    spurious_overload = False
+    for _ in range(2000):
+        pb2.tick()
+        if pb2.memory[BAD_ZONE_FLAGS] & 0x04:
+            spurious_overload = True
+    check("T13.2 The default/sparse preset does not spuriously trigger OVERLOAD over an "
+          "equivalently long run", not spurious_overload,
+          f"got spurious_overload={spurious_overload}")
+    pb2.stop(save=False)
+
+
 def main():
     t1_header()
     t2_boot()
@@ -498,6 +539,7 @@ def main():
     t10_bad_zone_recovery()
     t11_arpeggio_vibrato_duty()
     t12_channel_mix_gating()
+    t13_overload_recalibration()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

@@ -23,7 +23,7 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers)
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 73 checks across T1-T12
+                    sound registers + WRAM engine state) — 77 checks across T1-T13
 ```
 
 ### Data layout, WRAM map
@@ -162,8 +162,12 @@ non-`CHANNELS` channel like noise, following `_emit_noise_gen`'s own inline patt
   resumes generating and reporting active on its own next onset. Internal bookkeeping
   (stale/onset-window counters, the melodic walk itself) keeps running for an excluded channel so
   it resumes musically-current, not frozen, when re-enabled.
+- Overload detection (`IP-9020`/`BL-0017`) is now empirically reachable: `OVERLOAD_THRESHOLD`
+  recalibrated from `20` (mathematically unreachable) to `7`, based on measured peak onset counts
+  (not just the analytical average-rate formula, which understated real bursts) — reachable at a
+  realistic-high tempo/density combination, not spuriously reachable at the sparse default.
 
-**73/73 `test_rom.py` checks pass** (T1-T12). An 8000+ frame stress run with continuous input
+**77/77 `test_rom.py` checks pass** (T1-T13). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

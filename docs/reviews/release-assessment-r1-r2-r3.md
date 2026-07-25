@@ -109,3 +109,55 @@ likely support a **GO** recommendation, since every other dimension of evidence 
 
 This is not a small-print technicality — it is the one piece of evidence this release's own
 promised scope (R1+R2+R3 *together*) actually requires and does not yet have.
+
+---
+
+## Re-assessment — 2026-07-25 (post `BL-0031` closure)
+
+- **Commit assessed:** `c62cea2`
+- **Trigger:** `10-integration-review` re-ran at the full 11-package scope
+  ([re-review section](integration-review-foundation-bucket.md#re-review--2026-07-25-11-package-superset-closing-the-feat-1060-coverage-gap)),
+  closing the exact gap this assessment's first pass found. `BL-0031` is `DONE`.
+
+### Scope audit (updated)
+
+The one row that previously read "❌ NONE" now has coverage:
+
+| Feature/Fix | Integration coverage | Delivered? |
+|---|---|---|
+| `FEAT-1060` (sound design techniques) | ✅ [11-package re-review](integration-review-foundation-bucket.md#re-review--2026-07-25-11-package-superset-closing-the-feat-1060-coverage-gap) — the arpeggio/vibrato-vs-channel-mix seam was exercised **live** (not just read from code): a channel that both arpeggiates and is `CHMIX`-muted was independently driven, confirmed silent/inactive in `NR52` throughout, with `arp_tick` continuing to compute harmlessly underneath | Yes |
+
+Every other row from the first assessment pass is unchanged and still holds (all 11
+packages `VERIFIED`, all other rows already had integration coverage).
+
+### Evidence (updated)
+
+- **ROM build:** 32768 bytes, valid header — re-confirmed against commit `c62cea2`.
+- **Full test suite:** **77 PASS, 0 FAIL out of 77** — re-confirmed.
+- **Integration coverage:** now complete — the
+  [11-package re-review](integration-review-foundation-bucket.md#re-review--2026-07-25-11-package-superset-closing-the-feat-1060-coverage-gap)
+  supersedes both prior sections for this consolidated release's purposes; no findings beyond the
+  already-known `BL-0030` (Medium, non-blocking).
+
+### Deviations, Residual risks
+
+Unchanged from the first assessment pass (above) — no new deviation or risk surfaced by closing
+the coverage gap; `BL-0031` itself is now `DONE` and removed from the open-risk set.
+
+### Assessment (updated)
+
+**GO** — recommended, advisory. Every dimension this skill's own workflow requires is now
+evidenced:
+
+- Every `FEAT-10xx` and both `BL-xxxx` remediations trace to a `VERIFIED` package with a real VR.
+- Every one of those packages is now covered by a clean `10-integration-review` pass (the
+  11-package re-review), with zero Critical/High findings anywhere in the tree.
+- Every deviation has a recorded authorization trail; none is unauthorized drift.
+- Every residual risk carries an explicit, honest disposition — none is a silently-accepted
+  Critical/High item.
+
+**No baseline record has been touched by this run.** Per the user's own explicit instruction, a
+`GO` recommendation from this assessment is not itself authorization to flip `ROADMAP.md`, the
+Feature Catalog, `Claude.md`'s status line, or any other tracker — that flip happens only after
+the user's separate, explicit confirmation of the GO decision (G4). This assessment's job ends at
+the recommendation.

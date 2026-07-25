@@ -3,3 +3,4 @@ __pycache__/
 *.gbc.ram
 *.gbc.sav
 test_shots/
+.claude/worktrees/

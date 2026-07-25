@@ -377,3 +377,95 @@ coverage gap) is closed. The only standing finding across the entire tree remain
 (Medium, non-blocking, unrelated to this review's new scope). **Recommend: `11-release-readiness`
 can now be re-run with a complete evidence chain — every dimension this consolidated release's own
 assessment needs is now on file.**
+
+---
+
+## Re-review — 2026-07-25 (12-package scope, +`IP-1070`)
+
+- **Scope:** All 12 shipped Implementation Packages — the 11 already covered by the prior
+  re-review plus `IP-1070` (combinable generation schemes, `BL-0020`), `VERIFIED` this session
+  ([VR-1070](../implementation/verification/VR-1070-combinable-generation-schemes.md)).
+- **Commit reviewed:** `0fb7d0b`
+- **Date:** 2026-07-25
+- **Pre-condition check:** all 12 packages confirmed `VERIFIED` on the Master Build Plan before
+  starting.
+- **Result:** ⚠️ **1 new finding (Low)** — a real, plausible interaction (channel-mix muting +
+  Scheme E on the same channel) that no shipped preset or test exercises, though the code was
+  read and confirmed safe by construction. No Critical/High/Medium new finding. `BL-0030` and
+  `BL-0032` (both filed by prior single-package/re-review passes) remain open, unchanged by this
+  review's own new scope.
+
+### Full-suite gate
+
+- `python3 build_rom.py Driftune.gbc` → 32768 bytes, valid header.
+- `python3 test_rom.py` → **85 PASS, 0 FAIL out of 85** (T1-T14).
+
+### Dimension 1 — Interface consistency
+
+`IP-1070` extended the same `CHANNELS` tuple `IP-9010`/`IP-1060`/`IP-1061` each already extended
+in turn — now 17 fields, unpacked at 4 separate call sites. Re-read all four sites in full:
+field order and count agree everywhere, no positional drift (confirmed the same way the prior
+9-package re-review confirmed `IP-9010`'s own extension). **Clean.**
+
+### Dimension 2 — Invariant sweep
+
+ROM budget unchanged at exactly 32768 bytes (`MOTIF_TABLE`, 8 bytes, well within headroom). WRAM
+map: `MOTIF_STEP_PA`/`PB`/`WV` (`0xC038`-`0xC03A`) confirmed documented in GDS-07 and genuinely
+free against the reserved `0xC020`-`0xC037` ring-buffer range — no collision. No module took on a
+second job (Scheme E lives entirely inside `_emit_channel_gen`'s existing note-selection step, no
+new module). **Clean.**
+
+### Dimension 3 — Behavioral coherence — one new finding
+
+Traced `IP-1070`'s actual interaction with `IP-9010` (channel-mix muting) by reading the code:
+both schemes converge at a shared `gt_delta_ready_{suffix}` label (`music_engine.py:429`) *before*
+the dissonant/stuck override, the onset-window count, and `IP-9010`'s own mute-check
+(`music_engine.py:477-500`) — the mute gate is scheme-agnostic by construction, applying
+identically whichever scheme produced the degree change. This is provably safe by inspection.
+
+However: attempted to independently *exercise* this combination live (a channel both muted via
+`CHMIX_MASKS` and assigned Scheme E) and found **no shipped preset produces it** — preset 6 (the
+only preset with any scheme-select bit set) keeps the wave channel active, not muted. Attempted to
+poke the `CHMIX_MASKS` ROM data directly via PyBoy to construct the combination for a live test;
+confirmed ROM writes are rejected by the emulator (matching real hardware — cart ROM is read-only
+from the CPU's perspective), so this combination cannot be exercised without a code/data change,
+which is outside this review's read-only scope. Filed as a Low finding (code-reasoned-safe, but
+genuinely zero live/test coverage) — related to, but distinct from, `BL-0032` (which is about
+Scheme E being reachable at all for pulse A/B, not about the mute+Scheme-E interaction
+specifically).
+
+Also re-confirmed (via `VR-1070`'s own live drive, re-read not re-run) that bad-zone detection/
+recovery applies identically with a Scheme-E channel active, and that `IP-1060`/`IP-1061`'s
+arpeggio/vibrato/duty-cycle continue computing harmlessly on a channel that switches between
+Scheme W and Scheme E (neither arpeggio/vibrato nor Scheme E's own state has any dependency on
+the other — both simply read/write `CUR_DEGREE_*`/frequency registers through the same shared
+onset-write path).
+
+### Dimension 4 — Traceability coherence
+
+Master Build Plan, `packages/INDEX.md`, `verification/INDEX.md` all agree: all 12 packages
+`VERIFIED`. **Drift found:** `ROADMAP.md`'s stage-08/09 rows still said "`IP-1070` `COMPLETE`,
+verification pending" / "11/11 packages" — stale as of this run's own `VR-1070` (written after
+those rows were last touched). Corrected directly as part of this review's own output (routine
+drift this stage is instructed to fix, not report).
+
+### Dimension 5 — Documentation coherence
+
+`Claude.md`/`memory.md`/GDS-07 already describe `IP-1070` accurately (updated by its own
+implementing commit) — spot-checked, accurate. No new gap.
+
+## Findings (12-package re-review)
+
+| Finding | Packages/artifacts involved | Description | Severity | Recommended owner |
+|---|---|---|---|---|
+| (new) | `IP-1070`, `IP-9010` | A pitched channel that is both `CHMIX`-muted and assigned Scheme E is provably safe by code inspection (the mute gate is scheme-agnostic, applied after both schemes converge) but is exercised by **no shipped preset and no test** — `CHMIX_MASKS`'s only scheme-assigning preset (6) keeps its Scheme-E channel active. Confirmed this combination cannot be constructed live without a data/code change (ROM writes are correctly rejected by the emulator, matching real hardware). | Low (reasoned-safe by construction, zero functional risk identified; a test-coverage gap, not a defect) | 04/07 (whenever `BL-0032`'s own follow-up preset-data package is picked up, include at least one preset that combines a mute with a Scheme-E assignment, closing both gaps in one pass) |
+
+## Verdict (12-package re-review)
+
+The full 12-package tranche integrates cleanly. `IP-1070`'s interaction with every other shipped
+package (channel-mix gating, arpeggio/vibrato/duty-cycle, bad-zone detection/recovery) is correct
+by construction and confirmed correct wherever a shipped preset actually exercises it. The one gap
+found — mute+Scheme-E combination, untested because no preset currently constructs it — is a data
+coverage gap, not a functional defect, and is naturally closed by the same follow-up `BL-0032`
+already recommends. No Critical/High/Medium finding. **Recommend: this review does not block any
+future `11-release-readiness` call touching R4 scope.**

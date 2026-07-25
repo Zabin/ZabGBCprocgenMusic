@@ -32,14 +32,16 @@ Six milestones group the fourteen releases into demonstrable, decision-relevant 
 - **Acceptance criteria:** `BL-0019`/`BL-0017` both `DONE`; `10-integration-review` clean;
   `11-release-readiness` GO achievable for the Foundation bucket; scheme/style capabilities
   independently verified.
-- **Remaining work:** `IP-9010`/`IP-9020` are G3-authorized and `COMPLETE` (built 2026-07-25) —
-  **independent verification** (`09-package-verification`, needs a future fresh session) and a
-  clean `10-integration-review` re-run are now this milestone's actual remaining gates, not
-  authorization. Also includes **R4.5**, the cart-shape decision checkpoint (moved into this
-  milestone per `10-final-roadmap-review.md` finding #1, applied) — a decision, not a build,
-  sequenced after R4 so a real ROM-budget trajectory is visible first.
-- **Status:** R3's two packages built; verification + integration re-review remaining before
-  CAP-09/CAP-11 work in this milestone can proceed.
+- **R3 complete as of 2026-07-25:** `IP-9010`/`IP-9020` both `VERIFIED`
+  ([VR-9010](../implementation/verification/VR-9010-channel-mix-gating.md),
+  [VR-9020](../implementation/verification/VR-9020-overload-threshold-recalibration.md)),
+  `10-integration-review` re-ran clean (one non-blocking Medium finding, `BL-0030`). `11-release-
+  readiness`'s GO/NO-GO call is now the only thing between R3 and CAP-09/CAP-11 work starting —
+  a G4 decision reserved for the user. Also includes **R4.5**, the cart-shape decision checkpoint
+  (moved into this milestone per `10-final-roadmap-review.md` finding #1, applied) — a decision,
+  not a build, sequenced after R4 so a real ROM-budget trajectory is visible first.
+- **Status:** R3's two packages built, verified, and integration-reviewed — awaiting the user's
+  `11-release-readiness` GO/NO-GO call before CAP-09/CAP-11 work in this milestone can proceed.
 
 ## Milestone C — Musical Maturity (R6-R7)
 

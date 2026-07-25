@@ -84,13 +84,18 @@ traces to Vision/research.
   `_emit_channel_gen`'s own docstring and `IP-9010`'s implementation commit).
 - **Expected demonstration:** Press Start repeatedly, hear channels drop in/out; drive max tempo +
   density, watch the visualizer's palette actually flip to bad-zone red from overload.
-- **Status (2026-07-25):** **G3 authorized and both packages built** this session — `IP-9010`
-  (`CHMIX_MASKS` channel-mix gating) and `IP-9020` (`OVERLOAD_THRESHOLD` 20→7, empirically
-  recalibrated) both `COMPLETE`, 77/77 full suite, 8200-frame stress runs clean. **Not yet
-  independently verified** — built in the same session that authorized them, so
-  `09-package-verification`'s standing fresh-session-independence rule applies; owed to a future
-  session, same as `IP-1060`/`IP-1061` were before this run. Once verified: `10-integration-review`
-  re-run, then this release's completion criteria (below) are met.
+- **Status (2026-07-25):** **Both packages built, independently verified, and integration-reviewed
+  this session** — `IP-9010` (`CHMIX_MASKS` channel-mix gating,
+  [VR-9010](../implementation/verification/VR-9010-channel-mix-gating.md)) and `IP-9020`
+  (`OVERLOAD_THRESHOLD` 20→7, empirically recalibrated,
+  [VR-9020](../implementation/verification/VR-9020-overload-threshold-recalibration.md)) both
+  `VERIFIED`, 77/77 full suite, 8200-frame stress runs clean, both independently re-driven live at
+  non-default parameters by a genuinely fresh-session verification pass.
+  [`10-integration-review`'s re-review](../reviews/integration-review-foundation-bucket.md#re-review--2026-07-25)
+  confirmed both fixes hold at the integration level — one new non-blocking Medium finding
+  (`BL-0030`, channel-mix/overload counting interaction). **This release's completion criteria are
+  now met** — `11-release-readiness` can make its GO/NO-GO call for the consolidated R1+R2+R3
+  release (a G4 decision reserved for the user).
 
 ## R4 — Multi-Scheme Foundation
 

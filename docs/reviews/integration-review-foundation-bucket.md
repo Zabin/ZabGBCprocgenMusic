@@ -1,5 +1,12 @@
 # Integration Review — Foundation Release Bucket
 
+**This document now covers two reviews: the original 7-package review (2026-07-21, preserved
+below in full) and a 2026-07-25 re-review of the expanded 9-package scope. See "Re-review
+2026-07-25" for the current state — the original section is kept verbatim as the historical
+record, not rewritten.**
+
+## Original review — 2026-07-21
+
 - **Scope:** All 7 Foundation-bucket Implementation Packages — `IP-0001` through `IP-0007`
   (`FEAT-1000`, `FEAT-1010`, `FEAT-1020`, `FEAT-1030`, `FEAT-1040`, `FEAT-1050`)
 - **Commit reviewed:** `2f085b6` (branch `claude/iterate-pipeline-skill-04nvuc`)
@@ -132,3 +139,150 @@ undetected by seven independent package verifications because none of them had t
 whole-tranche vantage point. **High-severity finding (`BL-0019`) — recommend against advancing to
 `11-release-readiness` until it is remediated and re-verified**, alongside `BL-0017` (already
 Medium-High, already scheduled).
+
+---
+
+## Re-review — 2026-07-25
+
+- **Scope:** All 9 Foundation-bucket Implementation Packages — `IP-0001` through `IP-0007` plus
+  the remediation tranche `IP-9010` (channel-mix gating, `BL-0019`) and `IP-9020` (overload
+  threshold recalibration, `BL-0017`)
+- **Commit reviewed:** `c4f12b5`
+- **Date:** 2026-07-25
+- **Pre-condition check:** every package in scope confirmed `VERIFIED` on the Master Build Plan
+  immediately before this review began — `IP-0001`-`IP-0007` unchanged since the original review;
+  `IP-9010`→[VR-9010](../implementation/verification/VR-9010-channel-mix-gating.md),
+  `IP-9020`→[VR-9020](../implementation/verification/VR-9020-overload-threshold-recalibration.md),
+  both flipped `COMPLETE`→`VERIFIED` this session in a genuinely independent fresh-session pass.
+- **Result:** ⚠️ **1 new finding (Medium)** — a real cross-package behavioral inconsistency between
+  `IP-9010`'s two gating code paths, discovered by exercising the channel-mix + overload seam
+  together (neither single-package `VR-9010`/`VR-9020` pass could see this, by design). No
+  Critical/High findings. Both `BL-0019` and `BL-0017` are confirmed genuinely closed at the
+  integration level, not just the per-package level.
+
+### Full-suite gate (run against the reviewed commit)
+
+- `python3 build_rom.py Driftune.gbc` → 32768 bytes, valid header (title `DRIFTUNE`, CGB flag
+  `0x80`, cart type `0x00`)
+- `python3 test_rom.py` → **77 PASS, 0 FAIL out of 77** (T1-T13)
+
+### Dimension 1 — Interface consistency
+
+Re-exercised the same boot/per-frame call sequence the original review confirmed clean; unchanged
+by `IP-9010`/`IP-9020` (both are additive to `_emit_channel_gen`/`_emit_noise_gen`, no new
+call-site wiring). New seam specific to this tranche: `CHMIX_MASKS` is an 8-entry table of
+byte-sized 4-bit masks (bits 0-3 used, bits 4-7 spare) — read in full against
+[`ADR-0001`](../architecture/adr/ADR-0001-scheme-selection-rides-chmix-preset-space.md), which
+plans to reuse exactly those spare bits for future scheme-selection (contingent on `IP-9010`
+shipping with this bit layout, which it now has). Confirmed no code anywhere tests or assumes
+bits 4-7 are zero (`BIT_b_A(bit_index)` only ever tests bits 0-3) — the spare-bit space `ADR-0001`
+is counting on is genuinely free, not silently occupied. **Clean**, and confirms `ADR-0001`'s own
+contingency is now satisfied.
+
+### Dimension 2 — Invariant sweep
+
+- **ROM budget:** exactly 32768 bytes, confirmed above; `IP-9010` added one 8-byte table
+  (`CHMIX_MASKS`), `IP-9020` added zero bytes (pure constant change) — both within GDS-07 §6's
+  already-ample headroom. **Clean.**
+- **VBlank-gated visualizer writes:** unchanged by this tranche (neither package touches
+  `visuals.py`). **Clean.**
+- **WRAM map completeness:** re-checked every `0xC0xx` constant against
+  `docs/architecture/07-data-model.md` — `CHMIX_IDX`'s row was updated by `IP-9010`'s own commit
+  (confirmed accurate: describes `CHMIX_MASKS` as the real consumer, not the stale
+  "index into the channel-activity-mask preset table" placeholder). No new WRAM address was
+  introduced by either package (both reuse existing `0xC004`/constants) — no new gap to find.
+  **Clean.**
+- **No module took on a second job:** both packages stayed inside `music_engine.py`'s existing
+  "the engine" responsibility; `IP-9020` is a pure constant change, `IP-9010` extends the existing
+  `CHANNELS`-table parameterization pattern rather than adding a new mechanism. **Clean.**
+
+### Dimension 3 — Behavioral coherence — FINDING
+
+The original review's headline finding (`BL-0019`, channel-mix has no consumer) is now
+**genuinely fixed**: re-traced every `CHMIX_IDX` reference and confirmed `_emit_channel_gen`/
+`_emit_noise_gen` both gate on `CHMIX_MASKS[CHMIX_IDX]`, independently re-confirmed live (see
+`VR-9010`). `BL-0017` (`OVERLOAD_THRESHOLD` unreachable) is also genuinely fixed (see `VR-9020`).
+
+Exercising **both fixes together** (the seam this review exists to check, since `VR-9010` and
+`VR-9020` each verified their own package in isolation) surfaced a real inconsistency: read
+`_emit_channel_gen`'s onset block in full (`music_engine.py:361-388`) and found the `ONSET_WINDOW_
+COUNT` increment (feeding `IP-9020`'s `OVERLOAD_THRESHOLD` check) happens **before** the `IP-9010`
+channel-mix gate — meaning a pitched channel (pulse A/B/wave) excluded by the current `CHMIX_IDX`
+preset still increments the overload window every note cycle, identically to when it's included.
+`_emit_noise_gen`'s equivalent code (`music_engine.py:625-630`) does the **opposite**: its own
+code comment explicitly states the design intent ("no phantom onset counted for a channel that
+made no sound") and the mask check runs *before* the onset-window increment, so a muted noise
+channel does **not** contribute phantom onsets.
+
+Confirmed empirically (not just by reading the asm) with a standalone PyBoy drive, same default
+tempo/density (`TEMPO_IDX=4`/`DENSITY_IDX=0`) `IP-9020` itself used to establish its "peaks at 6"
+baseline:
+
+| `CHMIX_IDX` preset | Channels active | Peak `ONSET_WINDOW_COUNT` over 4000 frames |
+|---|---|---|
+| 0 | all 4 (pa/pb/wv/nz) | 6 |
+| 3 (`0b1001`) | pa + noise only (pb/wv muted) | **6 — identical, muting pb/wv changed nothing** |
+| 6 (`0b0111`) | pa/pb/wv only (noise muted) | 5 — noise's own phantom-onset exclusion visibly working |
+
+This confirms the inconsistency is real and behaviorally meaningful, not just a code-reading
+concern: **muting a pitched channel provides zero relief from overload pressure** (its silent
+onsets count exactly as much as when it's audible), while muting the noise channel does reduce
+the count, per its own explicit by-design exclusion. Neither `IP-9010`'s nor `IP-9020`'s package
+doc considered this interaction (`IP-9010`'s own Risks section flagged the *dissonance*-scoring-
+vs-mute interaction as a design question to resolve, and it was — see `BL-0029` — but never
+considered the analogous overload-scoring-vs-mute interaction at all; `IP-9020`'s own empirical
+threshold calibration was performed exclusively at `CHMIX_IDX=0`, so it never exercised the
+partially-muted case either).
+
+No functional defect in either package alone — each behaves exactly as its own package doc
+describes — but the combination produces a real, undocumented, and internally inconsistent
+behavior: the same "excluded from the mix" concept is treated as "produces no phantom activity"
+for one channel type and "produces full phantom activity" for three others, with no stated reason
+for the asymmetry. This is exactly the class of finding integration review exists to catch — filed
+as `BL-0030`.
+
+### Dimension 4 — Traceability coherence
+
+- Master Build Plan, `packages/INDEX.md`, and `verification/INDEX.md` all agree: all 9 packages
+  `VERIFIED`, cross-references bidirectional and consistent with the files on disk.
+- `ROADMAP.md` and `docs/roadmap/` were reconciled in the previous session (commit `8ddf62c`) —
+  spot-checked against the current tree and found current, not stale: rows 04/06/07/08/09 already
+  reflect `IP-9010`/`IP-9020`'s (at-the-time) `COMPLETE` status. **Drift found:** those rows still
+  say `COMPLETE`/"verification pending" rather than `VERIFIED` — stale as of this run's own
+  `VR-9010`/`VR-9020` (written after that reconciliation). Corrected directly as part of this
+  review's own output (see below), same as the original review's own "update `ROADMAP.md`'s
+  reviews row" responsibility.
+- `BL-0019`/`BL-0017` both show `DONE` in `docs/pipeline/backlog.md` (flipped by the pipeline
+  manager in run #38/#39) — consistent with this review's own confirmation that both are
+  genuinely fixed at the integration level.
+
+### Dimension 5 — Documentation coherence
+
+- `Claude.md`'s Known Good Behavior section already describes both fixes accurately (channel-mix
+  gating, overload recalibration) — spot-checked against the shipped code, accurate.
+- `memory.md`'s WRAM quick-reference already reflects `CHMIX_IDX`'s real consumer.
+- No new documentation-coherence gap found beyond the `ROADMAP.md` staleness noted in Dimension 4
+  (corrected, not filed as a separate backlog entry — routine drift this stage is instructed to
+  fix directly).
+
+## Findings (re-review)
+
+| Finding | Packages/artifacts involved | Description | Severity | Recommended owner |
+|---|---|---|---|---|
+| `BL-0030` | `IP-9010` (`_emit_channel_gen` vs. `_emit_noise_gen`), `IP-9020` (`OVERLOAD_THRESHOLD`), `FR-1100`/`FR-1010` | A muted pitched channel (pulse A/B/wave, excluded via `CHMIX_MASKS`) still increments `ONSET_WINDOW_COUNT` every note cycle — identical to when included — because the count happens before `IP-9010`'s gate check in `_emit_channel_gen`. The noise channel's equivalent code deliberately excludes muted-channel phantom onsets (explicit code-comment intent), producing an internally inconsistent design within the same remediation tranche: muting pitched channels gives zero relief from overload pressure; muting noise does. `IP-9020`'s own empirical threshold calibration (default preset peaks at 6, recalibrated threshold 7) was performed exclusively at `CHMIX_IDX=0` (all channels active) and never exercised any partially-muted configuration, so the interaction was invisible to both single-package verifications. Empirically confirmed: peak onset count is identical (6) whether pulse B/wave are muted or not, at the same tempo/density. | Medium (a real, undocumented behavioral inconsistency — surprising, not a crash/data-corruption risk; both packages individually satisfy their own DoD) | `07-implementation-planning` — author a small remediation package deciding (and documenting) whether pitched-channel exclusion should also skip the onset-window increment (matching noise's behavior, and reducing overload pressure when channels are muted) or whether the current behavior is intentional and should instead be documented as a deliberate asymmetry (e.g. "the overload metric tracks total generation *work*, not audible output" — a defensible alternative reading) — either resolution is acceptable, but it must be a stated decision, not an undocumented accident, then `08-code-implementation` (if the behavior changes) → `09-package-verification` |
+
+## Verdict (re-review)
+
+The 9-package tranche integrates cleanly at the mechanical level (interface consistency, ROM
+budget, WRAM map, module boundaries — all clean) and both of the original review's blocking
+findings (`BL-0019` High, `BL-0017` Medium-High) are **confirmed genuinely remediated and
+re-verified**, not merely claimed. Exercising the two remediation packages together — the exact
+vantage point this review exists to provide — surfaced one new Medium finding (`BL-0030`): an
+internally inconsistent, undocumented interaction between channel-mix muting and overload
+counting. This is real but not release-blocking: no crash, no data corruption, no requirement
+violated (neither `FR-1010` nor `FR-1100` speaks to muted-channel onset counting either way), and
+both packages independently satisfy their own Definition of Done. **Recommend: this finding does
+not need to block `11-release-readiness` for the current R1+R2+R3 scope** — it is a design-quality
+gap suitable for a follow-up remediation package, not a defect in what either package promised to
+deliver. `11-release-readiness` can proceed to make its GO/NO-GO call with this finding named as a
+known, non-blocking issue.

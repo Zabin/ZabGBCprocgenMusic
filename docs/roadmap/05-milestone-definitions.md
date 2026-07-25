@@ -15,9 +15,11 @@ Six milestones group the fourteen releases into demonstrable, decision-relevant 
   generative chiptune with expressive articulation (arpeggio/vibrato/portamento/duty-cycle); see a
   reactive tile/palette display.
 - **Acceptance criteria:** 65/65 `test_rom.py` checks; ROM builds to a valid 32768-byte header;
-  all Foundation-bucket packages `VERIFIED` (R2's two packages still owe verification).
-- **Remaining work:** `09-package-verification` on `IP-1060`/`IP-1061` (fresh session).
-- **Status:** ✅ **Substantially complete** — one verification step short of fully closed.
+  all Foundation-bucket packages `VERIFIED`.
+- **Status:** ✅ **Complete** — `IP-1060`/`IP-1061` independently verified 2026-07-25
+  ([VR-1060](../implementation/verification/VR-1060-arpeggio-and-duty-cycle.md),
+  [VR-1061](../implementation/verification/VR-1061-vibrato-and-portamento.md)); all Foundation +
+  R2 packages now `VERIFIED`.
 
 ## Milestone B — Integrity & Diversity Groundwork (R3-R5, +R4.5)
 
@@ -30,11 +32,14 @@ Six milestones group the fourteen releases into demonstrable, decision-relevant 
 - **Acceptance criteria:** `BL-0019`/`BL-0017` both `DONE`; `10-integration-review` clean;
   `11-release-readiness` GO achievable for the Foundation bucket; scheme/style capabilities
   independently verified.
-- **Remaining work:** **G3 authorization for `IP-9010`/`IP-9020`** (the standing gate blocking
-  this milestone's very first release). Also includes **R4.5**, the cart-shape decision checkpoint
-  (moved into this milestone per `10-final-roadmap-review.md` finding #1, applied) — a decision,
-  not a build, sequenced after R4 so a real ROM-budget trajectory is visible first.
-- **Status:** Not started — blocked on authorization, not technical readiness.
+- **Remaining work:** `IP-9010`/`IP-9020` are G3-authorized and `COMPLETE` (built 2026-07-25) —
+  **independent verification** (`09-package-verification`, needs a future fresh session) and a
+  clean `10-integration-review` re-run are now this milestone's actual remaining gates, not
+  authorization. Also includes **R4.5**, the cart-shape decision checkpoint (moved into this
+  milestone per `10-final-roadmap-review.md` finding #1, applied) — a decision, not a build,
+  sequenced after R4 so a real ROM-budget trajectory is visible first.
+- **Status:** R3's two packages built; verification + integration re-review remaining before
+  CAP-09/CAP-11 work in this milestone can proceed.
 
 ## Milestone C — Musical Maturity (R6-R7)
 

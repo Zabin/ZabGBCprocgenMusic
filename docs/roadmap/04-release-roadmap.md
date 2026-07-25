@@ -48,8 +48,13 @@ traces to Vision/research.
 - **Testing goals:** Suite grew to 65/65 (new suite T11); two clean multi-thousand-frame stress
   runs.
 - **Completion criteria:** `IP-1060`/`IP-1061` `COMPLETE`.
-- **Status:** ✅ Shipped, **not yet independently verified** (`09-package-verification` owed, fresh
-  session required).
+- **Status:** ✅ Shipped and **independently verified** ([VR-1060](../implementation/verification/VR-1060-arpeggio-and-duty-cycle.md),
+  [VR-1061](../implementation/verification/VR-1061-vibrato-and-portamento.md), 2026-07-25 —
+  fresh-session `09-package-verification`, both non-default tunable-parameter combinations
+  re-driven live per this project's own verification standard). Two Low-Medium doc-coherence
+  findings filed (`BL-0025`/`BL-0026`, package-doc text vs. shipped design) and one Low-Medium
+  test-coverage finding (`BL-0027`, portamento has no dynamic register-level test) — none block
+  this release; none are functional defects.
 
 ---
 
@@ -74,11 +79,18 @@ traces to Vision/research.
   `11-release-readiness` GO becomes possible for the Foundation bucket.
 - **Potential risks:** `IP-9010`'s own package doc flags a real open design question (should an
   excluded channel's dissonance still count toward bad-zone scoring) needing an explicit answer
-  during implementation, not a guess.
+  during implementation, not a guess. **Resolved 2026-07-25:** left dissonance scoring reading
+  every pitched channel's degree unconditionally (documented choice, not silently defaulted — see
+  `_emit_channel_gen`'s own docstring and `IP-9010`'s implementation commit).
 - **Expected demonstration:** Press Start repeatedly, hear channels drop in/out; drive max tempo +
   density, watch the visualizer's palette actually flip to bad-zone red from overload.
-- **Prerequisite not yet satisfied:** **G3 authorization** — both packages are specified and ready
-  but explicitly not authorized on the Master Build Plan; this release cannot start without it.
+- **Status (2026-07-25):** **G3 authorized and both packages built** this session — `IP-9010`
+  (`CHMIX_MASKS` channel-mix gating) and `IP-9020` (`OVERLOAD_THRESHOLD` 20→7, empirically
+  recalibrated) both `COMPLETE`, 77/77 full suite, 8200-frame stress runs clean. **Not yet
+  independently verified** — built in the same session that authorized them, so
+  `09-package-verification`'s standing fresh-session-independence rule applies; owed to a future
+  session, same as `IP-1060`/`IP-1061` were before this run. Once verified: `10-integration-review`
+  re-run, then this release's completion criteria (below) are met.
 
 ## R4 — Multi-Scheme Foundation
 

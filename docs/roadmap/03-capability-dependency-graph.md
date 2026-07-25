@@ -10,11 +10,11 @@
 Engine, CAP-07 Instrument/Voice-Role System, CAP-15 UI/Input System, CAP-16 Seed Management,
 CAP-17 Playback/Runtime System, CAP-20 Testing Harness, CAP-21 Build Tooling.
 
-**Intermediate** (build directly on Foundational; mostly shipped, two carry open defects that
-block downstream work): CAP-05 Harmony/Voice-Interaction (partial), CAP-06 Sound Design/Timbre
-(shipped, unverified), CAP-08 Bad-Zone Self-Correction (shipped, `BL-0017` open), CAP-10
-Channel-Mix Control (**broken**, `BL-0019` open), CAP-14 Visual Engine (MVP shipped, evolution
-pending).
+**Intermediate** (build directly on Foundational; mostly shipped, two carry defects fixed
+2026-07-25 but not yet independently verified): CAP-05 Harmony/Voice-Interaction (partial),
+CAP-06 Sound Design/Timbre (shipped, independently verified), CAP-08 Bad-Zone Self-Correction
+(shipped, `BL-0017` fixed/verification owed), CAP-10 Channel-Mix Control (**fixed**, `BL-0019`
+remediated/verification owed), CAP-14 Visual Engine (MVP shipped, evolution pending).
 
 **Advanced** (planned, not started; each depends on specific Intermediate capabilities being both
 shipped *and* structurally sound — not just "exists"): CAP-09 Multi-Scheme Generation, CAP-11
@@ -39,9 +39,9 @@ Foundational (all VERIFIED, shipped)
                              │
 Intermediate                 │
   CAP-05 Harmony/Voice ◄─────┤ (partial: dissonance scoring shipped, real harmony not pursued)
-  CAP-06 Sound Design ◄──────┤ (shipped, verification owed)
-  CAP-08 Bad-Zone Recovery ◄─┴──── depends on CAP-05 too         [BL-0017 open defect]
-  CAP-10 Channel-Mix Control ◄──── depends on CAP-01 only        [BL-0019 BROKEN — critical-path blocker]
+  CAP-06 Sound Design ◄──────┤ (shipped, independently verified 2026-07-25)
+  CAP-08 Bad-Zone Recovery ◄─┴──── depends on CAP-05 too         [BL-0017 fixed 2026-07-25, verification owed]
+  CAP-10 Channel-Mix Control ◄──── depends on CAP-01 only        [BL-0019 fixed 2026-07-25, verification owed]
   CAP-14 Visual Engine (MVP) ◄──── depends on CAP-01, CAP-08
 
 Advanced (not started — two independent streams + one independent branch)
@@ -60,23 +60,25 @@ Cross-cutting (continuous, not sequenced):
 
 ## Critical path
 
-**`CAP-10` (fix `BL-0019`'s unwired channel-mix control) is the single hardest blocker in the
-entire graph.** It is a Medium-effort fix (a remediation package, `IP-9010`, already fully
-specified) sitting in front of the entire Multi-Scheme → Style Engine chain (`CAP-09` → `CAP-11`),
+**`CAP-10` (fix `BL-0019`'s unwired channel-mix control) was the single hardest blocker in the
+entire graph — as of 2026-07-25 it is fixed, not yet verified.** `IP-9010` (channel-mix gating)
+is `COMPLETE`: `CHMIX_MASKS` now gates all 4 channels, 77/77 full suite, 8200-frame stress run
+clean. It sits in front of the entire Multi-Scheme → Style Engine chain (`CAP-09` → `CAP-11`),
 which is itself a prerequisite for genre-aware presets and genre blending — two of the roadmap's
-named later-stage goals. **This fix is also already G3-authorization-blocked** (`docs/pipeline/
-backlog.md` `BL-0019`, `IP-9010` — "not authorized" on the Master Build Plan) — the critical path's
-true bottleneck today is not technical, it is the standing authorization gate.
+named later-stage goals. **The bottleneck has moved from authorization to verification**: G3 was
+granted this session (`docs/pipeline/backlog.md` `BL-0019`, now `IN PIPELINE`), but
+`09-package-verification` cannot verify code built in the same session that authorized it — that
+pass is owed to a future fresh session, and `CAP-09`/`CAP-11` remain blocked until it lands.
 
 Secondary critical-path item: `BL-0017` (overload threshold unreachable) is lower severity and
-does not block any Advanced capability directly, but should be fixed in the same authorization
-pass as `BL-0019` since `IP-9020` is already specified and touches the same bad-zone-adjacent code
-region as `CAP-08`.
+does not block any Advanced capability directly — also fixed this session (`IP-9020`,
+`OVERLOAD_THRESHOLD` recalibrated `20`→`7` on empirical peak-onset-count measurement, not just
+the analytical average-rate formula), same verification-owed status as `IP-9010`.
 
 ## Parallel work streams
 
-Once `CAP-10` is fixed, **two genuinely independent streams** can proceed in parallel with no
-cross-blocking:
+Once `CAP-10` is independently verified (fixed, not yet verified as of 2026-07-25), **two
+genuinely independent streams** can proceed in parallel with no cross-blocking:
 
 - **Stream 1 — Integrity & Diversity**: `CAP-09` Multi-Scheme → `CAP-11` Style Engine → genre
   presets/blending (Releases R4-R5, R8 in `04-release-roadmap.md`).
@@ -91,8 +93,8 @@ made, with zero interaction with either stream.
 
 ## Bottlenecks
 
-1. **`CAP-10` / `BL-0019`** — technical fix is small, the authorization gate is the real
-   bottleneck (see Critical Path above).
+1. **`CAP-10` / `BL-0019`** — technical fix landed 2026-07-25 (`IP-9010` `COMPLETE`); the
+   remaining bottleneck is independent verification, not authorization (see Critical Path above).
 2. **`CAP-14` Visual Engine evolution** — the one true convergence point in the graph. It cannot
    meaningfully proceed until *both* Stream 1 (`CAP-11`, for style-reactive visuals) and Stream 2
    (`CAP-13`, for mood-reactive visuals) have shipped something to react to — starting it earlier

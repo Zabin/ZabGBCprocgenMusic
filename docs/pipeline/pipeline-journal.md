@@ -3,7 +3,14 @@
 ## Position
 
 - **Updated:** 2026-07-25 (run #33) — **`IP-1060`/`IP-1061` `VERIFIED` and integration-reviewed
-  clean; loop stopped at the standing G3 gate for `IP-9010`/`IP-9020`**
+  clean; G3 authorization for `IP-9010`/`IP-9020` GRANTED — resuming iteration**
+- **Run #33, gate resolution:** the user answered the G3 `AskUserQuestion` this run posed:
+  **"Authorize both"** — `IP-9010` and `IP-9020` are now G3-authorized, closing the gate open
+  since run #14 (~20 runs). Updated the Master Build Plan (`NOT STARTED`/unauthorized →
+  `READY`/authorized for both), `packages/INDEX.md`, and `BL-0019`/`BL-0017`'s dispositions
+  (`SCHEDULED` → `IN PIPELINE`, both now naming `08-code-implementation` as the immediate next
+  step). Per the TWBS's session-hygiene sequencing note (no technical dependency between the two),
+  `IP-9010` builds first. Iteration resumes with `08-code-implementation` on `IP-9010`.
 - **Run #33 (iterate mode, multiple internal steps):** user directed "Iterate pipeline skill" (no
   further scope given). Reconciled journal/backlog against the ledgers first — no drift found.
   **Step A** — the standing obligation still owed and genuinely unblocked (no G3 needed — this is

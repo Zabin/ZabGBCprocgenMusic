@@ -238,7 +238,7 @@
 
 ---
 
-- **Updated:** 2026-07-25 (runs #33-39 — user-directed convergence: Foundation +
+- **Updated:** 2026-07-25 (runs #33-40 — user-directed convergence: Foundation +
   R216 sound-design + integrity remediation into one releasable state)
 - **Run #33 so far:** this is a genuinely fresh session relative to every package below —
   independence achieved for `IP-1060`/`IP-1061` (built in an earlier session), and for
@@ -268,18 +268,22 @@
   77/77 post-merge). `IP-9010`/`IP-9020` both flipped `COMPLETE`→`VERIFIED`. `BL-0019`/`BL-0017`
   both flipped to `DONE`. Two new findings harvested: `BL-0028` (Low, doc-scope process note) and
   `BL-0029` (Low-Medium, filed `DONE` — the entry itself closes the gap a code comment named).
-- **Backlog:** `BL-0025`-`BL-0029` all open/closed as above. `BL-0019`/`BL-0017`/`BL-0024`/`BL-0029`
-  now `DONE`. No open Critical/High findings anywhere in the tree.
-- **Next step:** `10-integration-review` on the Foundation bucket, all 9 packages together
-  (`IP-0001`-`IP-0007` + `IP-9010` + `IP-9020`) — no session-independence constraint applies to
-  this stage, so it is not blocked. The original integration review's GO-withholding condition
-  (`BL-0019` remediated and re-verified) is now fully met. After a clean re-review:
-  `11-release-readiness`'s first-ever GO/NO-GO call (consolidated R1 Foundation + R2 Sound Design
-  + R3 Integrity Remediation).
-- **Open gates:** none consumed-and-closed this run (G3 for `IP-9010`/`IP-9020` was granted and
-  used in run #33, now fully spent). **No G4 release call has been made or asked about** — that
-  remains the pipeline's next genuine human-only gate, reached only after `10-integration-review`
-  re-runs clean.
+- **Run #40:** `10-integration-review` re-ran clean at the 9-package scope (commit `c4f12b5`,
+  full suite 77/77). Both `BL-0019`/`BL-0017` confirmed genuinely remediated at the integration
+  level. One new Medium finding filed (`BL-0030` — channel-mix/overload-counting inconsistency
+  within `IP-9010` itself, non-blocking per the review's own verdict). `ROADMAP.md`/`docs/roadmap/`
+  updated to show all 11 packages `VERIFIED` and the review re-run clean.
+- **Backlog:** `BL-0025`-`BL-0030` all open/closed as above. `BL-0019`/`BL-0017`/`BL-0024`/`BL-0029`
+  `DONE`; `BL-0030` `NEW`→`SCHEDULED` (non-blocking, folds into a future `CAP-09`-adjacent touch).
+  No open Critical/High findings anywhere in the tree.
+- **Next step:** `11-release-readiness` for the consolidated R1 (Foundation) + R2 (Sound Design) +
+  R3 (Integrity Remediation) release — **this is the pipeline's G4 gate**. Every upstream
+  precondition is now met (all 11 packages `VERIFIED`, integration review clean, no unadjudicated
+  Critical/High findings) — the loop stops here to ask the user, not because anything is still
+  technically blocked, but because a release GO/NO-GO call and any resulting baseline-record flip
+  is a human-only decision per the manager's own gate rules.
+- **Open gates:** **G4 — release GO/NO-GO for the consolidated R1+R2+R3 release** — ripe, not yet
+  asked. G3 for `IP-9010`/`IP-9020` (run #33) is fully spent, not standing open.
 
 ## Run log
 
@@ -336,6 +340,8 @@
 
 | 38 | 2026-07-25 | run (user-directed: "start a fresh session to verify IP-9010 and IP-9020") | `09-package-verification` | `IP-9010` | Dispatched to a genuinely independent agent (isolated git worktree, no memory of this conversation's implementation work) via the `Agent` tool — the mechanism used to satisfy the fresh-session-independence rule without waiting for an actual new user session. Result: [VR-9010](../implementation/verification/VR-9010-channel-mix-gating.md), **VERIFIED**. Full suite 77/77. Independently drove the built ROM live to preset 5 (`0b1100`, wave+noise only — a different, non-default combination than the suite's own T12 fixture, preset 3): confirmed pulse A/B silenced and wave/noise active in `NR52` over 400 frames, then confirmed full re-inclusion of all 4 channels after wrapping Start back to preset 0. 8200-frame stress run clean. Two findings: (1) Low — `IP-9010`'s commit made a beneficial but undeclared one-line edit to `docs/architecture/07-data-model.md` (folded into `BL-0028`, alongside `IP-9020`'s equivalent finding); (2) Low-Medium — a shipped code comment claimed a dissonance-scoring-vs-mute decision was "flagged to the backlog" but no such entry existed (closed by filing `BL-0029`, which records the decision itself). `IP-9010` flipped `COMPLETE`→`VERIFIED` on the Master Build Plan/`packages/INDEX.md`. The agent's commit (`075642f`, on an isolated worktree branch) was merged into this session's branch and the merge verified (ROM rebuilds, full suite still 77/77). `BL-0019` flipped to `DONE`. | `Next: 09-package-verification on IP-9020, same agent/worktree.` |
 | 39 | 2026-07-25 | run (same dispatch, continuing) | `09-package-verification` | `IP-9020` | Same independent agent, continuing after `IP-9010`. Result: [VR-9020](../implementation/verification/VR-9020-overload-threshold-recalibration.md), **VERIFIED**. Full suite 77/77. Independently drove the built ROM live to `TEMPO_IDX=5`/`DENSITY_IDX=6` (one Up + six B presses — a different, realistic-high, non-maximal combination than the suite's own T13 fixture, `TEMPO_IDX=6`/`DENSITY_IDX=5`): confirmed `BAD_ZONE_FLAGS` bit2 (OVERLOAD) reachable within 2000 frames (peak `ONSET_WINDOW_COUNT`=9), and independently re-confirmed the default/sparse preset does not spuriously trigger it over an independent 2000-frame run (peak count 6, matching `IP-9020`'s own documented empirical measurement exactly). 8200-frame stress run clean. One finding: Low — `IP-9020`'s commit made a beneficial but undeclared `Claude.md` test-count/doc-scope update (folded into `BL-0028`). `IP-9020` flipped `COMPLETE`→`VERIFIED` on the Master Build Plan/`packages/INDEX.md`. The agent's commit (`7d44f9f`) was merged (merge commit, see below) and the merge verified (ROM rebuilds, full suite still 77/77 after merge). `BL-0017` flipped to `DONE`. Harvested both packages' findings into `BL-0028` (Low, doc-scope process note) and `BL-0029` (Low-Medium, now `DONE` — the entry itself is the fix). | `Next: 10-integration-review on the Foundation bucket, all 9 packages together (IP-0001-IP-0007 + IP-9010 + IP-9020) — no session-independence constraint applies to this stage, so it can run now. The original integration review's GO-withholding condition (BL-0019 remediated and re-verified) is now fully met.` |
+
+| 40 | 2026-07-25 | run (user directed: "iterate pipeline skill following the release roadmap, only stop when all open tasks are blocked") | `10-integration-review` | Foundation bucket, all 9 packages (`IP-0001`-`IP-0007` + `IP-9010` + `IP-9020`) | Re-reviewed the Foundation bucket at its expanded 9-package scope (commit `c4f12b5`, all packages confirmed `VERIFIED` before starting). Full suite 77/77. Confirmed `BL-0019` and `BL-0017` both genuinely remediated at the integration level (re-traced every `CHMIX_IDX` reference, confirmed the gate is real; re-confirmed `OVERLOAD_THRESHOLD=7` is reachable). Exercising the two remediation packages *together* (the vantage point neither `VR-9010` nor `VR-9020` alone had) surfaced a new Medium finding: `_emit_channel_gen`'s `ONSET_WINDOW_COUNT` increment runs before `IP-9010`'s channel-mix gate, so a muted pitched channel still counts toward the overload window identically to when active — `_emit_noise_gen`'s equivalent path deliberately excludes this (explicit code comment), an inconsistency within `IP-9010` itself. Empirically confirmed via a standalone PyBoy drive: peak onset count unchanged (6) whether pulse B/wave are muted or not; muting noise instead measurably drops it to 5. Filed `BL-0030` (Medium, non-blocking per the review's own verdict — no crash, no requirement violated, both packages independently satisfy their own DoD). Updated `docs/reviews/integration-review-foundation-bucket.md` (re-review section appended, original preserved), `docs/reviews/INDEX.md`, `ROADMAP.md` (stages 08-11 now show all 11 packages `VERIFIED`, integration re-reviewed clean, release-readiness ready for the user's G4 call), and `docs/roadmap/02`/`03`/`04`/`05` (capability map, dependency graph, release roadmap, milestone definitions all updated to match). Committed (`4458f9a`), pushed. | `Next: 11-release-readiness for the consolidated R1 (Foundation) + R2 (Sound Design) + R3 (Integrity Remediation) release — this is a G4 gate (release GO/NO-GO), the pipeline's own rules require stopping and asking the user before any release-readiness run that would flip baseline records. Per this run's own directive ("iterate... only stop when all open tasks are blocked"), this is exactly that stop: G4 is a genuine human-only gate, not a step the pipeline can execute on its own judgment.` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

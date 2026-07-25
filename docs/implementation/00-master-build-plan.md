@@ -70,7 +70,7 @@ supersession-sweep, and split rationale.
 
 | IP | Package | Requirements | Status |
 |---|---|---|---|
-| IP-1070 | Combinable generation schemes — Scheme E (Euclidean onset timing + fixed-motif pitch selection) | FR-1180...FR-1220, NFR-1060, NFR-1070 | **COMPLETE** — [package](packages/IP-1070-combinable-generation-schemes.md), new T14 suite (7 checks), 85/85 full-suite tests, 8200-frame stress run clean; verification pending |
+| IP-1070 | Combinable generation schemes — Scheme E (Euclidean onset timing + fixed-motif pitch selection) | FR-1180...FR-1220, NFR-1060, NFR-1070 | **VERIFIED** — [package](packages/IP-1070-combinable-generation-schemes.md), [VR-1070](verification/VR-1070-combinable-generation-schemes.md), 85/85 full-suite tests, independent non-default live drive (density=5/tempo=6/preset 6 + a mid-note scheme-switch scenario) confirms the DoD. One Medium finding (pulse A/B Scheme E is code-complete but unreachable via any shipped preset). |
 
 **G3 authorization for `IP-1070`**: **granted explicitly by the user, 2026-07-25** (asked directly
 via `AskUserQuestion`, confirmed "Yes, authorize and build it" — not assumed from ambiguous

@@ -3,7 +3,19 @@
 ## Position
 
 - **Updated:** 2026-07-25 (run #33) — **`IP-1060`/`IP-1061` `VERIFIED`, R216 tranche
-  integration-reviewed clean, G3 GRANTED, `IP-9010` (channel-mix gating) built `COMPLETE`**
+  integration-reviewed clean, G3 GRANTED, `IP-9010`+`IP-9020` both built `COMPLETE`; loop
+  stopped needing a fresh session for their verification**
+- **Run #33, `IP-9020` build:** `08-code-implementation` recalibrated `OVERLOAD_THRESHOLD` from
+  its proven-unreachable placeholder (`20`) to `6`. The naive deterministic-average ceiling
+  formula suggested `5` would be safe (default preset averages ~3.17 onsets/window) — **live
+  PyBoy calibration caught what the formula missed**: independently-phased periodic channels can
+  align within one 32-frame window well above their average rate; default preset's actual
+  observed max across 40000 live-driven frames is `6`, not ~3. Threshold `5` was confirmed to
+  spuriously fire at default before correcting to `6` — caught and corrected within this same
+  run, not shipped. `6` leaves default's headroom intact (zero spurious triggers, 40000 frames)
+  while reliably reaching OVERLOAD within ~12 frames at a realistic-high, non-maximal
+  tempo/density combination. Added `test_rom.py` T13 (2 checks) — 78/78 total, 8000+ frame stress
+  run clean. Updated `Claude.md`. `IP-9020` `COMPLETE`, not yet `VERIFIED` (same-session).
 - **Run #33, `IP-9010` build:** `08-code-implementation` wired `CHMIX_MASKS` (8-entry, bit0=pulse
   A/bit1=pulse B/bit2=wave/bit3=noise) into all 4 channels' generation routines — included
   channels restore DAC/envelope right before their trigger write (self-healing after a prior
@@ -265,7 +277,12 @@
     ADC/SBC available in this project's opcode subset; portamento: onset trigger writes use the
     *old* degree, `engine_tick`'s `arp_tick`-before-`gen_tick` reordering carries the pitch to
     the new target over the following frame(s), zero extra WRAM) — 65/65 tests (new suite T11),
-    8000+ frame stress run clean. Both packages `COMPLETE` on the Master Build Plan/`INDEX.md`.
+    8000+ frame stress run clean. **Run #33**: `IP-9010` built (`CHMIX_MASKS` gating, caught and
+    fixed a real register-clobber bug in `_emit_noise_gen` during implementation — see run-log row
+    37) — 74/74 tests (new T12). `IP-9020` built (`OVERLOAD_THRESHOLD` recalibrated `20`→`6`, live
+    calibration corrected a formula-derived value that would have spuriously fired at default) —
+    78/78 tests (new T13). All 4 packages `COMPLETE` on the Master Build Plan/`INDEX.md`, none yet
+    `VERIFIED`.
   - `09-package-verification`: ✅ **Run #33**: both `IP-1060` ([VR-1060](../implementation/verification/VR-1060-arpeggio-and-duty-cycle.md))
     and `IP-1061` ([VR-1061](../implementation/verification/VR-1061-vibrato-and-portamento.md))
     independently `VERIFIED` this run, genuinely fresh session. `IP-1060`: two Low findings
@@ -283,25 +300,29 @@
   ...`BL-0017`, `BL-0019`...`BL-0023`, `BL-0025`...`BL-0028`; `BL-0002`/`BL-0003`/`BL-0004`/
   `BL-0008`/`BL-0009`/`BL-0014`/`BL-0018` are `DONE`, pending archiving at the next triage sweep).
   `BL-0013`/`BL-0020` remain `IN PIPELINE` (architecture halves done, remainder owed to
-  `02-research-game-design`/`04-requirements-engineering`). `BL-0024` now `IN PIPELINE` with both
-  packages `VERIFIED` and the tranche integration-reviewed clean. New this run: `BL-0025`/
-  `BL-0026` (Low, `DEFERRED`), `BL-0027`/`BL-0028` (Medium, `SCHEDULED`). `BL-0021`/`BL-0022`/
-  `BL-0023` remain `SCHEDULED`/`DEFERRED` with named triggers. `IP-9010`/`IP-9020`'s G3
-  authorization remains an open gate, not touched this run.
-- **Next step:** the highest-severity, most consequential open item in the whole tree is still
-  **`BL-0019`/`BL-0017`'s remediation** (`IP-9010`/`IP-9020`, both fully specified and ready) —
-  the roadmap's own named critical-path-first release (R3) and the standing blocker for the
-  Foundation bucket's `11-release-readiness`. That step requires **G3 authorization**, open since
-  run #14 (~20 runs) — this run surfaces it again rather than opening a new, independent-scope
-  thread (e.g. `BL-0001`'s long-planned GDS-08/09/10 authoring, or the doc-coherence sweep for
-  `BL-0025`-`BL-0028`) ahead of it, per severity-honesty and critical-path-first ordering.
-  Independent of this gate: `BL-0001` (GDS-08/09/10 authoring — architecture-tier, no G3 needed),
-  the doc-coherence sweep (`BL-0013`/`BL-0016`/`BL-0025`-`BL-0028`, all no-G3), **visual evolution
-  & audio-visual synchronization** research, and the **forward-traceability audit** (run #26's
-  C10) all remain open and available for a future run to pick up without a gate.
-- **Open gates:** **G3 authorization for `IP-9010` and `IP-9020`** — open since run #14, surfaced
-  again this run as the chosen next step; still the standing blocker for the Foundation bucket's
-  `11-release-readiness`. Not a blocker for anything else named above.
+  `02-research-game-design`/`04-requirements-engineering`). `BL-0024` `IN PIPELINE`, both packages
+  `VERIFIED` and integration-reviewed clean. `BL-0019`/`BL-0017` now `IN PIPELINE` — both remedy
+  packages (`IP-9010`/`IP-9020`) built `COMPLETE` this run, awaiting a fresh-session
+  `09-package-verification` pass (not `DONE` until verified). `BL-0025`/`BL-0026` (Low,
+  `DEFERRED`), `BL-0027`/`BL-0028` (Medium, `SCHEDULED`). `BL-0021`/`BL-0022`/`BL-0023` remain
+  `SCHEDULED`/`DEFERRED` with named triggers. G3 for `IP-9010`/`IP-9020` — **granted this run**,
+  no longer an open gate.
+- **Next step:** `09-package-verification` on `IP-9010`, then `IP-9020` — **needs a genuinely
+  fresh session**; both were built in this same session, so independent verification isn't
+  available right now (the standing fresh-session-independence rule this project has applied to
+  every package since `IP-0001`, no waiver given or sought this run). This is why the loop stopped
+  here rather than continuing: the highest-leverage next step is degraded-independence-blocked,
+  not gate-blocked, but the effect is the same — it needs something only a future session (or an
+  explicit user waiver) can provide. Once both are `VERIFIED`, `10-integration-review` should
+  re-run the Foundation bucket (the original review recommended against `11-release-readiness`
+  specifically until `BL-0019` was remediated and re-verified — that condition will then be met).
+  Independent of this thread and available to a future run without any gate: `BL-0001` (GDS-08/
+  09/10 authoring), the doc-coherence sweep (`BL-0013`/`BL-0016`/`BL-0025`-`BL-0028`), **visual
+  evolution & audio-visual synchronization** research, and the **forward-traceability audit**
+  (run #26's C10).
+- **Open gates:** none — the standing G3 gate for `IP-9010`/`IP-9020` (open since run #14) was
+  granted this run. The only thing blocking further progress on this specific thread is the
+  fresh-session-independence rule for verification, not a human decision gate.
 
 ## Run log
 
@@ -350,6 +371,7 @@
 | 35 | 2026-07-25 | iterate | `10-integration-review` | `IP-1060`+`IP-1061` (`BL-0024`/`FS-106` R216 tranche) | Both packages confirmed `VERIFIED` before starting. All 5 dimensions exercised: interface consistency (shared `_emit_channel_gen`/`_emit_arpeggio_tick`/`ARP_STATE` packing traced end to end), invariant sweep (WRAM map non-colliding and fully GDS-07-documented, ROM exactly 32768 bytes, plus a combined 8000-frame stress run with randomized input churn reconfirming the new effects coexist with `IP-0007`'s autonomous bad-zone recovery under load), behavioral coherence (no dead-ends, no divergent reimplementation), traceability (full `FR`→`FEAT`→`FS`→`IP`→`VR` chain confirmed unbroken). One Medium finding filed (`BL-0028`: `ROADMAP.md` rows 04/06/07/08/09 stale since run #19 for this entire thread, no functional impact). No Critical/High. Updated `ROADMAP.md`'s reviews row and `docs/reviews/INDEX.md` (this skill's own named responsibility). Per Step 3's severity-honesty/critical-path-first ordering, chose to surface the standing `BL-0019`/`BL-0017` (`IP-9010`/`IP-9020`) G3 gate as this run's next step rather than opening the independent-scope `BL-0001` architecture-ladder thread — loop stopped here. | `GATE: G3 authorization for IP-9010 (BL-0019, High) and IP-9020 (BL-0017, Medium-High) — open since run #14. Both packages fully specified and READY pending only the user's explicit per-package go-ahead. This is the roadmap's own named critical-path-first release (R3) and the standing blocker for the Foundation bucket's 11-release-readiness.` |
 | 36 | 2026-07-25 | iterate | (gate resolution) | `IP-9010`/`IP-9020` G3 authorization | User answered the standing gate via `AskUserQuestion`: **"Authorize both."** Updated the Master Build Plan (`NOT STARTED`/unauthorized → `READY`/authorized for both), `packages/INDEX.md`, and `BL-0019`/`BL-0017`'s dispositions (`SCHEDULED`→`IN PIPELINE`). No skill invoked — this is the manager's own gate-resolution bookkeeping step. | `Next: 08-code-implementation on IP-9010 (session-hygiene sequencing per the TWBS — no technical dependency between IP-9010/IP-9020).` |
 | 37 | 2026-07-25 | iterate | `08-code-implementation` | `IP-9010` | Wired `CHMIX_MASKS` into all 4 channels' generation routines (DAC-off gating on exclusion, envelope/DAC restore on inclusion, bookkeeping unconditional). Caught and fixed a real bug during implementation: the CHMIX check inserted into `_emit_noise_gen` clobbered register A between `NOISE_STEP_IDX`'s update and the next instruction still needing it, silencing noise regardless of mask — caught by T7.0.2 regressing to 0 onsets, root-caused via a debug WRAM mirror, fixed by re-reading `NOISE_STEP_IDX` from WRAM post-gate. Made and documented the package's own named open design decision (dissonance scoring still reads all 3 pitched channels regardless of exclusion, per `_emit_badzone_tick`'s own docstring). Added `test_rom.py` T12 (9 checks) — 74/74 total, 8000+ frame stress run clean at a non-default mix preset. Updated `Claude.md`/`memory.md`. `IP-9010` `COMPLETE`, not yet `VERIFIED` (same-session). | `Next: 09-package-verification on IP-9010 needs a fresh session (not this one — same-session independence is degraded, same standing rule as every prior package). Meanwhile IP-9020 is also G3-authorized and independent — 08-code-implementation on IP-9020 is the next unblocked step this session.` |
+| 38 | 2026-07-25 | iterate | `08-code-implementation` | `IP-9020` | Recalibrated `OVERLOAD_THRESHOLD` `20`→`6`. A naive deterministic-average formula suggested `5`; live PyBoy calibration caught what the formula missed (independently-phased channels aligning above their average rate within one window) — confirmed `5` would spuriously fire at the default preset before correcting to `6`, caught and fixed within this same run. `6` gives zero spurious triggers across 40000 live-driven default-preset frames while reliably reaching OVERLOAD within ~12 frames at a realistic-high, non-maximal setting. Added `test_rom.py` T13 (2 checks) — 78/78 total, 8000+ frame stress run clean. Updated `Claude.md`. `IP-9020` `COMPLETE`, not yet `VERIFIED` (same-session). Both `IP-9010`/`IP-9020` now built; both need a fresh session for independent verification — chose to stop the loop here rather than attempt same-session verification (this project's standing rule, unwaived) or open a new, separately-scoped thread (`BL-0001`'s architecture-ladder work) at the tail of an already long run. | `Next: 09-package-verification on IP-9010 and IP-9020, each in a genuinely fresh session — not available this run. No gate is open; this is the fresh-session-independence rule, not a human decision.` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

@@ -238,10 +238,9 @@
 
 ---
 
-- **Updated:** 2026-07-25 (runs #33-45 — user-directed convergence: Foundation +
+- **Updated:** 2026-07-25 (runs #33-48 — user-directed convergence: Foundation +
   R216 sound-design + integrity remediation into one releasable state; **GO confirmed, R1+R2+R3
-  shipped**; now iterating into R4 Multi-Scheme Foundation per the standing "iterate until
-  blocked" instruction)
+  shipped**; iterated `03`→`04`→`05`→`06`→`07` for R4's `FEAT-1070`/`IP-1070`, now gated on G3)
 - **Run #33 so far:** this is a genuinely fresh session relative to every package below —
   independence achieved for `IP-1060`/`IP-1061` (built in an earlier session), and for
   `IP-9010`/`IP-9020` (never built at all, contrary to this run's initial premise — see below).
@@ -294,12 +293,13 @@
   right-sized for one implementation package.
 - **Run #47:** `06-feature-specification` authored `FS-107` (full 20-field spec) for `FEAT-1070`.
   Four Open Questions recorded, none blocking.
-- **Next step:** `07-implementation-planning` to convert `FS-107` into an Implementation Package.
-  Planning itself is not gated — but **the resulting package will need G3 authorization before
-  `08-code-implementation` can build it**, which is not yet on record. Expect the loop to reach
-  that gate after this next step.
-- **Open gates:** none yet. G3 (run #33) and G4 (run #44) are both spent, not standing open — a
-  *new* G3 for `FS-107`'s eventual package is anticipated next, not yet reached.
+- **Run #48:** `07-implementation-planning` authored `IP-1070` (single package). Recorded **NOT
+  authorized** — `BL-0020`'s filing request never carried explicit build-and-ship language.
+- **Next step:** the pipeline has planned everything it can without a human decision. `IP-1070`
+  is fully specified and depends only on already-`VERIFIED` code, but `08-code-implementation`
+  cannot build it without the user's explicit per-package go-ahead (G3, no bootstrap carve-out).
+- **Open gates:** **G3 — authorization for `IP-1070` (combinable generation schemes), ripe and
+  awaiting the user's explicit go-ahead.** G4 (run #44) is spent, not standing open.
 
 ## Run log
 
@@ -372,6 +372,8 @@
 | 46 | 2026-07-25 | run (continuing per the standing "iterate until blocked" instruction — not gated) | `05-feature-decomposition` | `FEAT-1070` | Followed this project's established single-file convention (no separate release-plan/epic-catalog/dependency-graph/review files exist — everything lives in `01-feature-catalog.md`, same pattern `FEAT-1060` used). Added `FEAT-1070` (combinable generation schemes) tracing `FR-1180`-`FR-1220`/`NFR-1060`/`1070`. Dependency-graph section extended: depends on `FEAT-1000` (extends `_emit_channel_gen`) and the shipped `IP-9010` (`CHMIX_MASKS`, per `ADR-0001`); independent of `FEAT-1060` despite touching adjacent code (functionally unrelated, safe to sequence either order). Feature Review: no conflict, no double-assigned requirement (checked against the full FR/NFR inventory), right-sized for a single implementation package — unlike `FEAT-1060`'s two-package split, Scheme E's onset-timing and pitch-selection halves are too tightly coupled to usefully separate. Updated `docs/feature-planning/INDEX.md`, `ROADMAP.md`'s stage-05 row. `BL-0020` updated: `SCHEDULED` to ride `06-feature-specification` next. Committed (`ed81deb`), pushed. | `Next: 06-feature-specification to author a full FS-xxx for FEAT-1070 (this project's second full spec, after FS-106). Not gated.` |
 
 | 47 | 2026-07-25 | run (continuing per the standing "iterate until blocked" instruction — not gated) | `06-feature-specification` | `FS-107` (`FEAT-1070`) | Authored the full 20-field spec, carrying `ADS-100`'s design forward verbatim per this stage's own "trace, don't redesign" discipline: Scheme W/Scheme E, ensemble-level combination, `CHMIX_MASKS` spare-bit reuse per `ADR-0001`. Every field populated; all five `FR-1180`-`FR-1220`/`NFR-1060`/`1070` appear in Requirements Implemented, none added, none dropped. Four Open Questions recorded (motif-table contents/exact bit position deferred to `07`; whether a dedicated timing NFR is warranted — mirroring `FS-106`'s `NFR-1050` — left to `04`'s judgment if implementation stress-testing surfaces a reason; whether the visualizer should ever gain a scheme-reactive signal — not requested by `BL-0020`/`ADS-100`, named only so a future intake item has a clear home; GDS-09's standing `⛔ Planned` absence, same gap `FS-106` already flagged, not repeated as new). Updated `docs/features/INDEX.md`, `ROADMAP.md`'s stage-06 row. `BL-0020` updated: `SCHEDULED` to ride `07-implementation-planning` next. Committed (`7c50877`, `b84876b` ROM restore), pushed. | `Next: 07-implementation-planning to convert FS-107 into an Implementation Package. Not gated itself (planning, not implementation) — but the resulting package will need G3 authorization before 08-code-implementation can build it, which is not yet on record.` |
+
+| 48 | 2026-07-25 | run (continuing per the standing "iterate until blocked" instruction — planning itself not gated) | `07-implementation-planning` | `IP-1070` (`FS-107`) | Verb inventory: generate (Scheme E's onset-timing+pitch-selection branch) and apply (the existing, unmodified onset-write) both covered; no render/persist/review verb applicable (no visualizer change requested, no save data, content-review is a post-build concern). Supersession sweep: confirmed clean — no code assumes a single note-selection strategy in a way a second branch would break (`_emit_badzone_tick`/dissonant-pull override both read/write `CUR_DEGREE_*` generically). Split rationale: one package, matching `FS-107`'s own Feature Review finding that Scheme E's two halves are too coupled to separate. Authored `IP-1070`: WRAM allocation `MOTIF_STEP_PA`/`PB`/`WV` at `0xC038`-`0xC03A` (confirmed free against GDS-07 — the `0xC020`-`0xC037` reserved ring-buffer range, `BL-0013`, is not touched); extends `CHANNELS` with a `scheme_bit` field, fixing up the same 4 unpacking sites `IP-9010` already established the pattern for; reuses the shipped `_euclidean_pattern`/`CHMIX_MASKS` machinery rather than inventing new ones. Updated the Master Build Plan (new TWBS section), `packages/INDEX.md`, `docs/features/INDEX.md` (FS-107 cross-linked to IP-1070), `ROADMAP.md`'s stage-07 row. **Recorded NOT authorized** — unlike `BL-0024`'s filing request (explicit "build and ship" language, basis for `IP-1060`/`IP-1061`'s standing G3) and `IP-9010`/`IP-9020` (G3 explicitly granted, run #33), `BL-0020`'s filing request asked only for the feature to exist — no basis for assuming authorization. `BL-0020` updated to `NEEDS-USER`. Committed (`10e17f0`), pushed. | `GATE: G3 authorization needed for IP-1070 before 08-code-implementation may build it. This is the loop's genuine stopping point — every other open backlog item is DONE or a non-blocking SCHEDULED/DEFERRED item.` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

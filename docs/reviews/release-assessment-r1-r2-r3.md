@@ -161,3 +161,17 @@ evidenced:
 Feature Catalog, `Claude.md`'s status line, or any other tracker — that flip happens only after
 the user's separate, explicit confirmation of the GO decision (G4). This assessment's job ends at
 the recommendation.
+
+---
+
+## G4 — User confirmation
+
+**The user gave explicit GO confirmation on 2026-07-25** ("Go"), following this re-assessment's
+recommendation. The baseline update below was performed as this skill's own final step, per its
+own workflow ("on the user's explicit GO — update the baseline").
+
+**Release: CONFIRMED GO, 2026-07-25.** Baseline records updated: `ROADMAP.md` (stage 11 row),
+`docs/feature-planning/01-feature-catalog.md` (bucket status header),
+`docs/feature-planning/INDEX.md`, `Claude.md` (Known Good Behavior heading), `docs/roadmap/`
+(release roadmap R1/R2/R3 status, milestone definitions Milestone A/B status). See each file's own
+diff for the exact wording; this assessment is the authoritative record of the decision itself.

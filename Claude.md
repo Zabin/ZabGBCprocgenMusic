@@ -129,7 +129,7 @@ recovery path short of Select). Gating itself lives in `_emit_channel_gen`'s and
 adding that channel's `dac_reg`/`dac_on`/`bit_index` to its `CHANNELS` entry (or, for a
 non-`CHANNELS` channel like noise, following `_emit_noise_gen`'s own inline pattern).
 
-## Known Good Behavior (MVP — Foundation release bucket, self-tested this session)
+## Known Good Behavior (v1.0 — Foundation + Sound Design + Integrity Remediation, GO 2026-07-25)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
 - Boots within ~90 frames (GBC boot-ROM logo animation time) to: all 3 pitched channels (pulse

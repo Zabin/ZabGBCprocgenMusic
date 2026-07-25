@@ -60,7 +60,7 @@ traces to Vision/research.
 
 **Everything below this line is new roadmap content — not yet built.**
 
-## R3 — Integrity Remediation
+## R3 — Integrity Remediation (shipped)
 
 - **Purpose:** Close the two open defects blocking this roadmap's entire critical path before any
   new capability is layered on top of a known-broken control and a known-dead detection path.
@@ -93,9 +93,9 @@ traces to Vision/research.
   non-default parameters by a genuinely fresh-session verification pass.
   [`10-integration-review`'s re-review](../reviews/integration-review-foundation-bucket.md#re-review--2026-07-25)
   confirmed both fixes hold at the integration level — one new non-blocking Medium finding
-  (`BL-0030`, channel-mix/overload counting interaction). **This release's completion criteria are
-  now met** — `11-release-readiness` can make its GO/NO-GO call for the consolidated R1+R2+R3
-  release (a G4 decision reserved for the user).
+  (`BL-0030`, channel-mix/overload counting interaction). **R3 is complete: `11-release-readiness`
+  recommended GO for the consolidated R1+R2+R3 release, and the user confirmed GO on 2026-07-25**
+  ([release assessment](../reviews/release-assessment-r1-r2-r3.md)). R3 shipped.
 
 ## R4 — Multi-Scheme Foundation
 

@@ -40,8 +40,9 @@ Six milestones group the fourteen releases into demonstrable, decision-relevant 
   a G4 decision reserved for the user. Also includes **R4.5**, the cart-shape decision checkpoint
   (moved into this milestone per `10-final-roadmap-review.md` finding #1, applied) — a decision,
   not a build, sequenced after R4 so a real ROM-budget trajectory is visible first.
-- **Status:** R3's two packages built, verified, and integration-reviewed — awaiting the user's
-  `11-release-readiness` GO/NO-GO call before CAP-09/CAP-11 work in this milestone can proceed.
+- **Status:** ✅ **R3 shipped — GO confirmed 2026-07-25.** CAP-09/CAP-11 work in this milestone is
+  now unblocked (pending R4's own scheduling); R4.5's cart-shape decision remains a separate,
+  not-yet-made checkpoint.
 
 ## Milestone C — Musical Maturity (R6-R7)
 

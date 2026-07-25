@@ -4,6 +4,10 @@
 - **Release bucket:** "Foundation" — the first playable slice: engine + input + bad-zone + a
   minimal visualizer, all headlessly verified. Everything below is one release bucket; there is
   no epic/phase split yet at this project's size.
+- **Release status: ✅ SHIPPED — GO confirmed 2026-07-25.** Every feature below (`FEAT-1000`
+  through `FEAT-1060`) is `VERIFIED` and integration-reviewed as part of the consolidated
+  R1 (Foundation) + R2 (Sound Design) + R3 (Integrity Remediation) release — see
+  [`docs/reviews/release-assessment-r1-r2-r3.md`](../reviews/release-assessment-r1-r2-r3.md).
 
 | ID | Feature | Summary | FR/NFR traced |
 |---|---|---|---|

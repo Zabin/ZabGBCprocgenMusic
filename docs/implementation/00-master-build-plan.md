@@ -72,12 +72,9 @@ supersession-sweep, and split rationale.
 |---|---|---|---|
 | IP-1070 | Combinable generation schemes — Scheme E (Euclidean onset timing + fixed-motif pitch selection) | FR-1180...FR-1220, NFR-1060, NFR-1070 | **NOT STARTED** — fully specified, [package](packages/IP-1070-combinable-generation-schemes.md) written; depends only on already-`VERIFIED` code (`IP-0001`-`IP-0003`, `IP-9010`); **not `READY` in the authorization sense — no G3 go-ahead on record** |
 
-**G3 authorization for `IP-1070`**: none yet. Unlike `IP-1060`/`IP-1061` (where the `BL-0024`
-filing request itself carried explicit "build and ship" language) and `IP-9010`/`IP-9020` (G3
-granted explicitly, run #33), `BL-0020`'s filing request asked only for the feature to exist, not
-for an immediate build — `03`/`04`/`05`/`06`'s work proceeded on design/requirements/planning
-merit alone, per this skill's own "authoring is not authorization" rule. The user's explicit
-per-package go-ahead is needed before `08-code-implementation` may build `IP-1070`.
+**G3 authorization for `IP-1070`**: **granted explicitly by the user, 2026-07-25** (asked directly
+via `AskUserQuestion`, confirmed "Yes, authorize and build it" — not assumed from ambiguous
+phrasing). Recorded here as the basis.
 
 **G3 authorization for `IP-1060`/`IP-1061`**: the user's request that filed `BL-0024` — "Iterating
 the pipeline skill run through to implantation the concepts in R216... Iterate until they are all

@@ -14,7 +14,8 @@
   via its third; `IP-1090`/`BL-0010` addition confirmed via its fourth). **`FEAT-1100` (added
   2026-07-26, roadmap R6/`ADS-103`) is `VERIFIED` (`IP-1100`/`VR-1100`) but not yet part of the
   shipped baseline** — awaits its own `11-release-readiness` G4 GO. **`FEAT-1110` (added
-  2026-07-26, `BL-0051`/`ADS-104`) is not yet built** — planning-grain only at this stage.
+  2026-07-26, `BL-0051`/`ADS-104`) is `VERIFIED` (`IP-1110`/`VR-1110`) but not yet part of the
+  shipped baseline** — awaits its own `11-release-readiness` G4 GO.
 
 | ID | Feature | Summary | FR/NFR traced |
 |---|---|---|---|

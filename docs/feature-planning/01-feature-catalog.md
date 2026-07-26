@@ -11,7 +11,9 @@
   + R5 (Genre-Aware Style Presets) + Motif Recurrence via Weighted Variant Selection release — see
   [`docs/reviews/release-assessment-r1-r2-r3.md`](../reviews/release-assessment-r1-r2-r3.md)
   (R4 addition confirmed via that document's second re-assessment section; R5 addition confirmed
-  via its third; `IP-1090`/`BL-0010` addition confirmed via its fourth).
+  via its third; `IP-1090`/`BL-0010` addition confirmed via its fourth). **`FEAT-1100` (added
+  2026-07-26, roadmap R6/`ADS-103`) is not yet built** — planning-grain only at this stage, not
+  part of the shipped baseline above.
 
 | ID | Feature | Summary | FR/NFR traced |
 |---|---|---|---|
@@ -25,6 +27,7 @@
 | FEAT-1070 | Combinable generation schemes | A second per-channel note-selection strategy (Scheme E — Euclidean-gated onset timing + fixed-motif pitch selection) alongside the shipped Scheme W (LFSR walk), selectable per pitched channel via spare bits in the existing `CHMIX_IDX`/`CHMIX_MASKS` preset space — no new input control. `BL-0020`'s "solo or in combination" ask is satisfied at the ensemble level (different channels running different schemes), not by blending within one channel. First feature of `docs/roadmap/04-release-roadmap.md`'s **R4 — Multi-Scheme Foundation** | FR-1180...FR-1220, NFR-1060, NFR-1070 |
 | FEAT-1080 | Genre-aware style presets | A new, parallel `STYLE_TABLE` keyed by the existing `CHMIX_IDX` preset index (Start), each row a coordinated target combination (tempo/density/scale/duty-cycle bias) applied immediately on preset change — 3 concrete v1 styles (Techno/Chiptune-Driving, Ambient/Lo-Fi, Holiday). No new input control; no new generation mechanism (`_emit_channel_gen`/`_emit_noise_gen`/`_emit_badzone_tick` all unmodified — only which values `TEMPO_IDX` etc. hold changes). First feature of `docs/roadmap/04-release-roadmap.md`'s **R5 — Genre-Aware Style Presets** | FR-1230...FR-1260, NFR-1080, NFR-1090 |
 | FEAT-1090 | Motif recurrence via weighted variant selection | Extends `FEAT-1070`'s Scheme-E `MOTIF_TABLE` from a single fixed 8-step sequence to a small fixed set of pre-composed motif variants; at each motif-cycle boundary (step wraps 7→0), a weighted lookup table (retention-biased, reusing the `DELTA_TABLE`-style weighting idiom) autonomously selects the variant for the next cycle. No new input control, no L-system derivation engine — closes `BL-0010`'s motif-recurrence half. Spec: [`FS-109`](../features/fs-109-motif-recurrence-via-weighted-variant-selection.md) (authored 2026-07-26). | FR-1270...FR-1300, NFR-1100, NFR-1110 |
+| FEAT-1100 | Song-form via autonomous phase cycling | A new, independent state machine (`SONG_STATE`/`SONG_STATE_TIMER`) autonomously cycling 4 named phases (intro/build/peak/breakdown, looping); each phase transition overwrites `TEMPO_IDX`/`DENSITY_IDX` to that phase's target values, same tick. No new input control; bad-zone detection/recovery and Scheme-E motif-variant selection are unaffected (disjoint WRAM fields, `ADS-103` §2). Closes roadmap R6/`BL-0010`'s song-form half. | FR-1310...FR-1340, NFR-1120, NFR-1130 |
 
 ## Dependency graph (Foundation bucket, `FEAT-1000`...`FEAT-1050`)
 
@@ -76,6 +79,21 @@ a risk to verify, not a code dependency — sequencing relative to `FEAT-1080` i
 `09-package-verification`/`10-integration-review` should exercise the combination once both are
 implemented, per that flagged risk.
 
+`FEAT-1100` (added 2026-07-26, roadmap R6/`ADS-103`) depends on `FEAT-1000` (reads/overwrites
+`TEMPO_IDX`/`DENSITY_IDX`, the same `FEAT-1000`-owned state `FEAT-1080` also overwrites). Must not
+regress `FEAT-1030` (bad-zone detection/recovery — `ADS-103` §2 confirms the two mechanisms drive
+genuinely disjoint WRAM fields: bad-zone biases `CUR_DEGREE_*` deltas only, song-form biases
+`TEMPO_IDX`/`DENSITY_IDX` only, so no code-level conflict exists) or `FEAT-1090` (Scheme-E
+motif-variant selection — also confirmed disjoint, `ADS-103` §2). **No dependency on `FEAT-1080`**
+— the two features write the same two WRAM fields via different, independent triggers (Start
+press vs. an autonomous per-frame timer); this is the same "last write wins, no special-casing
+needed" contract `FEAT-1080`'s own `FR-1240` already established for the D-pad/B handlers, not a
+new interaction to design around — but `ADS-103` §8 flags it for `09-package-verification`/
+`10-integration-review` to exercise once both are implemented (a Start press landing on the same
+frame as a phase transition), the same "reasoned safe, verify anyway" discipline `FEAT-1090`'s own
+`FEAT-1080` interaction already followed. Must not regress `FEAT-1050` (new headless coverage
+required for the long-run cyclic-order demonstration, `FR-1340`).
+
 ## Feature Review
 
 No structural conflicts found; every FR/NFR from `docs/requirements/01-functional-requirements.md`
@@ -126,3 +144,16 @@ landing mid-cycle relative to a motif-variant boundary) has no dedicated FR of i
 so, since both `FR-1240` (style applies immediately) and this feature's own FRs already fully
 describe each mechanism's independent behavior; the interaction itself is a verification-time
 concern (`09`/`10`), not a missing requirement.
+
+**2026-07-26 update:** `FEAT-1100` reviewed against the existing catalog — no conflict, no
+requirement double-assigned (`FR-1310`-`FR-1340`/`NFR-1120`/`1130` traced to exactly this one
+feature, confirmed against the full FR/NFR inventory). Right-sized for a single implementation
+package (the phase table, the countdown-and-transition tick, and the coordinated overwrite are
+one tightly coupled unit — no natural split point). No architectural inconsistency: `ADS-103` was
+synthesized directly against the shipped WRAM map and `_emit_badzone_tick`'s own existing
+countdown-tick shape, extending neither, inventing a new sibling tick instead. Checked explicitly
+for the same "two writers, one field" pattern `FEAT-1080`/`FEAT-1090`'s own reviews already
+established a discipline for: `FEAT-1100` and `FEAT-1080` both write `TEMPO_IDX`/`DENSITY_IDX` via
+independent triggers, correctly not treated as a conflict (same "last write wins" contract), but
+flagged for `09`/`10` verification per `ADS-103` §8, mirroring exactly how `FEAT-1090`'s own
+`FEAT-1080` interaction was handled — consistent precedent, not a new judgment call.

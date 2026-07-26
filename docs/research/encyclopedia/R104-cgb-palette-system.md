@@ -58,6 +58,68 @@ FR-1120 (visualizer bad-zone-reactive palette), GDS-03 §6 (visualizer palette d
 rendered-pixel sampling in `VR-0006`, not a WRAM-style assertion, since palette RAM isn't
 practically readable back the way WRAM is).
 
+## 7. Addendum — 2026-07-26: VRAM/ROM Budget for Visual Evolution (`BL-0034`, hardware half)
+
+Closes the remaining half of `BL-0034` (Visual Evolution) — [R222](R222-visual-evolution-conventions.md)
+(design half, `02-research-game-design`) recommends extending Driftune's existing 2-entry palette
+table (`CALM_PALETTE`/`BAD_PALETTE`) with more swap-only theme palettes rather than adding new
+tile art. This addendum grounds what that actually costs, using this project's own established
+budget-instrumentation method (`ADR-0002`: `rom.pos` read directly from a `build_rom.build()` run).
+
+**Palette-table ROM cost is negligible against measured headroom.** Each existing palette table is
+4 colors × 2 bytes (`rgb15()`, §3 above) = **8 bytes**; two tables (`CALM_PALETTE`/`BAD_PALETTE`)
+cost 16 bytes total in the current ROM. Measured total ROM usage after all 12 shipped R1-R4
+packages: **3419/32768 bytes (10.4%), 29349 bytes free** (`ADR-0002`). Adding, say, 6 more 8-byte
+theme palettes (day/night/seasonal/holiday, per R222 §5's own recommendation) costs **48 bytes** —
+under 0.2% of the *free* headroom, not the total budget. This is not close to a constraint by any
+measure.
+
+**Tile-budget headroom is even less of a constraint.** `visuals.py` currently defines exactly 2
+tiles (`TILE_OFF`/`TILE_ON`, `visuals.py:23-24`), each the standard 2bpp 16-byte format (R303) —
+32 bytes of tile pixel data written into VRAM at boot. CGB's unsigned tile-addressing mode
+(`LCDC` bit 4 = 1, already how Driftune configures it, `visuals.py:72`) supports 256 tile indices
+per VRAM bank at `0x8000`-`0x8FFF`/`0x9000`-`0x97FF` (4096 bytes of tile-data capacity per bank,
+2 banks = 8192 bytes total VRAM tile-data space) [Pan Docs — Tile
+Data](https://gbdev.io/pandocs/Tile_Data.html) (already cited above). Driftune uses 2 of 256
+possible tile slots in bank 0 alone — R222's own "palette-only, no new tiles" recommendation means
+this headroom isn't even needed for the visual-evolution feature itself, but confirms it would be
+available if a future increment wanted new tile art too.
+
+**The one genuine new-mechanism cost is *simultaneous* per-tile palette variety, not swap-only
+theming — and R222's design already avoids needing it.** §5 above already established that using
+more than BG palette 0 requires (1) writing to `BCPS`/`BCPD` at a non-zero palette-select offset
+and (2) writing a VRAM-bank-1 tilemap attribute byte per tile that should use a non-zero palette,
+which in turn requires `VBK` (`0xFF4F`) bank switching — "a new mechanism this project's code has
+never exercised" (§5). R222's recommended design (swap all of BG palette 0's contents for a new
+theme, the same mechanism `_emit_write_palette` already uses for calm/bad-zone) deliberately never
+needs this — every theme still writes to palette-0 exclusively, sequentially replacing its
+contents, exactly like the shipped calm/bad-zone swap already does. **This is the key finding**:
+visual evolution as R222 scoped it is a pure ROM-data-table extension (negligible cost, no new
+mechanism); only a *future* design wanting several palettes active on-screen *at once* (not just
+swapped over time) would need the genuinely new VRAM-bank/tilemap-attribute mechanism this
+addendum flags as real, non-trivial work.
+
+### Addendum sources
+- [Pan Docs — Tile Data](https://gbdev.io/pandocs/Tile_Data.html) (tile-data VRAM capacity,
+  already cited §3 above)
+- Project-internal: `ADR-0002` (docs/architecture/adr/) — the `rom.pos`-instrumentation ROM-budget
+  measurement method and its result (10.4% used, 29349 bytes free) this addendum reuses directly;
+  `visuals.py` (current tile/palette definitions, read directly, not cited externally).
+
+## 8. Implementation Guidance (addendum)
+- **A future visual-evolution package should add palette tables only** (more 8-byte `rgb15()`
+  arrays, following `CALM_PALETTE`/`BAD_PALETTE`'s exact pattern) and a selection index (an
+  existing engine parameter or R221's future valence-arousal derivation) choosing which table
+  `_emit_write_palette` writes — no new tiles, no `VBK` bank switching, no tilemap attribute
+  bytes. This is the cheapest-possible implementation path and the one R222 already recommends.
+- **Do not reach for BG palettes 1-7 / VRAM bank 1 / `VBK` switching for visual evolution** unless
+  a future design genuinely needs multiple palettes rendering *simultaneously* on different tiles
+  (e.g. per-channel-color-coded tiles) — that is real, ungrounded-until-then new-mechanism work,
+  correctly out of scope for the swap-only theming R222 recommends.
+- **Re-measure ROM budget the same way** (`rom.pos` post-build, per `ADR-0002`) before and after
+  any future visual-evolution package ships, to keep the budget-tracking discipline this project
+  has now established for cart-shape decisions consistent across all future content additions.
+
 ## 7. Related Topics
 R102 (VRAM/palette access-timing window this must write within), R103 (`LCDC`, the sibling boot
 config), R208 (palette/color design conventions — still `⛔ Planned`, a design-taste topic

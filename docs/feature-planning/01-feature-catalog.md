@@ -21,6 +21,7 @@
 | FEAT-1050 | Headless verification suite | PyBoy-driven button-sequence tests asserting on sound registers/WRAM state for every feature above | NFR-1010, NFR-1020 |
 | FEAT-1060 | Sound design techniques | Arpeggio (chord-implying frequency cycling), vibrato (periodic pitch modulation), portamento (multi-frame pitch glide), duty-cycle variation — layered onto `FEAT-1000`'s existing per-channel generation, no new input control | FR-1130...FR-1170, NFR-1040, NFR-1050 |
 | FEAT-1070 | Combinable generation schemes | A second per-channel note-selection strategy (Scheme E — Euclidean-gated onset timing + fixed-motif pitch selection) alongside the shipped Scheme W (LFSR walk), selectable per pitched channel via spare bits in the existing `CHMIX_IDX`/`CHMIX_MASKS` preset space — no new input control. `BL-0020`'s "solo or in combination" ask is satisfied at the ensemble level (different channels running different schemes), not by blending within one channel. First feature of `docs/roadmap/04-release-roadmap.md`'s **R4 — Multi-Scheme Foundation** | FR-1180...FR-1220, NFR-1060, NFR-1070 |
+| FEAT-1080 | Genre-aware style presets | A new, parallel `STYLE_TABLE` keyed by the existing `CHMIX_IDX` preset index (Start), each row a coordinated target combination (tempo/density/scale/duty-cycle bias) applied immediately on preset change — 3 concrete v1 styles (Techno/Chiptune-Driving, Ambient/Lo-Fi, Holiday). No new input control; no new generation mechanism (`_emit_channel_gen`/`_emit_noise_gen`/`_emit_badzone_tick` all unmodified — only which values `TEMPO_IDX` etc. hold changes). First feature of `docs/roadmap/04-release-roadmap.md`'s **R5 — Genre-Aware Style Presets** | FR-1230...FR-1260, NFR-1080, NFR-1090 |
 
 ## Dependency graph (Foundation bucket, `FEAT-1000`...`FEAT-1050`)
 
@@ -46,6 +47,18 @@ required, same convention). No dependency on `FEAT-1060` — the two features to
 (the same `_emit_channel_gen`/`CHANNELS` seam) but are functionally independent; sequencing them
 in either order is safe, per `07-implementation-planning`'s own eventual call.
 
+`FEAT-1080` (added 2026-07-26, roadmap R5/`ADS-101`) depends on `FEAT-1000` (reads/overwrites
+`TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX`, all `FEAT-1000`-owned state) and `FEAT-1010` (reuses
+`CHMIX_IDX`, the same Start-stepped index `FEAT-1010`'s input mapping already owns — `STYLE_TABLE`
+is read alongside `CHMIX_MASKS`, not a modification to `FEAT-1010`'s own input-handling code).
+Must not regress `FEAT-1030` (bad-zone thresholds are unaffected by style-driven parameter
+overwrites — no FR claims otherwise, and none of `FEAT-1030`'s own FRs reference `STYLE_TABLE`) or
+`FEAT-1050` (new headless coverage required for `FR-1250`'s audible-distinctness claim, same
+convention). No dependency on `FEAT-1060`/`FEAT-1070` — `FEAT-1080` reads a sibling table keyed by
+the same `CHMIX_IDX` index those features' `CHMIX_MASKS`/scheme-select machinery already uses, but
+touches none of their own code paths (`ADS-101` §2 keeps the two tables independent); sequencing
+relative to either is unconstrained.
+
 ## Feature Review
 
 No structural conflicts found; every FR/NFR from `docs/requirements/01-functional-requirements.md`
@@ -67,3 +80,15 @@ artificial here, since neither half is independently useful or independently tes
 other; a sizing call `07-implementation-planning` should confirm, not override, when it plans
 this). No architectural inconsistency: the design (`ADS-100`) was already synthesized against the
 shipped module boundaries (GDS-03), not invented at this stage.
+
+**2026-07-26 update:** `FEAT-1080` reviewed against the existing catalog — no conflict, no
+requirement double-assigned (`FR-1230`-`FR-1260`/`NFR-1080`/`1090` traced to exactly this one
+feature, confirmed against the full FR/NFR inventory). Right-sized for a single implementation
+package (the `STYLE_TABLE` data table, its read-and-apply routine, and the 3 v1 style rows are
+one cohesive unit — no natural split point the way `FEAT-1060` split arpeggio/vibrato-portamento
+into two packages; `07-implementation-planning`'s own sizing call should confirm, not override).
+No architectural inconsistency: `ADS-101` was synthesized against the shipped module boundaries
+and the already-shipped `CHMIX_IDX`/`CHMIX_MASKS` mechanism, not inventing a new one. No
+dependency-graph conflict: `FEAT-1080`'s independence from `FEAT-1060`/`FEAT-1070` (both share the
+`CHMIX_IDX` index but touch disjoint tables/code paths) was checked directly against
+`ADS-101` §2's own "two tables stay independent" statement, not assumed.

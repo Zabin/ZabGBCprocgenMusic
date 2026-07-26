@@ -170,7 +170,7 @@ boundary (motif step wraps 7→0) inside `_emit_channel_gen`'s Scheme-E branch (
 — never mid-cycle, and never for a channel running Scheme W. The selection draw reuses that
 channel's own LFSR (otherwise idle while running Scheme E), introducing no new randomness source.
 
-## Known Good Behavior (v1.3 — v1.2's shipped baseline (GO 2026-07-26) + Motif Recurrence via Weighted Variant Selection, `IP-1090` `COMPLETE` 2026-07-26, not yet independently verified/GO'd)
+## Known Good Behavior (v1.3 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation + Genre-Aware Style Presets + Motif Recurrence via Weighted Variant Selection, GO 2026-07-26)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
 - Boots within ~90 frames (GBC boot-ROM logo animation time) to: all 3 pitched channels (pulse
@@ -217,8 +217,7 @@ channel's own LFSR (otherwise idle while running Scheme E), introducing no new r
   channel-mix/scheme change — 3 named v1 styles (Techno/Chiptune-Driving, Ambient/Lo-Fi, Holiday)
   plus the shipped default at preset 0. Bad-zone state (`DISSONANCE_SCORE`/`BAD_ZONE_FLAGS`/
   `STALE_COUNT_*`/`ONSET_WINDOW_COUNT`) is untouched by a style change.
-- Motif recurrence via weighted variant selection (`IP-1090`, `BL-0010`/`ADS-102`, **`COMPLETE`,
-  not yet independently verified**): a Scheme-E channel's motif data is now 4 pre-composed
+- Motif recurrence via weighted variant selection (`IP-1090`, `BL-0010`/`ADS-102`): a Scheme-E channel's motif data is now 4 pre-composed
   variants (variant 0 identical to the original shipped sequence); at each motif-cycle boundary
   the engine autonomously draws which variant plays next via a retention-biased weighted lookup,
   no input required. Bad-zone detection/recovery and every other mechanism are unaffected.

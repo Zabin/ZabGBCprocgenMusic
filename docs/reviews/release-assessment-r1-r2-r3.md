@@ -477,3 +477,22 @@ GO recommendation is not itself authorization to flip `ROADMAP.md`, the Feature 
 `Claude.md`'s status line, or any other tracker to reflect `IP-1090` as shipped — that flip
 happens only after the user's separate, explicit confirmation of this GO decision (G4). This
 assessment's job ends at the recommendation.
+
+---
+
+## G4 — User confirmation (`IP-1090`/`BL-0010` addition)
+
+**The user gave explicit GO confirmation on 2026-07-26** ("Go"), following this re-assessment's
+recommendation. The baseline update below was performed as this skill's own final step, per its
+own workflow ("on the user's explicit GO — update the baseline").
+
+**Release: CONFIRMED GO, 2026-07-26 — `IP-1090` (`FEAT-1090`/`BL-0010`, Motif Recurrence via
+Weighted Variant Selection) added to the shipped baseline alongside R1+R2+R3+R4+R5.** Baseline
+records updated: `ROADMAP.md` (stage 11 row, now R1+R2+R3+R4+R5+`IP-1090` SHIPPED),
+`docs/feature-planning/01-feature-catalog.md` (release-status header now spans
+`FEAT-1000`-`FEAT-1090`, its stale "not yet built" note removed — closing `BL-0050`) + its
+`INDEX.md`, `Claude.md` (Known Good Behavior heading → v1.3 confirmed-shipped wording, its stale
+"not yet independently verified" bullet caveat removed — closing `BL-0049`). `docs/features/
+INDEX.md`'s `FEAT-1090` row was already accurate (set by `VR-1090`'s own commit), confirmed not
+requiring a further edit. See each file's own diff for the exact wording; this assessment is the
+authoritative record of the decision itself.

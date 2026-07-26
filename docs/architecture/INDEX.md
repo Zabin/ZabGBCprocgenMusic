@@ -31,6 +31,7 @@ bootstrap was.
 |---|---|---|---|
 | ADS-100 | Combinable Generation Schemes | [ADS-100-combinable-generation-schemes.md](ADS-100-combinable-generation-schemes.md) | ✅ Authored 2026-07-22 — routes `BL-0020`; real design tension (control-surface scarcity, ROM budget) warranted a dedicated ADS rather than folding into the GDS ladder directly |
 | ADS-101 | Genre-Aware Style Presets | [ADS-101-genre-aware-style-presets.md](ADS-101-genre-aware-style-presets.md) | ✅ Authored 2026-07-26 — routes `docs/roadmap/04-release-roadmap.md`'s R5; real design tension (no spare `CHMIX_MASKS` bits left for a 4-parameter style bundle, control-surface scarcity) warranted a dedicated ADS; decides a parallel `STYLE_TABLE` keyed by the existing `CHMIX_IDX` index, 3 concrete v1 styles named (Techno/Chiptune-Driving, Ambient/Lo-Fi, Holiday) |
+| ADS-102 | Motif Recurrence via Weighted Variant Selection | [ADS-102-motif-recurrence-via-weighted-variant-selection.md](ADS-102-motif-recurrence-via-weighted-variant-selection.md) | ✅ Authored 2026-07-26 — routes `BL-0010`'s motif-recurrence half (R214 §8); real design tension (bounded-depth L-system finding vs. `IP-1070`'s existing single fixed `MOTIF_TABLE`) warranted a dedicated ADS; decides `MOTIF_TABLE` extends to a small fixed set of variants selected at cycle-boundary events via a weighted lookup table, no derivation engine |
 
 ## §3 — Vision-layer artifacts owned by `01-vision`
 

@@ -1,9 +1,10 @@
 # Integration Review — Foundation Release Bucket
 
-**This document now covers two reviews: the original 7-package review (2026-07-21, preserved
-below in full) and a 2026-07-25 re-review of the expanded 9-package scope. See "Re-review
-2026-07-25" for the current state — the original section is kept verbatim as the historical
-record, not rewritten.**
+**This document now covers five reviews: the original 7-package review (2026-07-21, preserved
+below in full), a 2026-07-25 re-review at 9-package scope, an 11-package scope, a 12-package
+scope, and a 2026-07-26 re-review at full 13-package scope. See "Re-review — 2026-07-26
+(13-package scope, +IP-1080)" for the current state — earlier sections are kept verbatim as the
+historical record, not rewritten.**
 
 ## Original review — 2026-07-21
 
@@ -469,3 +470,104 @@ found — mute+Scheme-E combination, untested because no preset currently constr
 coverage gap, not a functional defect, and is naturally closed by the same follow-up `BL-0032`
 already recommends. No Critical/High/Medium finding. **Recommend: this review does not block any
 future `11-release-readiness` call touching R4 scope.**
+
+---
+
+## Re-review — 2026-07-26 (13-package scope, +`IP-1080`)
+
+- **Scope:** All 13 Foundation/R1-R5 Implementation Packages — `IP-0001`-`IP-0007` + `IP-1060` +
+  `IP-1061` + `IP-9010` + `IP-9020` + `IP-1070` + `IP-1080`.
+- **Commit reviewed:** `e00be3f`
+- **Pre-condition check:** every package in scope confirmed `VERIFIED` on the Master Build Plan
+  before this review began (`IP-1080` → [`VR-1080`](../implementation/verification/VR-1080-genre-aware-style-presets.md), independently verified via a dispatched fresh-session `Agent`, merged as commit `dffdb0b`).
+
+### Full-suite gate (run against the reviewed commit)
+
+```
+python3 build_rom.py Driftune.gbc   # 32768 bytes
+python3 test_rom.py                 # 93 PASS, 0 FAIL out of 93 (T1-T15)
+```
+
+ROM budget independently re-measured (`rom.pos` instrumentation, `ADR-0002`'s own method):
+3497/32768 bytes used, 29271 free.
+
+### Dimension 1 — Interface consistency
+
+`IP-1080` adds a genuinely new seam: a second, parallel data table (`STYLE_TABLE`) keyed by the
+same `CHMIX_IDX` index `CHMIX_MASKS` (`IP-9010`/`IP-1070`) already uses. Traced both tables' own
+read sites end to end: `CHMIX_MASKS[CHMIX_IDX]` is read by `_emit_channel_gen`/`_emit_noise_gen`
+(channel-activity + scheme-select, unchanged by this package); `STYLE_TABLE[CHMIX_IDX]` is read
+only by the new `_emit_apply_style`, called once from `input_map.py`'s Start-press handler. No
+code path reads both tables in a way that assumes a shared layout or a coupled index meaning —
+confirmed by grep, the two tables' emission labels (`chmix_masks_table`, `style_table`) and read
+sites never appear in the same function. The `CHANNELS`-tuple's 4 unpacking call sites (unchanged
+by `IP-1080` — it touches no `CHANNELS` field) were re-checked for positional drift: still
+consistent, 17 fields at every site.
+
+### Dimension 2 — Invariant sweep
+
+- **ROM budget:** exactly 32768 bytes; `STYLE_TABLE` (32 bytes) fits the measured headroom with
+  room to spare (29271 free).
+- **WRAM map:** `DUTY_BIAS` (`0xC03B`) confirmed present in GDS-07 §3 and `memory.md`, correctly
+  placed in the genuine unused headroom between `IP-1070`'s `MOTIF_STEP_WV` (`0xC03A`) and
+  `JOY_PREV` (`0xC050`) — no collision with the `BL-0013` reserved-but-unused ring-buffer range.
+- **No module took on a second job:** `input_map.py` still only ever writes the parameter indices
+  its own docstring commits to (`TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX`,
+  now also `DUTY_BIAS` via the new call — still a parameter index, not a PSG register, consistent
+  with the module's own charter); it still never writes a PSG register directly.
+- **APU/VBlank timing:** unaffected — `IP-1080` adds no new per-frame generation-tick work beyond
+  a bounded 4-byte table read on a Start press; no visualizer/VRAM change at all.
+
+### Dimension 3 — Behavioral coherence
+
+Exercised the two genuinely new cross-package combinations live, not just read from code:
+
+- **Style + channel-mix mute (`IP-1080` × `IP-9010`):** drove `CHMIX_IDX` to preset 3 (Holiday
+  style, `CHMIX_MASKS[3]` = pulse A + noise active, pulse B/wave muted). Confirmed
+  `TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX`/`DUTY_BIAS` = Holiday's exact row (3, 3, 0, 1) **and**
+  `NR52` settled to `0b1001` in its low nibble (pulse A + noise active, pulse B/wave inactive) —
+  both mechanisms apply correctly and independently at the same preset, as `ADS-101` §2's "two
+  tables stay independent" design predicts.
+- **Style + Scheme E (`IP-1080` × `IP-1070`):** drove `CHMIX_IDX` to preset 6 (`IP-1070`'s own
+  Scheme-E preset, wave channel on Scheme E). Confirmed `STYLE_TABLE[6]` (an unassigned index,
+  copies the default row: 4, 0, 0, 0) applies correctly **and** the wave channel's Euclidean-step
+  field (`MOTIF_STEP_WV` bits0-3) still cycles through all 16 positions over a 1500-frame drive —
+  Scheme E is unaffected by the style mechanism landing on the same preset.
+- **Finding surfaced by this exercise:** no shipped preset currently combines a *named*
+  (non-default) style with Scheme E — `STYLE_TABLE`'s 3 named rows (indices 1-3) all sit at
+  `CHMIX_IDX` values whose `CHMIX_MASKS` entry has no scheme-select bit set, and `IP-1070`'s own
+  scheme-assigning preset (6) carries `STYLE_TABLE`'s unassigned/default row. Both mechanisms are
+  confirmed independently correct (above), but this specific combination is untested and
+  unreachable via any shipped preset — the same "mechanism supports combination, data doesn't yet
+  exercise it" pattern `BL-0032`/`BL-0033` already found for Scheme E + channel-mix.
+
+### Dimension 4 — Traceability coherence
+
+`ROADMAP.md`, `docs/features/INDEX.md`, `docs/implementation/packages/INDEX.md`,
+`docs/implementation/verification/INDEX.md`, and the Master Build Plan all agree: 13/13 packages
+`VERIFIED`, `IP-1080` cross-linked to `FS-108`/`VR-1080` bidirectionally. No stale row found this
+pass (the routine drift a prior re-review sometimes found had already been corrected in the same
+run that shipped each package, per the pattern established since run #51).
+
+### Dimension 5 — Documentation coherence
+
+`Claude.md` (new dev-guide subsection, test count 93/T1-T15, Known Good Behavior bullet),
+`memory.md` (`DUTY_BIAS` WRAM row), and GDS-07 (`DUTY_BIAS` row) all confirmed accurate — spot-
+checked against the shipped code, no gap.
+
+## Findings (13-package re-review)
+
+| Finding | Packages/artifacts involved | Description | Severity | Recommended owner |
+|---|---|---|---|---|
+| (new) | `IP-1080`, `IP-1070` | No shipped `CHMIX_IDX` preset combines a named (non-default) style (`STYLE_TABLE` indices 1-3) with Scheme E (`CHMIX_MASKS`'s only scheme-assigning preset, 6) — both mechanisms independently confirmed correct by this review's own live drive, but the combination itself is untested and unreachable via shipped data. Same pattern as `BL-0032`/`BL-0033`. | Low (both mechanisms individually correct and verified; a data/test-coverage gap, not a functional defect) | 05/07 (fold into `BL-0032`'s eventual follow-up preset-data package — or a new, related entry — so one future pass assigns a preset that combines a named style, a channel mute, *and* a Scheme-E assignment, closing all three coverage gaps at once) |
+| (carried forward, non-blocking) | `IP-1080` | `BL-0040` — `FS-108`'s acceptance criterion (4) states the bad-zone-independence invariant in absolute terms; `VR-1080`'s own broader stress sweep found a ≈16% same-frame-collision rate from unrelated channel activity (not a code defect). Already filed, routed to `04-requirements-engineering`. | Medium (requirements-wording precision only; no functional risk) | 04 (already `SCHEDULED` via `BL-0040`, listed here for this scope's own completeness, not a new finding) |
+
+## Verdict (13-package re-review)
+
+The full 13-package tranche integrates cleanly. `IP-1080`'s two genuinely new cross-package
+combinations (style + channel-mix mute, style + Scheme E) were both exercised live and confirmed
+correct — `ADS-101`'s "two tables stay independent" design holds exactly as specified. One new
+Low finding (named style + Scheme E combination untested, same data-coverage pattern as
+`BL-0032`/`BL-0033`) and one already-filed Medium requirements-wording finding (`BL-0040`,
+non-blocking). No Critical/High finding anywhere. **Recommend: this review does not block any
+future `11-release-readiness` call touching R5 scope.**

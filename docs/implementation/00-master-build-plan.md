@@ -95,6 +95,35 @@ retroactive waiver of the independent-verification rule — `09-package-verifica
 a genuinely fresh session/dispatched agent for every package, per the user's own explicit
 instruction).
 
+## Technical Work Breakdown (TWBS) — Motif Recurrence via Weighted Variant Selection (`FS-109`, `BL-0010`)
+
+| IP | Package | Requirements | Status |
+|---|---|---|---|
+| IP-1090 | Motif recurrence via weighted variant selection — extends `IP-1070`'s `MOTIF_TABLE` to 4 pre-composed variants, autonomously selected at motif-cycle boundaries via a weighted lookup table | FR-1270...FR-1300, NFR-1100, NFR-1110 | **READY** (fully specified, sole dependency `IP-1070` `VERIFIED`, G3 authorized — see below) |
+
+**Verb inventory** (one verb, single package — no split needed): this capability needs only
+*apply* (autonomously selecting and applying which motif-variant row is active) — no *generate*
+(variants are pre-composed data, not derived at runtime), no *render* (no visualizer signal
+requested by any FR), no *persist* (no save data), no *review* (deferred to `09-content-review`
+per the standing convention, not a package verb). One package, `08-code-implementation`.
+
+**Supersession sweep**: `FS-109`'s framing is "extends" `MOTIF_TABLE`, not "supersedes" it — the
+existing single-row shape is retained as variant 0, not retired. Swept `music_engine.py`/
+`input_map.py`/`build_rom.py` for every literal reference to `motif_table`/`MOTIF_TABLE` to confirm
+no other call site assumes the old single-row (non-indexed) shape: the only reads are the single
+per-onset lookup inside `_emit_channel_gen`'s `gt_e_*` branch (line ~465, the site this package
+extends to be variant-relative) and the single emission site in `build_engine_asm` (line ~1095,
+which this package also extends). No other call site found — clean.
+
+**G3 authorization for `IP-1090`**: **covered by the same standing forward authorization recorded
+above for `IP-1080`** — the user's 2026-07-26 "All work is pre authorized (generate new sessions
+for verification work and continue)" was recorded as a standing authorization for this pipeline's
+future packages *in this same increment*, and the user's subsequent "Iterate pipeline skill"
+instruction (after `IP-1080`'s own G4 GO confirmation) continued that same increment with no
+narrowing of scope. `IP-1090` is therefore treated as G3-authorized on that same basis — not a
+new, independently-solicited go-ahead, and named here explicitly so the trail is auditable rather
+than assumed silently.
+
 ## G5 gate (every stage-08 run)
 
 The ROM must build (`python3 build_rom.py <path>` -> fixed size, valid header) and the full

@@ -2,28 +2,22 @@
 
 ## Position
 
-- **Updated:** 2026-07-26 (run #82) — `IP-1100` reached `VERIFIED` via `VR-1100` (fresh-session
-  Agent, isolated worktree; 112/112 full-suite tests, ROM budget exact-match re-confirmed
-  independently, all 3 phase-transition boundaries forced-collision/independently-derived,
-  40,000-frame `OVERLOAD` comparison, 20,000-frame stability run). Merge (`--no-ff`) confirmed
-  clean by a post-merge rebuild+full-suite run (112/112). Worktree/branch cleaned up. **15/15
-  implementation packages now `VERIFIED`.** `BL-0051`'s architecture half also closed this
-  increment: `ADS-104` (Settings & Control Visibility, run #81) unifies `FS-107`-`110`'s four
-  scattered visualizer-reactive-signal Open Questions with the user's own broader
-  settings/legend request — 5 bar-height indicator tiles decided, reusing the existing palette;
-  `BL-0051` now `SCHEDULED`/`IN PIPELINE`, riding `04-requirements-engineering` next. Harvested
-  `VR-1100`'s 3 findings (`BL-0052` Low-Medium test-coverage gap, `BL-0053` Low descriptive
-  content data, `BL-0054` Low doc-defect already self-corrected — `DONE`). Fixed one further
-  stale doc-coherence item in-place (`Claude.md`'s v1.4 heading, same triviality bar as
-  `BL-0049`/`BL-0050`, no new entry needed). **R1-R5+`IP-1090` remains the fully shipped
-  baseline** (run #74) — `IP-1100`/R6 is `VERIFIED` but not yet added to the shipped baseline
-  (awaits its own `11-release-readiness` G4 GO). No gate is open. Every backlog item remains
-  non-blocking `SCHEDULED`/`DEFERRED`
+- **Updated:** 2026-07-26 (run #83) — `04-requirements-engineering` formalized `ADS-104`'s
+  candidate FRs/NFRs for `BL-0051`: `FR-1350`-`FR-1380` (5 settings indicators, same-frame
+  update, purely additive, at-least-one-live-demonstrable) and `NFR-1140`-`NFR-1160` (ROM/VRAM
+  budget, VBlank-gated comparable cost, no new input control) added to the requirements
+  baseline, delta-reviewed clean (no conflicts vs. `FR-1120`/GDS-03 §1). `BL-0051` now rides
+  `05-feature-decomposition` next. **15/15 implementation packages remain `VERIFIED`** (since
+  run #82's `IP-1100`/`VR-1100` merge). **R1-R5+`IP-1090` remains the fully shipped baseline**
+  (run #74) — `IP-1100`/R6 is `VERIFIED` but not yet added to the shipped baseline (awaits its
+  own `11-release-readiness` G4 GO). No gate is open. Every backlog item remains non-blocking
+  `SCHEDULED`/`DEFERRED`
   (`BL-0001`/`0005`-`0007`/`0012`-`0013`/`0015`-`0016`/`0021`-`0023`/`0025`-`0028`/`0030`/
-  `0032`-`0033`/`0039`/`0042`/`0044`/`0045`/`0048`/`0051`-`0054`), none Critical/High. Next up:
-  `04-requirements-engineering` for `ADS-104`/`BL-0051`'s candidate FRs/NFRs (this run's chosen
-  next internal step); `10-integration-review` on the 15-package tranche remains available in
-  parallel (`VR-1100`'s own recommended next step, per-release-stage work).
+  `0032`-`0033`/`0039`/`0042`/`0044`/`0045`/`0048`/`0052`-`0053`), none Critical/High. Next up:
+  `05-feature-decomposition` to add `BL-0051`'s `FEAT-1110`-equivalent catalog row (this run's
+  chosen next internal step, continuing the per-feature loop); `10-integration-review` on the
+  15-package tranche remains available in parallel (`VR-1100`'s own recommended next step,
+  per-release-stage work, not yet picked up).
 - **Runs #33-52 summary:** the "Foundation + R216 + integrity remediation into one releasable
   state" convergence directive ran to completion and beyond: `IP-1060`/`IP-1061` (R216 sound
   design) and `IP-9010`/`IP-9020` (integrity remediation, `BL-0019`/`BL-0017`) were all built
@@ -532,3 +526,5 @@ per-step journaling rather than treating run #1 as a precedent to repeat.
 | 81 | 2026-07-26 | run (iterate mode, continuing) | `03-architecture-design-synthesis` | `BL-0051` (visualizer settings/control visibility) | Reconciled first: `IP-1100`'s `09-package-verification` (dispatched last run to a fresh-session `Agent`, isolated worktree) has **not yet completed** — confirmed by checking the worktree branch for new commits, none found. Per this skill's own "independent threads don't wait on each other" rule, did not re-dispatch or duplicate that in-flight work; instead triaged the backlog and found `BL-0051` (filed this session via `00-intake`: visualizer settings/control-visibility request) genuinely independent and unblocked — it touches `visuals.py`/GDS-08, not `music_engine.py`/`IP-1100`'s own files, so no conflict with the pending verification. Dispositioned `BL-0051` `SCHEDULED` to this step. Invoked `03-architecture-design-synthesis` (Workflow B) to unify the four scattered visualizer-reactive-signal Open Questions (`FS-107`/`108`/`109`/`110`) with the user's own broader request (settings-value display + control legend, not just newer-mechanism reactive signals) into one design. Authored [`ADS-104`](../architecture/ADS-104-settings-and-control-visibility.md) (Settings & Control Visibility): 5 new bar-height indicator tiles (tempo/octave/scale/density/channel-mix), reusing the existing BG palette, no new font/text rendering, 8 new tile patterns (128 bytes ROM); scheme/style/motif-variant/song-phase indicators explicitly deferred to the same reusable mechanism as a v1.1+; in-ROM control legend kept off-ROM/static for v1. Updated `docs/architecture/INDEX.md` §2 and `ROADMAP.md`'s stage-03 row. Rebuilt+tested (112/112, no code touched). Committed (`a0d29ba`). | `Next: 04-requirements-engineering to formalize ADS-104's candidate FRs/NFRs for BL-0051.` |
 
 | 82 | 2026-07-26 | run (iterate mode, continuing) | `09-package-verification` (merge only — verification itself ran in the dispatched fresh-session `Agent` from run #80) | `IP-1100` | The background-dispatched verification agent completed (system task-notification, not user input) reporting **VERIFIED** — [`VR-1100`](../implementation/verification/VR-1100-song-form-via-autonomous-phase-cycling.md): 112/112 full-suite tests, ROM budget independently re-confirmed exact match (3791 used/28977 free), transition frames independently re-derived, forced Start-press/phase-transition collisions at all 3 boundaries, 40,000-frame `OVERLOAD` comparison (BUILD 0.000%, PEAK 21.0%), 20,000-frame stability run, 3 non-blocking findings. Merged the agent's commit `1a3794b` via `git merge --no-ff worktree-agent-a09691671601471b2` (not `--ff-only` — a local `Driftune.gbc`-rebuild commit had landed on the working branch after the worktree was created; auto-merged cleanly, 6 files changed: `ROADMAP.md`, `docs/features/INDEX.md`, `docs/implementation/00-master-build-plan.md`, `docs/implementation/packages/INDEX.md`, `docs/implementation/verification/INDEX.md`, new `VR-1100` file). Rebuilt + re-ran the full suite post-merge to confirm a clean tree: 112/112 (T1-T17), rebuilt `Driftune.gbc` again after the test run (which deletes it). Cleaned up the worktree (`git worktree remove .claude/worktrees/agent-a09691671601471b2 --force`) and branch (`git branch -d worktree-agent-a09691671601471b2`). Harvested `VR-1100`'s 3 findings: `BL-0052` (Low-Medium — `T17.6` only forces the first of 3 transition boundaries, `DEFERRED` to a future test-hardening pass), `BL-0053` (Low — BUILD/PEAK `OVERLOAD` descriptive data for `FS-110`'s Open Question 2, `DEFERRED` to any future `SONG_TABLE` content-tuning pass), `BL-0054` (Low doc-defect — stale `FEAT-1100` `docs/features/INDEX.md` row, already self-corrected by `VR-1100` itself, filed `DONE`). Also caught and fixed a stale doc-coherence item of the same class as `BL-0049`: `Claude.md`'s "Known Good Behavior (v1.4)" heading still said `IP-1100` "not yet independently verified/GO'd" after `VR-1100` verified it — corrected in place to "`VERIFIED` 2026-07-26 via `VR-1100`, not yet part of the shipped baseline pending `11-release-readiness` GO" (fixed directly, same triviality bar as `BL-0049`/`BL-0050`, no new backlog entry needed). Updated `BL-0051`'s disposition to `SCHEDULED`/`IN PIPELINE` reflecting `ADS-104`'s completion (run #81) and its next ride (`04-requirements-engineering`). 15/15 implementation packages now `VERIFIED`. | `Next: two genuinely parallel candidates — 10-integration-review on the now-15-package tranche (VR-1100's own explicitly recommended next step), or 04-requirements-engineering to formalize ADS-104's candidate FRs/NFRs for BL-0051 (continuing the per-feature loop already in progress). Per the pipeline's own ordering rules (per-feature loop 06-09 drains before per-release stages 10-11), 04-requirements-engineering for ADS-104 is picked as this run's next internal step; 10-integration-review remains available and unblocked in parallel.` |
+
+| 83 | 2026-07-26 | run (iterate mode, continuing) | `04-requirements-engineering` | `ADS-104`/`BL-0051` | Added `FR-1350` (5 settings indicators, bar-height glyph per parameter), `FR-1360` (each indicator updates same-frame as its parameter), `FR-1370` (purely additive, no change to existing channel-activity/palette behavior), `FR-1380` (at least one indicator demonstrably live-reflects a manual button change), `NFR-1140` (ROM/VRAM budget), `NFR-1150` (VBlank-gated, comparable per-frame cost), `NFR-1160` (no new input control). Delta review found no conflicts against the existing baseline — checked explicitly against `FR-1120`'s existing visualizer requirement and GDS-03 §1's read-only invariant; no existing FR/NFR changed. Three NFRs this time (not the usual two) since `ADS-104` §6 states three genuinely distinct concerns rather than two. Updated `docs/requirements/INDEX.md` and `ROADMAP.md`'s stage-04 row. Rebuilt+tested (112/112, no code touched). Committed (`b8f6ad5`), pushed. | `Next: 05-feature-decomposition to add a FEAT-1110-equivalent catalog row for BL-0051's settings-visibility feature, continuing the per-feature loop. 10-integration-review on the 15-package tranche remains available in parallel per run #82's own note.` |

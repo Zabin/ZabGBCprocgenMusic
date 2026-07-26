@@ -161,7 +161,7 @@ shipped default, `FR-1260`). Applying a style is `_emit_apply_style` (`music_eng
 from `input_map.py`'s Start-press handler immediately after `CHMIX_IDX` steps — unlike
 `CHMIX_MASKS`'s channel-mix/scheme half, style values apply the same frame, not at next onset.
 
-## Known Good Behavior (v1.1 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation, GO 2026-07-25)
+## Known Good Behavior (v1.2 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation + Genre-Aware Style Presets, GO 2026-07-26)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
 - Boots within ~90 frames (GBC boot-ROM logo animation time) to: all 3 pitched channels (pulse

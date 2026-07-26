@@ -43,6 +43,10 @@
 | FR-1320 | On each song-form phase transition, the engine overwrites `TEMPO_IDX`/`DENSITY_IDX` to that phase's documented target values on the same tick as the transition, not gated to any future event. | ADS-103 §5 (FR-candidate 2) |
 | FR-1330 | Bad-zone detection/recovery (`FR-1080`-`FR-1110`) and Scheme-E motif-variant selection (`FR-1270`-`FR-1300`) both operate identically regardless of the current song-form phase — no phase-specific logic exists in either mechanism. | ADS-103 §5 (FR-candidate 3) |
 | FR-1340 | Over a sufficiently long run, all 4 song-form phases occur in their defined cyclic order with no hang or stall. | ADS-103 §5 (FR-candidate 4) |
+| FR-1350 | The visualizer displays 5 indicators, one each for `TEMPO_IDX`, `OCTAVE_IDX`, `SCALE_IDX`, `DENSITY_IDX`, and `CHMIX_IDX`, each rendered as a filled-bar-height glyph proportional to that parameter's current index. | ADS-104 §5 (FR-candidate 1) |
+| FR-1360 | Each of the 5 settings indicators updates within the same frame its underlying parameter changes, with no perceptible lag beyond the existing per-frame visualizer update cadence. | ADS-104 §5 (FR-candidate 2) |
+| FR-1370 | The 5 settings indicators do not alter the existing channel-activity tiles' or calm/bad-zone palette's behavior — their addition is purely additive to the visualizer's existing output. | ADS-104 §5 (FR-candidate 3) |
+| FR-1380 | At least one settings indicator demonstrably reflects a manual D-pad/A/B/Start-driven parameter change, confirmed by reading the relevant tilemap cell's pattern index after the corresponding button press. | ADS-104 §5 (FR-candidate 4) |
 
 ## Non-Functional Requirements
 
@@ -62,6 +66,9 @@
 | NFR-1110 | Motif-variant selection introduces no new input control and no new WRAM control byte beyond the single variant-index scratch field — selection happens autonomously at motif-cycle boundaries, the same class of no-input-required behavior already established for bad-zone detection/recovery (`FR-1080`-`FR-1110`). | ADS-102 §6/§7 |
 | NFR-1120 | The song-form phase table and its scratch state add bounded ROM/WRAM — the total addition stays within the current 32KB single-bank budget (GDS-07 §6's headroom) with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5). | ADS-103 §6, MSTR-001 §4, GDS-07 §6 |
 | NFR-1130 | The song-form state machine introduces no new input control — phase advancement happens autonomously on a per-frame timer, the same class of no-input-required behavior already established for bad-zone detection/recovery and motif-variant selection. | ADS-103 §6/§7 |
+| NFR-1140 | The 8 new bar-height tile patterns and the 5 new settings-indicator tilemap cells add bounded ROM/VRAM — the total addition stays within the current 32KB single-bank budget (GDS-07 §6's headroom) and the measured tile-slot/tilemap headroom (`R104` §7-8), with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5). | ADS-104 §6, MSTR-001 §4, GDS-07 §6, R104 §7-8 |
+| NFR-1150 | The settings-indicator update (5 reads + 5 tilemap writes per frame) is VBlank-gated the same way every existing visualizer write already is, and its per-frame cost is comparable to the existing channel-activity update's own cost — verified against the existing VBlank-timing budget (NFR-1010), not by static cycle analysis alone. | ADS-104 §6, NFR-1010 |
+| NFR-1160 | The settings-indicator feature introduces no new input control — it is a pure read-only display of existing tracked parameters, updated automatically as those parameters change under their own existing controls. | ADS-104 §6/§7 |
 
 ## Open items carried to feature decomposition
 
@@ -93,6 +100,13 @@
   duration) are likewise data/implementation decisions deferred to feature decomposition/spec/
   implementation — `ADS-103` explicitly leaves these as first-guess placeholders, same
   `BL-0005`-class deferral as every prior preset/table-value addition.
+- FR-1350-FR-1380's exact parameters (the precise bar-tile pixel design, on-screen tilemap
+  placement of the 5 new cells, and whether a static in-ROM control legend is ever added — `ADS-
+  104`'s own §9 Open Questions) are likewise implementation/content decisions deferred to feature
+  decomposition/spec/implementation, same `BL-0005`-class deferral as every prior visual/preset-
+  value addition. `ADS-104`'s explicitly out-of-v1-scope follow-on (scheme/style/motif-variant/
+  song-form-phase indicators reusing the same bar-tile mechanism) is not baselined here — it is a
+  named future extension, not a requirement of this delta.
 
 ## Changelog
 
@@ -103,6 +117,7 @@
 | 2026-07-26 | Added FR-1230 (`CHMIX_IDX` preset maps to a style data row), FR-1240 (style values applied immediately, not gated to next onset — the one behavioral contrast with `FR-1190`'s scheme-select timing), FR-1250 (at least 3 audibly-distinct styles), FR-1260 (preset-0 style matches shipped default, no regression), NFR-1080 (ROM/WRAM budget), NFR-1090 (no new input control). Delta update formalizing `ADS-101` §5/§6's candidate FRs/NFRs for R5 (Genre-Aware Style Presets). No existing FR/NFR changed. | Roadmap R5, grounded in `ADS-101`. |
 | 2026-07-26 | Added FR-1270 (motif data is a small fixed set of variants, variant 0 matches the shipped sequence), FR-1280 (weighted variant selection at motif-cycle boundaries, no input required), FR-1290 (weighting favors retaining the current variant), FR-1300 (variant 0 held throughout a run reproduces pre-change behavior exactly, no regression), NFR-1100 (ROM/WRAM budget), NFR-1110 (no new input control/WRAM control byte beyond the variant-index field). Delta update formalizing `ADS-102` §5/§6's candidate FRs/NFRs for `BL-0010`'s motif-recurrence half. No existing FR/NFR changed. | `BL-0010`, grounded in `ADS-102`. |
 | 2026-07-26 | Added FR-1310 (autonomous 4-phase song-form cycle), FR-1320 (phase transition overwrites tempo/density immediately), FR-1330 (bad-zone/motif-variant mechanisms are phase-agnostic), FR-1340 (all 4 phases occur in cyclic order over a long run), NFR-1120 (ROM/WRAM budget), NFR-1130 (no new input control). Delta update formalizing `ADS-103` §5/§6's candidate FRs/NFRs for roadmap R6 (song-form half of `BL-0010`). No existing FR/NFR changed. | Roadmap R6, grounded in `ADS-103`. |
+| 2026-07-26 | Added FR-1350 (5 settings indicators, bar-height glyph per parameter), FR-1360 (each indicator updates same-frame as its parameter), FR-1370 (purely additive, no change to existing channel-activity/palette behavior), FR-1380 (at least one indicator demonstrably live-reflects a manual button change), NFR-1140 (ROM/VRAM budget), NFR-1150 (VBlank-gated, comparable per-frame cost), NFR-1160 (no new input control). Delta update formalizing `ADS-104` §5/§6's candidate FRs/NFRs for `BL-0051` (settings & control visibility). No existing FR/NFR changed. | `BL-0051`, grounded in `ADS-104`. |
 
 ## Delta Review — 2026-07-25 (`FR-1180`-`FR-1220`, `NFR-1060`/`1070`)
 
@@ -227,3 +242,37 @@ Reviewed this delta only, same "not a wholesale regeneration" convention as ever
 
 No Critical/High finding. This delta is ready for `05-feature-decomposition` to add a
 `FEAT-1100`-equivalent catalog row once picked up.
+
+## Delta Review — 2026-07-26 (`FR-1350`-`FR-1380`, `NFR-1140`-`1160`)
+
+Reviewed this delta only, same "not a wholesale regeneration" convention as every prior delta pass:
+
+- **No duplicate or conflicting requirement.** `FR-1350`-`FR-1380` introduce a genuinely new
+  concept (a read-only settings-value display) that does not touch any existing engine-state
+  write path — checked explicitly against `FR-1120` (the existing visualizer requirement,
+  channel-activity/bad-zone only): `FR-1350`-`FR-1380` are additive to what `FR-1120` already
+  requires, not a restatement or a contradiction of it. `FR-1370` explicitly confirms no
+  interaction with the existing channel-activity/palette behavior, closing the one place a real
+  conflict could have existed (a new visualizer write path competing with or altering an
+  existing one).
+- **No architecture violation.** Each FR/NFR traces directly to `ADS-104`; no ADR is directly
+  implicated (`ADS-104`'s own Decision Log carries its binding decisions, same pattern
+  `ADS-101`/`ADS-102`/`ADS-103` already established). `ADS-104` §2 explicitly preserves GDS-03
+  §1's "visualizer never writes engine state" invariant — `FR-1350`/`FR-1360`/`FR-1380` are all
+  phrased as read/display behavior only, consistent with that constraint.
+- **No missing requirement.** `ADS-104` §5/§6's four FR-candidates and (in this case) three
+  NFR-candidates all became baseline requirements — none silently dropped; the NFR set is one
+  larger than the two-per-delta pattern of the three prior deltas because `ADS-104` §6 itself
+  states three genuinely distinct non-functional concerns (ROM/VRAM budget, per-frame timing, no
+  new input control) rather than two, and splitting them keeps each NFR atomic per this skill's
+  own writing rules. `ADS-104`'s Open Questions (whether the four deferred per-feature indicators
+  are ever built, whether a static in-ROM control legend is ever added, exact bar-tile pixel
+  design, actual tilemap-layout headroom) are correctly *not* baselined here — future-scope/
+  content/implementation decisions, not requirements gaps.
+- **Traceability:** every new ID's Source Documents column cites `ADS-104`'s specific section. No
+  candidate needed — every statement in `ADS-104` §5/§6 was traceable to the document itself.
+- **Forward traceability (Module/FS/IP/Test):** all `UNASSIGNED` — correctly honest, no `FS-xxx`/
+  package/test exists yet for this settings-visibility work.
+
+No Critical/High finding. This delta is ready for `05-feature-decomposition` to add a
+`FEAT-1110`-equivalent catalog row once picked up.

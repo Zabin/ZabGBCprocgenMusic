@@ -171,6 +171,45 @@ sequence (R6 is that sequence's next release) — a stronger and more explicit b
 "standing forward authorization" reasoning used for `IP-1090`, and recorded here as such rather
 than conflated with it.
 
+## Technical Work Breakdown (TWBS) — Settings & Control Visibility (`FS-111`, `BL-0051`)
+
+| IP | Package | Requirements | Status |
+|---|---|---|---|
+| IP-1110 | Settings & control visibility — 5 new bar-height indicator tiles (tempo/octave/scale/density/channel-mix), extending `visuals.py`'s existing `update_visuals`/`CHANNEL_CELLS` mechanism | FR-1350...FR-1380, NFR-1140, NFR-1150, NFR-1160 | **READY** |
+
+**Verb inventory** (one verb, single package — no split needed): this capability needs only
+*render* (a new read-and-display routine reacting to already-existing WRAM values) — no *generate*
+(the tile-pattern data is authored, not derived at runtime), no *apply* (this feature writes no
+engine state), no *persist* (no save data), no *review* (deferred to `09-content-review` per the
+standing convention). One package, `08-code-implementation` (a visualizer logic change, not pure
+art/content authoring — the tile-pattern *data* is simple enough, and coupled tightly enough to
+the new per-frame routine reading it, that splitting a `08-content-authoring` half off would be
+artificial, unlike `FEAT-1060`'s own arpeggio/vibrato-portamento split).
+
+**Supersession sweep**: `FS-111` neither retires nor generalizes an existing model — it adds new
+tile patterns and new tilemap cells alongside the existing `TILE_OFF`/`TILE_ON`/`CHANNEL_CELLS`
+mechanism, none of which are modified. Grepped `build_rom.py`/`music_engine.py`/`gbc_lib.py` for
+any other `0x98xx` (tilemap) reference — found nothing else touches the tilemap besides
+`visuals.py`'s own `CHANNEL_CELLS` writes; confirmed clean.
+
+**Concrete decisions resolved this pass** (`FS-111` Open Questions 1-2): (1) `OCTAVE_IDX`/
+`SCALE_IDX` (4 possible values each) share the same 8-level tile-pattern set as `TEMPO_IDX`/
+`DENSITY_IDX`/`CHMIX_IDX` (8 possible values each) rather than a separate narrower set — simpler
+and cheaper, at the cost of those two bars never exceeding half-full; a first-guess placeholder
+per the standing `BL-0005`-class visual-tuning deferral, not a final content decision. (2) The 5
+new tilemap cells are `TILEMAP_BASE+4` through `TILEMAP_BASE+8` — confirmed against the current
+`visuals.py` source that `CHANNEL_CELLS` occupies exactly `TILEMAP_BASE+0`..`+3` and no other
+module writes or reads any other tilemap address, so these 5 cells are genuinely free, same
+tilemap row, immediately following the channel-activity cells.
+
+**G3 authorization for `IP-1110`**: **granted on the user's standing basis, 2026-07-26** — the
+user's own words this session, "Iterate pipeline skill with pre authorization as per before,"
+explicitly reaffirm that the prior authorization to iterate the pipeline (the same standing basis
+already recorded for `IP-1090`) continues to apply across this run's internal steps, including
+this package. Recorded here as its own explicit citation, per this project's standing rule that no
+package's G3 basis is ever assumed silently, even when it rides a standing instruction rather than
+a fresh one.
+
 ## G5 gate (every stage-08 run)
 
 The ROM must build (`python3 build_rom.py <path>` -> fixed size, valid header) and the full

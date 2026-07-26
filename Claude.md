@@ -181,7 +181,7 @@ regression to boot/Select-reset behavior — this was a real regression caught a
 `_emit_badzone_tick` — entirely independent of bad-zone recovery and Scheme-E motif-variant
 selection (disjoint WRAM fields). No new input control.
 
-## Known Good Behavior (v1.4 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation + Genre-Aware Style Presets + Motif Recurrence via Weighted Variant Selection + Song-Form via Autonomous Phase Cycling, `IP-1100` `COMPLETE` 2026-07-26, not yet independently verified/GO'd)
+## Known Good Behavior (v1.4 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation + Genre-Aware Style Presets + Motif Recurrence via Weighted Variant Selection + Song-Form via Autonomous Phase Cycling, `IP-1100` `VERIFIED` 2026-07-26 via `VR-1100`, not yet part of the shipped baseline pending `11-release-readiness` GO)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
 - Boots within ~90 frames (GBC boot-ROM logo animation time) to: all 3 pitched channels (pulse

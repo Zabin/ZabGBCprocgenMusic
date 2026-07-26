@@ -120,3 +120,16 @@ exact values are a `04-requirements-engineering`/`06-feature-specification` data
 reset routine copies from.
 
 **Gate:** closed 2026-07-21.
+
+## §9 Visualizer VRAM/tile layout (`IP-0006`, extended `IP-1110`)
+
+BG tile pattern indices (`VRAM_TILE_DATA = 0x8000`, unsigned addressing): 0 = off (blank), 1 = on
+(filled, channel-activity), 2-9 = **added `IP-1110` (2026-07-26, `BL-0051`/`ADS-104`)** — 8
+bar-height glyphs (fill levels 0-7), 16 bytes each (128 bytes total), reused across all 5 settings
+indicators regardless of each source parameter's own actual value range.
+
+BG tilemap cells (`TILEMAP_BASE = 0x9800`): `0x9800`-`0x9803` = `CHANNEL_CELLS` (per-channel
+activity, `IP-0006`); `0x9804`-`0x9808` = **`SETTINGS_CELLS`, added `IP-1110`** — one cell each
+for `TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX`, confirmed free (no other
+module writes or reads any other tilemap address). No new WRAM address — `IP-1110` is a pure
+read-and-render feature.

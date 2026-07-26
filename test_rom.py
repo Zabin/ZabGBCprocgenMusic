@@ -36,6 +36,10 @@ Suites:
   T17 Song-form via autonomous phase cycling (IP-1100, roadmap R6): the engine cycles
       autonomously through 4 named phases, each overwriting TEMPO_IDX/DENSITY_IDX, with no
       interaction with bad-zone recovery or Scheme-E motif-variant selection
+  T18 Settings & control visibility (IP-1110, BL-0051/ADS-104): 5 new bar-height indicator
+      tiles track TEMPO_IDX/OCTAVE_IDX/SCALE_IDX/DENSITY_IDX/CHMIX_IDX, pre-initialized at
+      boot, updated live on each manual button press, purely additive to the existing
+      channel-activity tiles, reset by Select
 
 Run from the repo root: python3 test_rom.py
 Requires: pyboy (pinned 2.7.0, matching the reference project), numpy.
@@ -64,12 +68,15 @@ MOTIF_VARIANT_IDX = 0xC03C
 SONG_STATE = 0xC03D; SONG_STATE_TIMER_LO = 0xC03E; SONG_STATE_TIMER_HI = 0xC03F
 LCDC = 0xFF40
 CHANNEL_CELLS = [0x9800, 0x9801, 0x9802, 0x9803]
+SETTINGS_CELLS = [0x9804, 0x9805, 0x9806, 0x9807, 0x9808]  # IP-1110
+TILE_BAR_BASE = 2  # IP-1110
 BCPD = 0xFF69
 
 # Sound registers (I/O, 0xFF00+offset)
 NR11 = 0xFF11; NR13 = 0xFF13; NR14 = 0xFF14; NR52 = 0xFF26
 
 from music_engine import PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX, PRESET_SCALE_IDX
+from music_engine import PRESET_DENSITY_IDX, PRESET_CHMIX_IDX
 from music_engine import STYLE_TABLE, DUTY_BIAS
 from music_engine import MOTIF_TABLE, N_VARIANTS
 from music_engine import SONG_TABLE, N_SONG_PHASES
@@ -925,6 +932,76 @@ def t17_song_form_via_autonomous_phase_cycling():
     pb5.stop(save=False)
 
 
+# ── T18: Settings & control visibility (IP-1110, BL-0051/ADS-104) ────
+def t18_settings_and_control_visibility():
+    settings_sources = [TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX_IDX]
+    settings_presets = [PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX, PRESET_SCALE_IDX,
+                        PRESET_DENSITY_IDX, PRESET_CHMIX_IDX]
+
+    # (a) At boot, the 5 settings cells already reflect the boot-preset values (Implementation
+    # Task 3 — pre-initialized, not left blank until the first update_visuals call).
+    pb = fresh_boot()
+    cells = [pb.memory[addr] for addr in SETTINGS_CELLS]
+    expected = [TILE_BAR_BASE + p for p in settings_presets]
+    check("T18.1 At boot, the 5 settings indicators already show the correct preset fill levels",
+          cells == expected, f"cells={cells} expected={expected}")
+
+    # (b) Each of D-pad Up/Down/Left/Right, A, B, Start updates its own indicator on the same
+    # frame its underlying parameter changes (FR-1360/FR-1380).
+    cases = [
+        ("up", TEMPO_IDX, SETTINGS_CELLS[0], "T18.2 tempo indicator tracks TEMPO_IDX after D-pad Up"),
+        ("right", OCTAVE_IDX, SETTINGS_CELLS[1], "T18.3 octave indicator tracks OCTAVE_IDX after D-pad Right"),
+        ("a", SCALE_IDX, SETTINGS_CELLS[2], "T18.4 scale indicator tracks SCALE_IDX after A"),
+        ("b", DENSITY_IDX, SETTINGS_CELLS[3], "T18.5 density indicator tracks DENSITY_IDX after B"),
+        ("start", CHMIX_IDX, SETTINGS_CELLS[4], "T18.6 channel-mix indicator tracks CHMIX_IDX after Start"),
+    ]
+    for button, src_addr, cell_addr, label in cases:
+        tap(pb, button)
+        value = pb.memory[src_addr]
+        cell = pb.memory[cell_addr]
+        check(label, cell == TILE_BAR_BASE + value,
+              f"{hex(src_addr)}={value}, cell={cell}, expected={TILE_BAR_BASE + value}")
+
+    # (c) Purely additive: the existing channel-activity tiles and calm/bad-zone palette are
+    # unaffected by this feature's own writes over the same run (FR-1370, same assertion shape
+    # T15.5/T17.5 already established).
+    nr52 = pb.memory[NR52]
+    channel_cells = [pb.memory[addr] for addr in CHANNEL_CELLS]
+    channel_expected = [1 if (nr52 & (1 << i)) else 0 for i in range(4)]
+    check("T18.7 Channel-activity tiles still track NR52 correctly with the settings row present",
+          channel_cells == channel_expected, f"cells={channel_cells} expected={channel_expected}")
+    pb.stop(save=False)
+
+    # (d) Select resets the underlying WRAM fields on the reset frame itself (same guarantee
+    # T5/T17.7 already established for other reset fields — unaffected by this package). The
+    # settings-indicator *display* catching up is a disclosed, narrower exception (see visuals.py's
+    # own comment above _emit_update_settings_row's call site): on the exact Select frame,
+    # apply_input's full init_engine reset costs enough extra CPU that this routine's VRAM writes
+    # for that one frame are silently dropped — a real, pre-existing property of the visualizer's
+    # per-frame VRAM-write design, only made observable here because this is the first indicator
+    # whose value actually changes across a Select press. The display self-heals the very next
+    # frame (update_visuals reruns unconditionally every frame against already-reset WRAM).
+    pb2 = fresh_boot()
+    for button, src_addr, cell_addr, label in cases:
+        tap(pb2, button)
+    drifted = [pb2.memory[addr] for addr in SETTINGS_CELLS]
+    check("T18.8.setup At least one settings indicator drifted away from its boot value before Select",
+          drifted != expected, f"got {drifted}")
+    pb2.button_press('select')
+    pb2.tick()
+    pb2.button_release('select')
+    reset_frame_wram = (pb2.memory[TEMPO_IDX], pb2.memory[OCTAVE_IDX], pb2.memory[SCALE_IDX],
+                        pb2.memory[DENSITY_IDX], pb2.memory[CHMIX_IDX])
+    check("T18.9 Select resets the underlying WRAM fields on the reset frame itself",
+          reset_frame_wram == tuple(settings_presets), f"got {reset_frame_wram}")
+    pb2.tick()  # disclosed one-frame display lag (see above) — self-heals here
+    cells_after_reset = [pb2.memory[addr] for addr in SETTINGS_CELLS]
+    check("T18.10 The settings-indicator display catches up to the restored preset within one "
+          "further frame (disclosed Select-frame display lag, self-healing)",
+          cells_after_reset == expected, f"got {cells_after_reset} expected={expected}")
+    pb2.stop(save=False)
+
+
 def main():
     t1_header()
     t2_boot()
@@ -943,6 +1020,7 @@ def main():
     t15_genre_aware_style_presets()
     t16_motif_recurrence_via_weighted_variant_selection()
     t17_song_form_via_autonomous_phase_cycling()
+    t18_settings_and_control_visibility()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

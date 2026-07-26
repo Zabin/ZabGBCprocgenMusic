@@ -23,7 +23,7 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers)
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 112 checks across T1-T17
+                    sound registers + WRAM engine state) — 122 checks across T1-T18
 ```
 
 ### Data layout, WRAM map
@@ -181,7 +181,23 @@ regression to boot/Select-reset behavior — this was a real regression caught a
 `_emit_badzone_tick` — entirely independent of bad-zone recovery and Scheme-E motif-variant
 selection (disjoint WRAM fields). No new input control.
 
-## Known Good Behavior (v1.4 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation + Genre-Aware Style Presets + Motif Recurrence via Weighted Variant Selection + Song-Form via Autonomous Phase Cycling, `IP-1100` `VERIFIED` 2026-07-26 via `VR-1100`, not yet part of the shipped baseline pending `11-release-readiness` GO)
+### Change settings-indicator tile patterns
+`_bar_tile_bytes(n)` in `visuals.py` (8 fill levels, 0-7, one bar-height glyph each — first-guess
+pixel design, not tuned by eye, same `BL-0005`-class deferral as every other visual/preset-value
+decision). `SETTINGS_CELLS` (5 tilemap cells, immediately after `CHANNEL_CELLS`) each display one
+base control's current index (`TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX`) as a
+fill level via `_emit_update_settings_row`, called once per frame from `update_visuals`
+(`IP-1110`/`BL-0051`/`ADS-104`), positioned last in that routine — a real, disclosed timing
+finding: on the exact frame Select is pressed, `apply_input`'s full `init_engine` reset costs
+enough extra CPU that this block's VRAM writes for that one frame are silently dropped (a
+pre-existing property of the visualizer's per-frame VRAM-write design, only made observable here
+since this is the first indicator whose value changes across a Select press); the display
+self-heals the very next frame (`update_visuals` reruns unconditionally every frame). `OCTAVE_IDX`/
+`SCALE_IDX` (4 possible values) share the same 8-level tile set as `TEMPO_IDX`/`DENSITY_IDX`/
+`CHMIX_IDX` (8 possible values) rather than a separate narrower set — those two bars simply never
+exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
+
+## Known Good Behavior (v1.5 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation + Genre-Aware Style Presets + Motif Recurrence via Weighted Variant Selection + Song-Form via Autonomous Phase Cycling + Settings & Control Visibility, `IP-1110` `COMPLETE` 2026-07-26, not yet independently verified/GO'd)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
 - Boots within ~90 frames (GBC boot-ROM logo animation time) to: all 3 pitched channels (pulse
@@ -232,13 +248,20 @@ selection (disjoint WRAM fields). No new input control.
   variants (variant 0 identical to the original shipped sequence); at each motif-cycle boundary
   the engine autonomously draws which variant plays next via a retention-biased weighted lookup,
   no input required. Bad-zone detection/recovery and every other mechanism are unaffected.
-- Song-form via autonomous phase cycling (`IP-1100`, roadmap R6/`ADS-103`, **`COMPLETE`, not yet
-  independently verified**): the engine autonomously cycles 4 named phases (INTRO/BUILD/PEAK/
-  BREAKDOWN, looping), overwriting `TEMPO_IDX`/`DENSITY_IDX` to that phase's target values on
-  each transition, no input required, over a ~110-second full cycle. Entirely independent of
-  bad-zone detection/recovery and Scheme-E motif-variant selection.
+- Song-form via autonomous phase cycling (`IP-1100`, roadmap R6/`ADS-103`, **`VERIFIED` via
+  `VR-1100`, not yet part of the shipped baseline**): the engine autonomously cycles 4 named
+  phases (INTRO/BUILD/PEAK/BREAKDOWN, looping), overwriting `TEMPO_IDX`/`DENSITY_IDX` to that
+  phase's target values on each transition, no input required, over a ~110-second full cycle.
+  Entirely independent of bad-zone detection/recovery and Scheme-E motif-variant selection.
+- Settings & control visibility (`IP-1110`, `BL-0051`/`ADS-104`, **`COMPLETE`, not yet
+  independently verified**): the visualizer displays 5 bar-height indicator tiles, one per base
+  control (tempo/octave/scale/density/channel-mix), each reflecting that parameter's current
+  index, updated every frame — purely additive to the existing channel-activity tiles/palette,
+  no new palette, no font/text rendering. A disclosed, self-healing one-frame display lag exists
+  specifically on the frame a Select reset is pressed (see "Change settings-indicator tile
+  patterns" above).
 
-**112/112 `test_rom.py` checks pass** (T1-T17). An 8000+ frame stress run with continuous input
+**122/122 `test_rom.py` checks pass** (T1-T18). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

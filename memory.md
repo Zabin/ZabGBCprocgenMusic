@@ -80,6 +80,12 @@ cells at `0x9800`-`0x9803` (BG tilemap top-left), one per channel, tile 0 = off 
 BG palette 0 swaps between calm (blue/green) and bad-zone (red) color sets via `BCPS`/`BCPD`
 every frame based on `BAD_ZONE_FLAGS` bit3.
 
+**`IP-1110`**: 5 more tile-indicator cells at `0x9804`-`0x9808`, immediately after the channel
+cells — one per base control (tempo/octave/scale/density/channel-mix), tile indices 2-9 (8
+fill-level bar-height glyphs), reflecting `TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/
+`CHMIX_IDX` respectively. Updated last in `update_visuals`, after the channel-activity/palette
+writes.
+
 ## Emulator Test Command
 
 ```python

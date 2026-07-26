@@ -110,5 +110,15 @@
 [PASS] T17.7.setup SONG_STATE drifted away from phase 0 before Select  (got 1)
 [PASS] T17.7 Select resets SONG_STATE to phase 0 (read on the exact reset frame)  (got 0)
 [PASS] T17.8 Select re-applies phase 0's TEMPO_IDX/DENSITY_IDX target values  (got (4, 0))
+[PASS] T18.1 At boot, the 5 settings indicators already show the correct preset fill levels  (cells=[6, 3, 2, 2, 2] expected=[6, 3, 2, 2, 2])
+[PASS] T18.2 tempo indicator tracks TEMPO_IDX after D-pad Up  (0xc000=5, cell=7, expected=7)
+[PASS] T18.3 octave indicator tracks OCTAVE_IDX after D-pad Right  (0xc001=2, cell=4, expected=4)
+[PASS] T18.4 scale indicator tracks SCALE_IDX after A  (0xc002=1, cell=3, expected=3)
+[PASS] T18.5 density indicator tracks DENSITY_IDX after B  (0xc003=1, cell=3, expected=3)
+[PASS] T18.6 channel-mix indicator tracks CHMIX_IDX after Start  (0xc004=1, cell=3, expected=3)
+[PASS] T18.7 Channel-activity tiles still track NR52 correctly with the settings row present  (cells=[1, 1, 1, 0] expected=[1, 1, 1, 0])
+[PASS] T18.8.setup At least one settings indicator drifted away from its boot value before Select  (got [8, 4, 4, 8, 3])
+[PASS] T18.9 Select resets the underlying WRAM fields on the reset frame itself  (got (4, 1, 0, 0, 0))
+[PASS] T18.10 The settings-indicator display catches up to the restored preset within one further frame (disclosed Select-frame display lag, self-healing)  (got [6, 3, 2, 2, 2] expected=[6, 3, 2, 2, 2])
 
-112 PASS, 0 FAIL
+122 PASS, 0 FAIL

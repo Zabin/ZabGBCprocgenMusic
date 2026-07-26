@@ -1,11 +1,13 @@
 """
-visuals.py — Driftune's minimal generative visualizer (IP-0006).
+visuals.py — Driftune's minimal generative visualizer (IP-0006), extended by IP-1110
+(FS-111/ADS-104, settings & control visibility).
 
-Read-only consumer of engine state (FR-1120, GDS-03 SS1): reads NR52's per-channel active bits
-and BAD_ZONE_FLAGS' combined bit; never writes a PSG register or an engine-state field. A
-template-based design (R205 SS5): a fixed 2-tile set (off/on), animated by rewriting which tile
-shows at 4 fixed BG positions (one per channel) and which BG palette colors are active — cheaper
-than per-pixel procedural rendering and a natural fit for GBC's tile/palette hardware.
+Read-only consumer of engine state (FR-1120, GDS-03 SS1): reads NR52's per-channel active bits,
+BAD_ZONE_FLAGS' combined bit, and (IP-1110) TEMPO_IDX/OCTAVE_IDX/SCALE_IDX/DENSITY_IDX/CHMIX_IDX;
+never writes a PSG register or an engine-state field. A template-based design (R205 SS5): a fixed
+tile set, animated by rewriting which tile shows at fixed BG positions and which BG palette colors
+are active — cheaper than per-pixel procedural rendering and a natural fit for GBC's tile/palette
+hardware.
 """
 
 from gbc_lib import ROM, rgb15
@@ -20,8 +22,37 @@ VRAM_TILE_DATA = 0x8000  # tile pixel data, unsigned addressing (LCDC bit 4 = 1)
 # Tilemap cells for the 4 channel-activity indicators (top-left corner of the screen).
 CHANNEL_CELLS = [TILEMAP_BASE + 0, TILEMAP_BASE + 1, TILEMAP_BASE + 2, TILEMAP_BASE + 3]
 
+# IP-1110: 5 new tilemap cells for the settings-indicator row, one per base control, in the fixed
+# order tempo/octave/scale/density/channel-mix. TILEMAP_BASE+4..+8 confirmed free by grepping
+# build_rom.py/music_engine.py/gbc_lib.py for any other 0x98xx reference — nothing else touches
+# the tilemap besides CHANNEL_CELLS above.
+SETTINGS_CELLS = [TILEMAP_BASE + 4, TILEMAP_BASE + 5, TILEMAP_BASE + 6, TILEMAP_BASE + 7,
+                   TILEMAP_BASE + 8]
+
 TILE_OFF = 0  # blank tile index
 TILE_ON = 1   # filled tile index
+TILE_BAR_BASE = 2  # IP-1110: tile indices 2-9 are bar-height glyphs, fill levels 0-7
+
+# IP-1110: the 5 settings-indicator source WRAM fields, read-only, same fixed order as
+# SETTINGS_CELLS. Kept as plain ints (music_engine.TEMPO_IDX etc.) to avoid a circular import,
+# the same convention BAD_ZONE_FLAGS below already uses.
+TEMPO_IDX = 0xC000
+OCTAVE_IDX = 0xC001
+SCALE_IDX = 0xC002
+DENSITY_IDX = 0xC003
+CHMIX_IDX = 0xC004
+SETTINGS_SOURCES = [TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX_IDX]
+
+# IP-1110: boot-preset values for each of the 5 settings sources (music_engine.PRESET_*),
+# used to pre-initialize SETTINGS_CELLS so the very first rendered frame is already correct
+# (FS-111's Implementation Task 3), not left blank until the first update_visuals call.
+PRESET_TEMPO_IDX = 4
+PRESET_OCTAVE_IDX = 1
+PRESET_SCALE_IDX = 0
+PRESET_DENSITY_IDX = 0
+PRESET_CHMIX_IDX = 0
+SETTINGS_PRESETS = [PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX, PRESET_SCALE_IDX, PRESET_DENSITY_IDX,
+                    PRESET_CHMIX_IDX]
 
 BAD_ZONE_FLAGS = 0xC005  # music_engine.BAD_ZONE_FLAGS (kept as a plain int to avoid a circular
                           # import — visuals.py is a read-only consumer, GDS-03 SS1)
@@ -34,6 +65,17 @@ def _tile_off_bytes():
 
 def _tile_on_bytes():
     return [0xFF, 0xFF] * 8  # solid color index 3 (brightest palette slot) for all 8 rows
+
+
+def _bar_tile_bytes(n):
+    """IP-1110: an 8x8 2bpp glyph with the bottom n rows filled (color index 3) and the
+    remaining 8-n rows blank (color index 0) — a "how full is this" shape, no text/font
+    rendering needed (ADS-104 SS3)."""
+    rows = []
+    for row in range(8):
+        filled = row >= (8 - n)
+        rows.extend([0xFF, 0xFF] if filled else [0x00, 0x00])
+    return rows
 
 
 # Two BG palette-0 color sets (R205 SS5's "2-3 restrained tones" guidance): calm (blue/green)
@@ -58,14 +100,23 @@ def build_visuals_init_asm(rom: ROM):
     recomputed fresh every frame by update_visuals, not something a reset needs to restore."""
     rom.label('init_visuals')
 
-    # Tile 0 (off) at VRAM_TILE_DATA, tile 1 (on) immediately after.
+    # Tile 0 (off) at VRAM_TILE_DATA, tile 1 (on) immediately after, then (IP-1110) 8 more
+    # bar-height glyphs (fill levels 0-7) at tile indices 2-9.
     rom.LD_HL_nn(VRAM_TILE_DATA)
-    for b in _tile_off_bytes() + _tile_on_bytes():
+    tile_bytes = _tile_off_bytes() + _tile_on_bytes()
+    for n in range(8):
+        tile_bytes += _bar_tile_bytes(n)
+    for b in tile_bytes:
         rom.LD_A_n(b); rom.LD_HLI_A()
 
-    # Clear the 4 indicator cells to TILE_OFF.
+    # Clear the 4 channel-activity cells to TILE_OFF.
     for addr in CHANNEL_CELLS:
         rom.LD_A_n(TILE_OFF); rom.LD_nn_A(addr)
+
+    # IP-1110: pre-initialize the 5 settings-indicator cells to their boot-preset fill levels,
+    # so the first rendered frame is already correct (FS-111 Implementation Task 3).
+    for addr, preset in zip(SETTINGS_CELLS, SETTINGS_PRESETS):
+        rom.LD_A_n(TILE_BAR_BASE + preset); rom.LD_nn_A(addr)
 
     _emit_write_palette(rom, CALM_PALETTE)
 
@@ -100,4 +151,34 @@ def build_visuals_update_asm(rom: ROM):
     _emit_write_palette(rom, CALM_PALETTE)
     rom.label('uv_palette_done')
 
+    # IP-1110: settings-row update runs last. Disclosed timing finding (not fixed by this
+    # package, see IP-1110's own Risks/Definition of Done): on the exact frame Select is pressed,
+    # apply_input's full init_engine reset costs measurably more CPU than a plain button-index
+    # step, and this block's VRAM writes for that one frame are silently dropped — a real,
+    # pre-existing property of the visualizer's per-frame VRAM-write design (GDS-03's
+    # timing-discipline invariant), only made observable here because this is the first indicator
+    # whose displayed value actually changes across a Select press (the existing channel-activity
+    # cells never exposed it, since NR52's active-channel set doesn't change on a Select reset —
+    # an equally-dropped write there would be indistinguishable from no write at all). The write
+    # self-heals the very next frame, since this routine reruns unconditionally every frame
+    # against already-reset WRAM. Placing this block last (rather than earlier in this routine)
+    # keeps the existing channel-activity/palette writes at their original, already-proven-safe
+    # position — moving this new block earlier was tried and instead caused an intermittent drop
+    # of the *channel-activity* writes on ordinary frames with no button input at all, a strictly
+    # worse outcome; last-position confines the risk to this one disclosed, self-healing case.
+    _emit_update_settings_row(rom)
+
     rom.RET()
+
+
+def _emit_update_settings_row(rom):
+    """IP-1110 (FS-111/ADS-104): read-only settings-indicator update, purely additive — never
+    touches CHANNEL_CELLS, TILE_OFF/TILE_ON, or the palette-write routine (FR-1370). For each of
+    the 5 base controls, reads its WRAM byte directly as the bar-tile fill level (0-7 for
+    TEMPO_IDX/DENSITY_IDX/CHMIX_IDX, 0-3 for OCTAVE_IDX/SCALE_IDX — FS-111 Open Question 1
+    resolved: all 5 share the same 8-level tile set, the narrower-range controls simply never
+    exceed half-full) and writes the corresponding tile-pattern index to SETTINGS_CELLS."""
+    for source, addr in zip(SETTINGS_SOURCES, SETTINGS_CELLS):
+        rom.LD_A_nn(source)
+        rom.ADD_A_n(TILE_BAR_BASE)
+        rom.LD_nn_A(addr)

@@ -390,3 +390,90 @@ CAP-09 and CAP-11 both delivered), `docs/roadmap/02-capability-map.md` (CAP-11 r
 CAP-14 row's cross-reference to CAP-11 updated to reflect it as shipped, noting the still-open
 style-reactive-visualizer gap). See each file's own diff for the exact wording; this assessment
 is the authoritative record of the decision itself.
+
+---
+
+## Re-assessment — 2026-07-26 (adding `IP-1090`/`BL-0010` scope)
+
+**Release:** Consolidated R1 (Foundation) + R2 (Sound Design) + R3 (Integrity Remediation) + R4
+(Combinable Generation Schemes) + R5 (Genre-Aware Style Presets), now considering the addition of
+`IP-1090` (Motif Recurrence via Weighted Variant Selection, closing `BL-0010`'s long-open
+motif-recurrence gap). **Date:** 2026-07-26. **Commit:** `f5d68eb`.
+
+### Scope audit
+
+`IP-1090` is not itself a named roadmap release (`BL-0010` is a standing backlog research/design
+gap first opened in run #4, not one of the R0-R13 releases in `docs/roadmap/04-release-roadmap.md`
+— its song-form half is separately tracked under the still-unbuilt **R6 — Song-Form &
+Style-Drift Engine**). The promise being assessed here is narrower and more concrete than a
+named release: does `IP-1090` deliver what `FEAT-1090`/`FS-109`/`ADS-102` committed to, verified
+and integration-reviewed to the same evidentiary bar as every prior addition to this baseline?
+
+| Item | Status |
+|---|---|
+| `FEAT-1090` (Feature Catalog) | Authored 2026-07-26, traces `FR-1270`-`FR-1300`/`NFR-1100`/`1110`, Feature Review clean |
+| `FS-109` (full 20-field spec) | Authored 2026-07-26, carries `ADS-102` forward, all Open Questions resolved or explicitly deferred |
+| `IP-1090` (Implementation Package) | `VERIFIED` via [VR-1090](implementation/verification/VR-1090-motif-recurrence-via-weighted-variant-selection.md) |
+| Integration coverage | [14-package re-review](reviews/integration-review-foundation-bucket.md#re-review--2026-07-26-14-package-scope-ip-1090), clean, no Critical/High |
+
+No feature was deferred, descoped, or split since planning — `IP-1090` delivers exactly what
+`FS-109`/`ADS-102` scoped (a 4-variant `MOTIF_TABLE` extension with weighted, retention-biased,
+cycle-boundary-only selection), no more, no less.
+
+### Evidence
+
+ROM builds to exactly 32768 bytes, valid header. Full `test_rom.py` suite: **102/102 (T1-T16)**,
+re-confirmed against commit `f5d68eb` immediately before writing this assessment. ROM budget:
+29089 bytes free (`ADR-0002`'s `rom.pos` instrumentation), comfortably inside the single-bank
+ceiling. Relied on: `VR-1090` (independent verification — a genuinely fresh-session `Agent` in an
+isolated worktree, no memory of the implementing session; forced a guaranteed exact-frame
+collision between a motif-variant draw and an `IP-1080` style change specifically to adversarially
+stress the one cross-package risk both `FS-109` and `ADS-102` flagged, plus a 60,000-frame
+statistical sample confirming the retention-biased weighting genuinely holds — well beyond the
+shipped test suite's own weaker `T16.6`/`T16.8` assertions) and the 14-package integration review
+(structural independence from `IP-1080`/`IP-9010` confirmed by direct code inspection, plus a live
+6000-frame drive).
+
+### Deviations
+
+None found. `IP-1090`'s G3 authorization was recorded on the same standing basis already
+established for `IP-1080` (the user's 2026-07-26 "all work is pre authorized... continue,"
+explicitly recorded in the Master Build Plan as forward authorization for this pipeline's future
+packages within the same increment) — not an unauthorized build, a traceable extension of an
+authorization the user already gave and has not narrowed.
+
+### Residual risks (accepted if GO is given)
+
+| Item | Severity | Disposition |
+|---|---|---|
+| `BL-0048` — no shipped preset exercises motif-variant selection together with a muted Scheme-E channel or a named style (extends the `BL-0032`/`BL-0033`/`BL-0041` family) | Low | `SCHEDULED`, non-blocking — a data/test-coverage gap, both mechanisms independently confirmed correct |
+| `BL-0044` — the shipped `T16.6` retention-bias assertion is statistically weak (only 11 sampled boundary events); `VR-1090`'s own 60,000-frame independent sample is the real confirmation | Medium | `SCHEDULED`, non-blocking — a test-strength gap, not a functional defect; the underlying behavior is independently re-confirmed correct |
+| `BL-0045` — the shipped `T16.8` interaction test's own 47-frame interval never actually produces a same-frame collision within its fixture, despite claiming to test that interaction; `VR-1090` independently constructed and passed a guaranteed-collision test | Medium | `SCHEDULED`, non-blocking — same class as `BL-0044`, test-strength only |
+| `BL-0049`/`BL-0050` — `Claude.md`'s Known Good Behavior heading and the Feature Catalog's release-bucket header both still describe `IP-1090` as unverified/unbuilt | Low | Resolved as part of this assessment's own baseline-flip step, on GO (see below) — not a pre-existing risk once this assessment's GO is confirmed and acted on |
+| `BL-0042` — `MOTIF_VARIANT_SELECTOR`'s weighting values are first-guess placeholders, not tuned by ear | Low-Medium | `SCHEDULED`, non-blocking — same standing `BL-0005`-class disposition every untuned preset/table carries |
+
+### Assessment
+
+**GO** — recommended, advisory, for adding `IP-1090` (motif recurrence via weighted variant
+selection, closing `BL-0010`'s motif-recurrence half) to the shipped baseline alongside
+R1+R2+R3+R4+R5:
+
+- `FEAT-1090` traces to a `VERIFIED` package with a real VR (`VR-1090`), the same evidentiary bar
+  as every other shipped feature.
+- That package is now covered by a clean `10-integration-review` pass (the 14-package re-review),
+  with zero Critical/High findings anywhere in the tree — the new findings (`BL-0048` Low,
+  `BL-0044`/`BL-0045` Medium test-strength gaps, `BL-0049`/`BL-0050` Low doc-staleness) are all
+  explicitly non-blocking.
+- Every deviation has a recorded authorization trail (the standing G3 basis, explicitly named);
+  none is unauthorized drift.
+- Every residual risk carries an explicit, honest disposition; none is a silently-accepted
+  Critical/High item.
+- `BL-0010`'s motif-recurrence gap — open since run #4, deep-evaluated in research (R214 §8),
+  architected (`ADS-102`), formalized into requirements, planned, built, and now independently
+  verified and integration-reviewed — is closed end to end by this addition.
+
+**No baseline record has been touched by this run.** Per the user's own standing instruction, this
+GO recommendation is not itself authorization to flip `ROADMAP.md`, the Feature Catalog,
+`Claude.md`'s status line, or any other tracker to reflect `IP-1090` as shipped — that flip
+happens only after the user's separate, explicit confirmation of this GO decision (G4). This
+assessment's job ends at the recommendation.

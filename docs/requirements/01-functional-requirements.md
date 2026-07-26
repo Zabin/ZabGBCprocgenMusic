@@ -26,6 +26,11 @@
 | FR-1150 | On a note-onset event where the channel's previous and new scale degrees differ, the channel's frequency register transitions from the previous note's frequency to the new note's frequency over more than one frame (a glide/portamento), rather than jumping directly to the new frequency on the onset frame. | R216 §3/§5 (portamento) |
 | FR-1160 | At least one pulse channel's duty-cycle register bits (`NR11`/`NR21`) vary across note-onset events rather than remaining fixed at a single duty-cycle value for the entire session. | R216 §3/§5/§6 (duty-cycle variation) |
 | FR-1170 | The noise channel's percussion synthesis (fast-decay envelope on `NR42`, `FR-1010`'s existing noise-channel scope) already satisfies R216 §3's chiptune-percussion-synthesis convention ("basic percussion... generated from white noise going through an ADSR envelope") as shipped by `IP-0003` — this requirement records the trace explicitly; it introduces no new behavior. | R216 §3 (percussion synthesis, already shipped), FR-1010 |
+| FR-1180 | Each pitched channel's note-selection strategy (Scheme W — the shipped LFSR-driven walk — or Scheme E — Euclidean-gated onset timing with fixed-motif pitch selection) is determined by that channel's scheme-select bit in the currently-active `CHMIX_IDX` preset's mask data, independently of the other two pitched channels' scheme assignment (a "combination" is expressed at the ensemble level, never blended within one channel's own output). | ADS-100 §2/§3 (Domain Model: "Generation Scheme," "Scheme assignment"), ADR-0001 |
+| FR-1190 | Switching `CHMIX_IDX` (Start) to a preset with a different scheme assignment for a pitched channel takes effect from that channel's next note-onset event, not instantaneously mid-note — consistent with how `CHMIX_IDX`'s channel-activity half (`FR-1000`/`FR-1010`, `IP-9010`) already behaves. | ADS-100 §5 (FR-candidate 2) |
+| FR-1200 | A pitched channel running Scheme E gates its note onsets through the same Euclidean-pattern mechanism the noise channel already uses for density-driven hits (reusing `DENSITY_IDX`'s existing k-value selection), rather than a fixed per-tempo timer reload — producing a patterned, not continuously-regular, onset rhythm. | ADS-100 §3 (Domain Model: "Scheme E," onset timing), R202 |
+| FR-1210 | A pitched channel running Scheme E selects its next scale-degree by stepping through a fixed, precomputed cyclic motif (a short sequence of scale-degree deltas), rather than an LFSR-picked random delta. | ADS-100 §3 (Domain Model: "Scheme E," pitch selection), R211, R216 |
+| FR-1220 | Bad-zone detection (`FR-1080`/`FR-1090`/`FR-1100`) and autonomous recovery (`IP-0007`'s dissonant/stuck/overload-driven overrides) apply identically to a pitched channel regardless of which generation scheme (Scheme W or Scheme E) it is currently running — no scheme-specific bad-zone logic exists. | ADS-100 §2 ("both schemes still write through the same `BAD_ZONE_FLAGS`-driven... overrides"), §5 (FR-candidate 4) |
 
 ## Non-Functional Requirements
 
@@ -37,6 +42,8 @@
 | NFR-1030 | Threshold/preset constants (tempo table, octave table, scale table, density table, channel-mix table, dissonance/stale/overload thresholds) live in one clearly-labeled data block in `music_engine.py`, tunable without touching generation logic. | GDS-03 §6 |
 | NFR-1040 | Arpeggio/vibrato/portamento (FR-1130/FR-1140/FR-1150) each add bounded per-channel WRAM scratch state (a sub-tick/phase/glide counter per pitched channel) and bounded ROM-resident tables (an arpeggio-interval table, a vibrato depth/rate table) — the total addition stays within the current 32KB single-bank budget (GDS-07 §6's headroom) with no bank-switching change (MSTR-001 §4 non-goal). | MSTR-001 C2/§4, GDS-07 §6, strategic assumptions register A5 |
 | NFR-1050 | Arpeggio/vibrato/portamento's added per-frame work (sub-tick cycling, phase-counter advance, glide-step computation) fits within the existing VBlank-tick budget (NFR-1010) — verified by the same extended-run headless stress-test method already used for the shipped engine, not by static cycle analysis (R101's own "no gap yet" conclusion still applies; see NFR-1010). | R101, R308, NFR-1010 |
+| NFR-1060 | Scheme E's motif table(s) (ROM-resident, fixed at build time) and any per-channel "current motif step" scratch state add bounded ROM/WRAM — the total addition stays within the current 32KB single-bank budget (GDS-07 §6's headroom) with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5). | ADS-100 §6, MSTR-001 §4, GDS-07 §6 |
+| NFR-1070 | Generation-scheme selection introduces no new WRAM control byte and no new input control — the scheme assignment for each pitched channel is derived from the existing `CHMIX_IDX`/`CHMIX_MASKS` mechanism (`FR-1000`/`FR-1010`, `IP-9010`) each tick, the same way other per-channel constants are already Python-level, not stored, state. | ADS-100 §6/§7, ADR-0001 |
 
 ## Open items carried to feature decomposition
 
@@ -47,12 +54,48 @@
 - FR-1130-FR-1160's exact parameters (which 2-3 harmonic intervals the arpeggio uses, vibrato
   depth/rate, portamento glide-frame count, which duty-cycle values and how they're selected) are
   likewise data decisions deferred to feature decomposition/spec/implementation, same convention.
+- FR-1180-FR-1220's exact parameters (the scheme-select bit position within `CHMIX_MASKS`'s spare
+  bits 4-6, Scheme E's motif table contents/count, which `CHMIX_IDX` presets assign which scheme
+  to which channel) are likewise data/preset decisions deferred to feature decomposition/spec/
+  implementation — this pass fixes behavior shape (ADS-100's own "shape, not values" framing),
+  same convention as every prior preset-table deferral.
 
 ## Changelog
 
 | Date | Change | Why |
 |---|---|---|
 | 2026-07-22 | Added FR-1130 (arpeggio), FR-1140 (vibrato), FR-1150 (portamento), FR-1160 (duty-cycle variation), FR-1170 (percussion-synthesis trace, no new behavior), NFR-1040 (ROM/WRAM budget), NFR-1050 (per-frame timing budget). Delta update per `BL-0024` (user-directed R216 sound-design-techniques implementation). No existing FR/NFR changed. | `BL-0024`, grounded in `R216`. |
+| 2026-07-25 | Added FR-1180 (scheme-select determines note-selection strategy), FR-1190 (scheme switch takes effect at next onset, mirroring `IP-9010`'s activity-mask behavior), FR-1200 (Scheme E onset timing reuses the Euclidean-pattern mechanism), FR-1210 (Scheme E pitch selection via a fixed motif), FR-1220 (bad-zone detection/recovery is scheme-agnostic), NFR-1060 (ROM/WRAM budget), NFR-1070 (no new WRAM control byte/input control). Delta update formalizing `ADS-100` §5's candidate FRs per `BL-0020`, now that `IP-9010` has shipped with the bit layout `ADR-0001`'s contingency assumed (bits 0-3 channel-active, confirmed against the actual shipped `CHMIX_MASKS` — no re-check needed). No existing FR/NFR changed. | `BL-0020`, grounded in `ADS-100`/`ADR-0001`. |
+
+## Delta Review — 2026-07-25 (`FR-1180`-`FR-1220`, `NFR-1060`/`1070`)
+
+Reviewed this delta only (per the skill's own "not a wholesale regeneration" convention) for
+duplicates, conflicts, ambiguities, missing requirements, impossible requirements, architecture
+violations, and missing traceability:
+
+- **No duplicate or conflicting requirement.** `FR-1180`-`FR-1220` introduce a genuinely new
+  concept (generation scheme) orthogonal to every existing FR — none of `FR-1000`-`FR-1170`
+  presumes a single note-selection strategy in a way this delta contradicts; `FR-1220` explicitly
+  confirms `FR-1080`/`FR-1090`/`FR-1100` (bad-zone detection) is unaffected, closing the one place
+  a conflict could plausibly have existed.
+- **No architecture violation.** Each FR traces directly to `ADS-100`/`ADR-0001`; the ADR's own
+  contingency (`IP-9010`'s bit layout) is satisfied — `IP-9010` shipped with bits 0-3 as
+  channel-active, exactly as `ADS-100`/`ADR-0001` assumed, confirmed by re-reading
+  `IP-9010-channel-mix-gating.md` and the shipped `CHMIX_MASKS` table together.
+- **No missing requirement.** `ADS-100` §5/§6's four FR-candidates and two NFR-candidates all
+  became baseline requirements (`FR-1200`/`FR-1210` split from one candidate for atomicity, per
+  the skill's own "split ands" rule) — none silently dropped.
+- **Traceability:** every new ID's Source Documents column cites `ADS-100`'s specific section (and
+  `ADR-0001` where the ADR itself is the direct source, e.g. `FR-1180`'s scheme-selection
+  mechanism). No candidate needed — every statement in `ADS-100` §5/§6 was traceable to the
+  document itself, not invented here.
+- **Forward traceability (Module/FS/IP/Test):** all `UNASSIGNED` — no `FS-xxx`, Implementation
+  Package, or test exists yet for this feature; correctly left honest rather than guessed. This is
+  the expected state for a requirements-only delta pass, matching every prior FR addition's own
+  initial state before `05`/`06`/`07`/`08` picked it up.
+
+No Critical/High finding. This delta is ready for `05-feature-decomposition` to add a
+`FEAT-1070`-equivalent catalog row once picked up.
 
 **Known pre-existing gap (not introduced by this update):** this project's first requirements
 pass (run #1) authored FR/NFR content directly into this single file rather than the four

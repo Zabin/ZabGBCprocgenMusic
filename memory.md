@@ -32,7 +32,7 @@ no hangs, bad-zone entry and self-recovery both observed.
 
 | Range | Content |
 |---|---|
-| `0xC000`-`0xC004` | `TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX` (`CHMIX_IDX` indexes `CHMIX_MASKS`, gating channel output — `IP-9010`) |
+| `0xC000`-`0xC004` | `TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX` (`CHMIX_IDX` gates each channel via `CHMIX_MASKS`, `IP-9010`/`BL-0019`) |
 | `0xC005` | `BAD_ZONE_FLAGS` (bit0 DISSONANT, bit1 STUCK, bit2 OVERLOAD, bit3 COMBINED) |
 | `0xC006` | `DISSONANCE_SCORE` |
 | `0xC007`-`0xC009` | `STALE_COUNT_PA`/`PB`/`WV` |
@@ -44,6 +44,7 @@ no hangs, bad-zone entry and self-recovery both observed.
 | `0xC01A`-`0xC01C` | `SEMI_PA`/`PB`/`WV` (dissonance-tick scratch, not persisted meaning across frames) |
 | `0xC01D`/`0xC01E` | `ARP_STATE_PA`/`PB` (`IP-1060`) — packed: bits0-3 sub-tick countdown, bits4-5 step index (0-3) |
 | `0xC01F` | `ARP_DEGREE_SCRATCH` (`IP-1060`, shared pa/pb working storage, not persisted across frames) |
+| `0xC038`-`0xC03A` | `MOTIF_STEP_PA`/`PB`/`WV` (`IP-1070`) — packed: bits0-3 Euclidean-pattern step (0-15), bits4-6 motif step (0-7); only advances under Scheme E |
 | `0xC050`-`0xC052` | `JOY_PREV`/`JOY_CUR`/`JOY_NEW` |
 | `0xC060` | `VBLANK_FLAG` |
 

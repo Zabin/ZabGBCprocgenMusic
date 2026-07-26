@@ -15,9 +15,11 @@ Six milestones group the fourteen releases into demonstrable, decision-relevant 
   generative chiptune with expressive articulation (arpeggio/vibrato/portamento/duty-cycle); see a
   reactive tile/palette display.
 - **Acceptance criteria:** 65/65 `test_rom.py` checks; ROM builds to a valid 32768-byte header;
-  all Foundation-bucket packages `VERIFIED` (R2's two packages still owe verification).
-- **Remaining work:** `09-package-verification` on `IP-1060`/`IP-1061` (fresh session).
-- **Status:** ✅ **Substantially complete** — one verification step short of fully closed.
+  all Foundation-bucket packages `VERIFIED`.
+- **Status:** ✅ **Complete** — `IP-1060`/`IP-1061` independently verified 2026-07-25
+  ([VR-1060](../implementation/verification/VR-1060-arpeggio-and-duty-cycle.md),
+  [VR-1061](../implementation/verification/VR-1061-vibrato-and-portamento.md)); all Foundation +
+  R2 packages now `VERIFIED`.
 
 ## Milestone B — Integrity & Diversity Groundwork (R3-R5, +R4.5)
 
@@ -30,11 +32,23 @@ Six milestones group the fourteen releases into demonstrable, decision-relevant 
 - **Acceptance criteria:** `BL-0019`/`BL-0017` both `DONE`; `10-integration-review` clean;
   `11-release-readiness` GO achievable for the Foundation bucket; scheme/style capabilities
   independently verified.
-- **Remaining work:** **G3 authorization for `IP-9010`/`IP-9020`** (the standing gate blocking
-  this milestone's very first release). Also includes **R4.5**, the cart-shape decision checkpoint
+- **R3 complete as of 2026-07-25:** `IP-9010`/`IP-9020` both `VERIFIED`
+  ([VR-9010](../implementation/verification/VR-9010-channel-mix-gating.md),
+  [VR-9020](../implementation/verification/VR-9020-overload-threshold-recalibration.md)),
+  `10-integration-review` re-ran clean (one non-blocking Medium finding, `BL-0030`). `11-release-
+  readiness`'s GO/NO-GO call is now the only thing between R3 and CAP-09/CAP-11 work starting —
+  a G4 decision reserved for the user. Also includes **R4.5**, the cart-shape decision checkpoint
   (moved into this milestone per `10-final-roadmap-review.md` finding #1, applied) — a decision,
   not a build, sequenced after R4 so a real ROM-budget trajectory is visible first.
-- **Status:** Not started — blocked on authorization, not technical readiness.
+- **R4 complete as of 2026-07-25:** `IP-1070` `VERIFIED`
+  ([VR-1070](../implementation/verification/VR-1070-combinable-generation-schemes.md)), CAP-09
+  delivered (Scheme E, selectable per pitched channel). `10-integration-review` re-ran clean at
+  12-package scope (one new non-blocking Low finding, `BL-0033`, alongside the still-open
+  non-blocking `BL-0030`/`BL-0032`). `11-release-readiness` recommended GO for the R4 addition;
+  **user confirmed GO 2026-07-25.**
+- **Status:** ✅ **R3+R4 shipped — GO confirmed 2026-07-25.** CAP-09 delivered; CAP-11 (style
+  regions) remains this milestone's only unshipped capability. R4.5's cart-shape decision remains
+  a separate, not-yet-made checkpoint.
 
 ## Milestone C — Musical Maturity (R6-R7)
 

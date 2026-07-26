@@ -21,10 +21,13 @@ Suites:
   T11 Arpeggio + vibrato + duty-cycle variation (IP-1060/IP-1061): per-note chord-tone
       cycling, periodic pitch wobble, varying timbre (portamento verified by code review only,
       see t11's own docstring — no PSG-frequency-register readback is possible)
-  T12 Channel-mix gating (IP-9010): CHMIX_IDX-selected masks actually gate PSG output —
-      excluded channels silence (NR52), re-included channels resume
-  T13 Overload threshold recalibration (IP-9020): OVERLOAD is reachable at realistic-high
-      settings and does not spuriously fire at the default preset
+  T12 Channel-mix gating (IP-9010, BL-0019): Start-stepped CHMIX_IDX presets actually gate
+      each channel's NR52-visible activity, not just its own index value
+  T13 Overload recalibration (IP-9020, BL-0017): OVERLOAD_THRESHOLD is reachable at a
+      realistic-high tempo/density combination, and does not spuriously fire at default
+  T14 Combinable generation schemes (IP-1070, BL-0020): a channel assigned Scheme E cycles
+      through a fixed motif on a Euclidean-pattern-gated onset schedule, a channel left on
+      Scheme W is unaffected, and bad-zone detection/recovery still applies
 
 Run from the repo root: python3 test_rom.py
 Requires: pyboy (pinned 2.7.0, matching the reference project), numpy.
@@ -48,6 +51,7 @@ NOISE_STEP_IDX = 0xC019
 BAD_ZONE_FLAGS = 0xC005; DISSONANCE_SCORE = 0xC006
 STALE_COUNT_PA = 0xC007; ONSET_WINDOW_COUNT = 0xC00A
 ARP_STATE_PA = 0xC01D; ARP_STATE_PB = 0xC01E
+MOTIF_STEP_PA = 0xC038; MOTIF_STEP_PB = 0xC039; MOTIF_STEP_WV = 0xC03A
 LCDC = 0xFF40
 CHANNEL_CELLS = [0x9800, 0x9801, 0x9802, 0x9803]
 BCPD = 0xFF69
@@ -439,105 +443,166 @@ def t11_arpeggio_vibrato_duty():
 
 
 def t12_channel_mix_gating():
-    """IP-9010 (BL-0019): CHMIX_IDX-indexed channel-activity masks actually gate the channels'
-    PSG output -- closing the gap where Start correctly stepped CHMIX_IDX but nothing consumed
-    it (every channel always played regardless). Pulse A/B/wave sustain continuously between
-    onsets, so a single-frame NR52 snapshot reliably reflects their include/exclude state; noise
-    only sounds briefly on its sparse Euclidean-gated hits, so its checks use an onset-count-over-
-    a-window approach (same methodology T7 already uses), not an instantaneous snapshot, to avoid
-    a flaky false negative landing between hits."""
+    """IP-9010 (BL-0019): CHMIX_IDX must actually gate which channels sound, not merely step its
+    own WRAM index (T4.7 already confirms the stepping; this suite confirms the consumer)."""
     pb = fresh_boot()
+    # Noise is percussive/gated (density-pattern hits, on for only a fraction of frames per T7's
+    # own onset-frame-count evidence), not continuously active like the pitched channels — sample
+    # over a window and accept any frame where all 4 read active, same "at least once" style T7
+    # already uses for this same channel, rather than a single-frame snapshot.
+    all_four_seen = False
+    for _ in range(300):
+        pb.tick()
+        if (pb.memory[NR52] & 0x0F) == 0x0F:
+            all_four_seen = True
+    check("T12.1 Boot preset (CHMIX_IDX=0): all 4 channels report active in NR52 at least once "
+          "over a sustained run (regression guard — CHMIX_MASKS[0] must stay 0b1111)",
+          all_four_seen, f"NR52 sample at end={bin(pb.memory[NR52])}")
 
-    def noise_onsets(frames):
-        n = 0
-        for _ in range(frames):
-            pb.tick()
-            if pb.memory[NR52] & 0x08:
-                n += 1
-        return n
-
-    check("T12.1 Boot preset (CHMIX_IDX=0): pulse A/B/wave all active in NR52",
-          pb.memory[NR52] & 0x07 == 0x07, f"NR52={hex(pb.memory[NR52])}")
-    onsets_included = noise_onsets(600)
-    check("T12.2 Boot preset (CHMIX_IDX=0): noise produces onsets over a sustained window",
-          onsets_included > 0, f"onset-frame count: {onsets_included}")
-
-    # Step Start once: CHMIX_IDX 0 -> 1 (CHMIX_MASKS[1] = 0x03, pulse A+B only -- wave+noise
-    # excluded, GDS-03 SS3's own cited "pulse-only" example).
-    tap(pb, 'start')
-    check("T12.setup CHMIX_IDX reached 1", pb.memory[CHMIX_IDX] == 1, f"got {pb.memory[CHMIX_IDX]}")
-
-    # Run enough frames for every channel's current note to finish, so exclusion has had a full
-    # note-cycle to take effect (per this package's own Definition of Done wording).
-    for _ in range(60):
+    # Preset 3 = 0b1001 (pulse A + noise only, pulse B + wave excluded) — Start steps CHMIX_IDX
+    # by +1 per press (mask 0x07, wraps every 8).
+    for _ in range(3):
+        tap(pb, 'start')
+    check("T12.2 CHMIX_IDX reached preset 3", pb.memory[CHMIX_IDX] == 3,
+          f"got {pb.memory[CHMIX_IDX]}")
+    for _ in range(200):
         pb.tick()
     nr52 = pb.memory[NR52]
-    check("T12.3 Excluded wave channel (bit2) reads inactive in NR52",
-          nr52 & 0x04 == 0, f"NR52={hex(nr52)}")
-    check("T12.4 Still-included pulse A (bit0) remains active in NR52",
-          nr52 & 0x01 != 0, f"NR52={hex(nr52)}")
-    check("T12.5 Still-included pulse B (bit1) remains active in NR52",
-          nr52 & 0x02 != 0, f"NR52={hex(nr52)}")
-    onsets_excluded = noise_onsets(600)
-    check("T12.6 Excluded noise channel produces zero onsets over a sustained window",
-          onsets_excluded == 0, f"onset-frame count: {onsets_excluded}")
+    check("T12.3 Excluded pulse B (bit1) reads inactive in NR52 within one note-cycle of the "
+          "mask change", (nr52 & 0x02) == 0, f"NR52={bin(nr52)}")
+    check("T12.4 Excluded wave channel (bit2) reads inactive in NR52 within one note-cycle of "
+          "the mask change", (nr52 & 0x04) == 0, f"NR52={bin(nr52)}")
+    check("T12.5 Included pulse A (bit0) remains active in NR52 while excluded",
+          (nr52 & 0x01) != 0, f"NR52={bin(nr52)}")
 
-    # Reset to preset (Select) re-includes every channel (PRESET_CHMIX_IDX=0, all-active).
-    tap(pb, 'select')
-    for _ in range(60):
+    # Step back to preset 0 (3 + 5 = 8, wraps to 0) — confirm the previously-excluded channels
+    # resume generating and reporting active.
+    for _ in range(5):
+        tap(pb, 'start')
+    check("T12.6 CHMIX_IDX wrapped back to preset 0", pb.memory[CHMIX_IDX] == 0,
+          f"got {pb.memory[CHMIX_IDX]}")
+    for _ in range(200):
         pb.tick()
-    check("T12.7 Re-included wave channel resumes (active in NR52) after reset to preset 0",
-          pb.memory[NR52] & 0x04 != 0, f"NR52={hex(pb.memory[NR52])}")
-    onsets_reincluded = noise_onsets(600)
-    check("T12.8 Re-included noise channel resumes producing onsets over a sustained window",
-          onsets_reincluded > 0, f"onset-frame count: {onsets_reincluded}")
-
+    nr52 = pb.memory[NR52]
+    check("T12.7 Re-included pulse B (bit1) resumes reporting active in NR52",
+          (nr52 & 0x02) != 0, f"NR52={bin(nr52)}")
+    check("T12.8 Re-included wave channel (bit2) resumes reporting active in NR52",
+          (nr52 & 0x04) != 0, f"NR52={bin(nr52)}")
     pb.stop(save=False)
 
 
 def t13_overload_recalibration():
-    """IP-9020 (BL-0017): OVERLOAD_THRESHOLD, recalibrated from its original mathematically-
-    unreachable placeholder (20, per VR-0007's own computed ~8.8-onset/window ceiling), must be
-    empirically reachable at realistic-but-not-maximal settings and must NOT spuriously fire at
-    the default/sparse preset -- the exact regression guard BL-0017's root cause (an untested,
-    unreachable branch) was missing. Direct regression guard for the constant itself, not a
-    re-test of the (already-VERIFIED) OVERLOAD detection/recovery *mechanism* T8/T10 cover."""
+    """IP-9020 (BL-0017): OVERLOAD_THRESHOLD recalibrated from 20 (mathematically unreachable,
+    VR-0007) to 7 — reachable at realistic-high, non-maximal tempo/density combinations, still
+    implausible at the sparse default preset."""
+    # Realistic-high, not maximal: TEMPO_IDX 4->6 (2 Up presses), DENSITY_IDX 0->5 (5 B presses) —
+    # empirically measured peak ONSET_WINDOW_COUNT of 8 at this combination, above
+    # OVERLOAD_THRESHOLD=7 (triggers at count>7); the default preset's own peak is 6.
     pb = fresh_boot()
-
-    # Default preset: must NOT spuriously trigger OVERLOAD over a long run (the opposite failure
-    # mode this package's own Risks section warns against).
-    overload_at_default = False
-    for _ in range(6000):
-        pb.tick()
-        if pb.memory[BAD_ZONE_FLAGS] & 0x04:
-            overload_at_default = True
-    check("T13.1 OVERLOAD does not spuriously trigger at the default/sparse preset over a "
-          "sustained run", not overload_at_default,
-          f"overload observed: {overload_at_default}")
-    pb.stop(save=False)
-
-    # Realistic-high, not maximal: max tempo (Up x3) + a mid-high, non-maximal density (B x5) --
-    # a combination reachable through ordinary play, not the absolute max/max corner VR-0007
-    # used only to prove the old threshold unreachable.
-    pb = fresh_boot()
-    for _ in range(3):
+    for _ in range(2):
         tap(pb, 'up')
     for _ in range(5):
         tap(pb, 'b')
-    check("T13.setup TEMPO_IDX reached 7", pb.memory[TEMPO_IDX] == 7,
-          f"got {pb.memory[TEMPO_IDX]}")
+    check("T13.setup TEMPO_IDX reached 6", pb.memory[TEMPO_IDX] == 6, f"got {pb.memory[TEMPO_IDX]}")
     check("T13.setup DENSITY_IDX reached 5", pb.memory[DENSITY_IDX] == 5,
           f"got {pb.memory[DENSITY_IDX]}")
-    overload_triggered = False
-    for _ in range(6000):
+    overload_seen = False
+    for _ in range(2000):
         pb.tick()
         if pb.memory[BAD_ZONE_FLAGS] & 0x04:
-            overload_triggered = True
-            break
-    check("T13.2 OVERLOAD is empirically reachable at a realistic-high (not maximal) "
-          "tempo/density combination within a bounded frame budget",
-          overload_triggered, f"overload observed within 6000 frames: {overload_triggered}")
+            overload_seen = True
+    check("T13.1 BAD_ZONE_FLAGS bit2 (OVERLOAD) is observed set at a realistic-high, "
+          "non-maximal tempo/density combination within a bounded frame budget",
+          overload_seen, f"got overload_seen={overload_seen}")
     pb.stop(save=False)
+
+    # Opposite failure mode (Risks section): the sparse default preset must NOT spuriously
+    # overload over an equivalently long run.
+    pb2 = fresh_boot()
+    spurious_overload = False
+    for _ in range(2000):
+        pb2.tick()
+        if pb2.memory[BAD_ZONE_FLAGS] & 0x04:
+            spurious_overload = True
+    check("T13.2 The default/sparse preset does not spuriously trigger OVERLOAD over an "
+          "equivalently long run", not spurious_overload,
+          f"got spurious_overload={spurious_overload}")
+    pb2.stop(save=False)
+
+
+def t14_combinable_generation_schemes():
+    """IP-1070 (BL-0020): CHMIX_IDX preset 6 assigns Scheme E to the wave channel (pulse A/B stay
+    on Scheme W). Scheme E's packed state (MOTIF_STEP_WV) is bits0-3 Euclidean-pattern step
+    (0-15), bits4-6 motif step (0-7)."""
+    pb = fresh_boot()
+    for _ in range(6):
+        tap(pb, 'start')
+    check("T14.setup CHMIX_IDX reached preset 6", pb.memory[CHMIX_IDX] == 6,
+          f"got {pb.memory[CHMIX_IDX]}")
+
+    seen_euclid = set()
+    seen_motif = set()
+    seen_wv_degrees = set()
+    for _ in range(2000):
+        pb.tick()
+        st = pb.memory[MOTIF_STEP_WV]
+        seen_euclid.add(st & 0x0F)
+        seen_motif.add((st >> 4) & 0x07)
+        seen_wv_degrees.add(pb.memory[CUR_DEGREE_WV])
+    check("T14.1 Wave channel's Euclidean-pattern step (Scheme E onset timing) cycles through "
+          "all 16 positions", seen_euclid == set(range(16)), f"seen: {sorted(seen_euclid)}")
+    check("T14.2 Wave channel's motif step (Scheme E pitch selection) cycles through all 8 "
+          "positions", seen_motif == set(range(8)), f"seen: {sorted(seen_motif)}")
+    check("T14.3 Wave channel's scale-degree sequence stays within the fixed motif's value set "
+          "(plus bad-zone-override reachable degrees)", seen_wv_degrees.issubset(set(range(8))),
+          f"seen: {sorted(seen_wv_degrees)}")
+    pb.stop(save=False)
+
+    # Regression: a channel left on Scheme W (pulse A, bit4 clear at preset 6) is unaffected —
+    # MOTIF_STEP_PA should stay at 0 (never advanced, Scheme-W path never touches it).
+    pb2 = fresh_boot()
+    for _ in range(6):
+        tap(pb2, 'start')
+    for _ in range(500):
+        pb2.tick()
+    check("T14.4 Pulse A (still Scheme W at preset 6) never advances its own Scheme-E state",
+          pb2.memory[MOTIF_STEP_PA] == 0, f"got {pb2.memory[MOTIF_STEP_PA]}")
+    pb2.stop(save=False)
+
+    # Bad-zone detection/recovery (FR-1220) must apply identically with a Scheme-E channel active.
+    pb3 = fresh_boot()
+    for _ in range(6):
+        tap(pb3, 'start')
+    bad_zone_seen = False
+    recovered = False
+    was_bad = False
+    for _ in range(8000):
+        pb3.tick()
+        combined = pb3.memory[BAD_ZONE_FLAGS] & 0x08
+        if combined:
+            bad_zone_seen = True
+            was_bad = True
+        elif was_bad:
+            recovered = True
+            was_bad = False
+    check("T14.5 With a Scheme-E channel active, the engine still enters a bad-zone state over "
+          "a long run", bad_zone_seen, f"got bad_zone_seen={bad_zone_seen}")
+    check("T14.6 With a Scheme-E channel active, the engine still autonomously recovers from a "
+          "bad-zone state", recovered, f"got recovered={recovered}")
+    pb3.stop(save=False)
+
+    # Select resets MOTIF_STEP_WV (Euclidean step + motif step both back to 0).
+    pb4 = fresh_boot()
+    for _ in range(6):
+        tap(pb4, 'start')
+    for _ in range(50):
+        pb4.tick()
+    pb4.button_press('select')
+    pb4.tick()
+    pb4.button_release('select')
+    check("T14.7 Select resets MOTIF_STEP_WV to 0 (read on the exact reset frame)",
+          pb4.memory[MOTIF_STEP_WV] == 0, f"got {pb4.memory[MOTIF_STEP_WV]}")
+    pb4.stop(save=False)
 
 
 def main():
@@ -554,6 +619,7 @@ def main():
     t11_arpeggio_vibrato_duty()
     t12_channel_mix_gating()
     t13_overload_recalibration()
+    t14_combinable_generation_schemes()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

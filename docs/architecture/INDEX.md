@@ -39,4 +39,6 @@ bootstrap was.
 
 ## §4 — Architecture Decision Records
 
-See `adr/INDEX.md`. 1 recorded: `ADR-0001` (scheme selection rides the `CHMIX_IDX` preset space).
+See `adr/INDEX.md`. 2 recorded: `ADR-0001` (scheme selection rides the `CHMIX_IDX` preset space);
+`ADR-0002` (defer MBC/bank-switching and SRAM/battery-save adoption — the R4.5 cart-shape
+decision checkpoint, evidence-based, named re-triggers).

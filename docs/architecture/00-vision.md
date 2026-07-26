@@ -66,19 +66,19 @@ research landed, since the underlying mechanism (a state machine driving existin
 parameters) is shared with the bad-zone detect/recover loop `IP-0007` already ships — `03-
 architecture-design-synthesis` should note that shared shape if/when it picks either up.
 
-## Cart shape and persistence — reopened, not decided (v1.2)
+## Cart shape and persistence — decided, 2026-07-25 (R4.5 checkpoint, ADR-0002)
 
 Earlier drafts of this document (and MSTR-001 v1.0/v1.1) treated "single 32KB bank, no SRAM save"
 as settled shape. MSTR-001 v1.2 reopened both — the project owner named this as an arbitrary
-decision that had been mistaken for a firm one. **This document still does not decide the
-replacement** — that stays `03-architecture-design-synthesis`'s call. What has changed as of
-v1.4: the research MSTR-001 §9 commissioned has now landed (R106 extended, R302 §8-9 addendum) —
-MBC5 is the concrete hardware recommendation if bank-switching or save is ever adopted, PyBoy
-natively supports both (not a verification blocker), and bank-switching specifically is real
-assembler-architecture work in `gbc_lib.py`/`build_rom.py` (per-bank label addressing, cross-bank
-call safety), not a small patch. `03-architecture-design-synthesis` now has real facts to decide
-from instead of an open question to research first — the decision itself (adopt or not, and when)
-is still not made here or by that research, only the facts it needs are now available.
+decision that had been mistaken for a firm one. `03-architecture-design-synthesis` has now made
+the call GDS-00 delegated to it, at the roadmap's own **R4.5 — Cart-Shape Decision Checkpoint**:
+[ADR-0002](adr/ADR-0002-defer-mbc-adoption-single-bank-retained.md) **defers** MBC/bank-switching
+and SRAM/battery-save adoption — not a re-closing of the question, a named-re-trigger deferral
+grounded in measured evidence (only 10.4% of the single 32KB bank used after all four shipped
+releases; no roadmapped feature through Milestone D requires persisted state). Re-triggers: ROM
+usage crossing ~75%, or a save-requiring feature reaching an approved FR. MSTR-001 C1/C2's own
+"open, not decided at the vision layer" framing is unchanged by this architecture-layer decision —
+adoption remains fully available later, per C2's explicit wording.
 
 ## Research-to-code traceability goal (v1.3)
 

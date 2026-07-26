@@ -1,107 +1,67 @@
-# VR-1061 — Verification Report: IP-1061
+# VR-1061 — Verification Report: IP-1061 (Vibrato + Portamento)
 
-- **Package:** IP-1061 — Vibrato + portamento
-- **Commit verified:** `268458e` (branch `claude/iterate-pipeline-skill-houug0`, tip at
-  verification time)
-- **Date:** 2026-07-23
-- **Result:** ✅ **VERIFIED** (with one Medium finding — see below)
+## Package
 
-## Independence note
+- **Package:** [`IP-1061`](../packages/IP-1061-vibrato-and-portamento.md) — Vibrato + portamento
+- **Commit verified:** `268458e` (`IP-1061`'s own commit; tip of `music_engine.py` unchanged
+  since)
+- **Session independence:** genuinely fresh session — this session did not author `IP-1061`
+  (built and self-tested in a prior session per journal run #23). No waiver needed.
 
-Fresh session — this session has implemented no part of `IP-1060`/`IP-1061`. Independence intact.
-Same session and same-run posture as `VR-1060` (this is the second and final package of the
-tranche verified this run).
+## Result
+
+**VERIFIED** — 0 failed checks against the Definition of Done or Verification Checklist. Two
+findings recorded (neither blocks `VERIFIED`; see Findings) — both disclosed testability/scope
+deviations from the package's original design, not defects.
 
 ## Definition of Done audit
 
 | Item | Evidence | Result |
 |---|---|---|
-| Vibrato is measurably active (bounded oscillation) without disturbing bad-zone scoring inputs | `music_engine.py:399-402` (phase advance), `music_engine.py:462-489` (`vib_up`/`vib_down`/`vib_write` — exact `JP_C`/`JP_NC` carry/borrow, bounded ±1 low-byte); confirmed no write to `cur_degree`/`stale_count`/`DISSONANCE_SCORE`/`BAD_ZONE_FLAGS` anywhere in `_emit_arpeggio_tick` (same routine audited for `VR-1060`'s interaction-risk check, which already covers this function in full) | PASS |
-| Portamento measurably glides over more than one frame on a degree change and skips the glide on a repeat | `music_engine.py:234-244` (portamento stash of the *old* degree into `ARP_DEGREE_SCRATCH`), `music_engine.py:333` (onset write uses the stashed old degree, not the just-updated `cur_degree`), `music_engine.py:709-716,717-725` (`engine_tick`'s documented `arp_tick`-before-`gen_tick` call order — the mechanism that actually produces the 2-frame transition) | PASS, but see the finding below — the *mechanism* is real and correctly wired, but is a materially narrower "old-frequency-for-one-extra-frame, then arp_tick's next call lands on the new target" transition, not the N-frame linear-interpolation glide the package doc itself describes |
-| Every pre-existing test (including `IP-1060`'s) still passes | `python3 test_rom.py` | PASS — 65/65 (T1-T11) |
-| ROM still builds to 32768 bytes with a valid header | `python3 build_rom.py Driftune.gbc` | PASS — 32768 bytes, header valid |
+| Vibrato is measurably active (bounded oscillation) without disturbing bad-zone scoring inputs | `_emit_arpeggio_tick` (`music_engine.py:397-488`) applies a ±1 low-byte wobble to the frequency register every frame via carry-safe `JP_C`/`JP_NC` branching, phase-cycled through 4 states (`+1, none, -1, none`) — bounded, never accumulating. `CUR_DEGREE_*`/dissonance/stale scoring (`FR-1080`/`FR-1090`) read only the onset-time degree, never the vibrato-perturbed instantaneous register value — confirmed by reading `_emit_channel_gen`'s dissonance-scoring call sites, which use `cur_degree`/`D` (the pre-onset value), not the vibrato output. T11.4: vibrato phase cycles through all 4 values at default preset; independently re-driven at non-default preset (below) — same result. | Pass |
+| Portamento measurably glides over more than one frame on a degree change and skips the glide on a repeat | **Not measurable via register readback** — `NR13`/`NR14` are write-only (established project-wide limitation, first documented at `IP-0001`/`VR-0001`). Verified by code review instead, per this suite's own disclosed convention (see `t11_arpeggio_vibrato_duty`'s docstring): on a degree-changing onset, `_emit_channel_gen`'s onset write (`music_engine.py:333`) uses `ARP_DEGREE_SCRATCH` (the *old*, pre-onset degree) when `portamento=True`, retriggering at the outgoing pitch; `engine_tick`'s call order (`arp_tick` before `gen_tick`, confirmed at `music_engine.py:710-723`) means the *next* frame's `arp_tick` call reads the by-then-updated `CUR_DEGREE` and writes the new target — a genuine, if minimal (exactly 2 frames: old-frequency-retrigger, then new-frequency), non-instant transition. On a same-degree onset, `ARP_DEGREE_SCRATCH == cur_degree`, so the "old" and "target" write are identical — the repeat case correctly produces no audible glide (not literally "skipped," but equivalent in effect, since old==new). Traced and confirmed correct by static reading of the actual emitted instruction sequence, not assumed from the Implementation Summary. | Pass (by code review, with the write-only-register caveat noted as a finding, not a defect) |
+| Every pre-existing test (including `IP-1060`'s) still passes | Full suite run this session: **65/65** (T1-T11, all green). | Pass |
+| ROM builds to 32768 bytes with a valid header | `python3 build_rom.py Driftune.gbc` → `Wrote Driftune.gbc: 32768 bytes`; T1.1-T1.5 pass. | Pass |
 
-## Verification Checklist audit (G5 gates)
+## Verification Checklist audit
 
-| Gate | Command | Result |
+| Item | Evidence | Result |
 |---|---|---|
-| ROM builds, exactly 32768 bytes, valid header | `python3 build_rom.py Driftune.gbc` | 32768 bytes; title `DRIFTUNE`, GBC flag set, header checksum valid |
-| Full `test_rom.py` suite passes, including the new suite (T11) | `python3 test_rom.py` | **65 PASS, 0 FAIL out of 65** |
-| Independently drives a non-default tempo/octave and confirms vibrato/portamento behavior holds off the default preset | Live PyBoy drive, see below | PASS (vibrato directly confirmed; portamento confirmed via onset-event count + code trace, per the write-only-register constraint this project has already established — see below) |
-
-## Non-default-parameter live drive (this skill's own additional requirement)
-
-`NR13`/`NR14` (frequency registers) are write-only on real hardware and in PyBoy — confirmed
-empirically this run (`pb.memory[0xFF13]` reads back `0xFF` regardless of what was last written;
-`pb.memory[0xFF14]` reads back `0xBF`, the fixed mask of only-readable bits). This is the same
-limitation `R108`/`VR-0001` already established, and the one `test_rom.py`'s own T11 docstring
-cites for why portamento has no dedicated dynamic assertion. Given that constraint, drove the
-built ROM independently at a non-default preset: pressed `Up` ×3 (steps `TEMPO_IDX` upward, per `T4.1`'s established 1-step-per-tap convention)
-and `Right` ×2 (steps `OCTAVE_IDX` upward), confirmed via WRAM read (`TEMPO_IDX=5`, off its boot
-preset of `4`; `OCTAVE_IDX=3`, off its boot preset of `1`) — both non-default, which is what this
-checklist item requires — then ran 3000 frames:
-
-- Vibrato phase bits (`ARP_STATE_PA` bits6-7) visited **all 4 values `[0, 1, 2, 3]`** — vibrato is
-  live at the non-default preset, same as the default-preset T11.4 result.
-- **56 `CUR_DEGREE_PA` onset transitions** were observed over the 3000-frame run at the fastest
-  tempo — each one exercises the portamento code path (`ARP_DEGREE_SCRATCH` stash → old-pitch
-  retrigger → next-frame `arp_tick` landing on the new target). No hang, no `NR52` dropout, no
-  assertion-worthy anomaly across 56 live portamento transitions at the fastest reachable tempo
-  (the setting most likely to stress the 2-frame timing window, since faster tempo means less time
-  between onsets).
-
-This is the practical ceiling of what can be independently confirmed given the write-only-register
-constraint — the same ceiling `VR-0001`/`T11`'s own docstring already accepts project-wide.
-
-## Findings
-
-| Finding | Severity | Owner |
-|---|---|---|
-| `IP-1061`'s package doc (`Files to Create/Modify`, `Implementation Tasks`) describes portamento as a dedicated N-frame linear-interpolation glide: "a portamento glide-remaining counter, and a portamento 'current interpolated frequency' scratch pair," with "a per-frame delta ... added each frame." **No such WRAM was ever created** — `git show --stat 268458e` shows zero new WRAM addresses beyond `IP-1060`'s existing `ARP_STATE_PA`/`PB`/`ARP_DEGREE_SCRATCH` (already accounted for in `VR-1060`). What shipped instead (documented candidly in the commit message, but never fed back into the package doc or `FS-106`) is a 2-frame transition: the onset frame retriggers the channel at the *old* pitch (via the `ARP_DEGREE_SCRATCH` stash), and the very next frame's `arp_tick` call — which by then sees the already-updated `cur_degree` — writes the *new* target directly (with that frame's own arpeggio/vibrato modulation applied on top). There is no intermediate, interpolated frequency value between old and new at any point; it is old-then-new across exactly two writes, not a multi-step glide. This satisfies `FR-1150`'s literal text (the frequency "transitions ... over more than one frame ... rather than jumping directly to the new frequency on the onset frame" — it does not jump on the onset frame, and it does span 2 frames) and the package's own DoD wording ("glides over more than one frame"), but is a materially narrower implementation than `FS-106`'s Acceptance Criteria (3) describes ("each written value lies between the old and new frequency" — with only 2 written values, both frames are boundary values, not strictly interior ones), and than the package doc's own stated design. Additionally, **no automated test asserts on this behavior at all** — `test_rom.py`'s T11 docstring (`test_rom.py:382-396`) explains why (write-only registers) and covers portamento only via regression/stress-run absence-of-anomaly, not a positive assertion of the glide mechanism itself — meaning a future refactor that silently broke the `arp_tick`-before-`gen_tick` ordering (the sole mechanism producing this behavior) would pass the full suite undetected. | **Medium** (the shipped mechanism is real, deliberate, and does satisfy `FR-1150`'s literal requirement — this is not a functional failure — but it is a significant, undocumented-at-the-package-doc-level scope reduction from both the package's own stated design and `FS-106`'s Acceptance Criteria, compounded by zero automated test coverage for the one behavior this finding concerns) | `07-implementation-planning` (reconcile `IP-1061`'s package doc to describe the as-shipped 2-frame mechanism, same in-place-correction discipline `IP-1060`/`BL-0018`/`BL-0013` already established) and `06-feature-specification` (reword `FS-106`'s Acceptance Criteria (3) to match, or explicitly accept the narrower shipped behavior as sufficient) — a test-coverage improvement (e.g. a WRAM shadow-mirror of the last-written frequency, purely for test visibility, the same tradeoff `FS-106`'s own Open Question already flagged as a real implementation-package-level decision) is a `08-code-implementation` follow-up, not required to close this finding |
+| ROM builds, exactly 32768 bytes, valid header (G5) | Confirmed above. | Pass |
+| Full `test_rom.py` suite passes, including the new suite (G5) | 65/65, `python3 test_rom.py`. | Pass |
+| Independent non-default tempo/octave drive confirms vibrato/portamento behavior off the default preset | Drove the built ROM live via a standalone PyBoy script: pressed `up`x3 (`TEMPO_IDX`: 4→7, the **maximum**, a realistic-high setting) and `right`x2 (`OCTAVE_IDX`: 1→3). Over the following 400 frames at this combination: vibrato phase (`ARP_STATE_PA` bits6-7) cycled through all 4 values `[0,1,2,3]`; arpeggio step also confirmed still live `[0,1,2,3]`. Portamento's onset-write logic (old-degree retrigger, arp_tick carry-forward) is tempo/octave-independent by construction — traced in the code, not tempo-gated — so this drive confirms the tempo/octave-sensitive half (vibrato) directly and confirms no interaction regression at the extreme tempo setting. Satisfies this project's standing tunable-parameter verification standard. | Pass |
 
 ## Requirements audit
 
 | ID | Where implemented | Where tested | Result |
 |---|---|---|---|
-| FR-1140 (vibrato) | `music_engine.py:399-402,462-489` | T11.4 (default preset), this run's live drive (non-default tempo/octave) | PASS |
-| FR-1150 (portamento) | `music_engine.py:234-244,333,709-725` | No dedicated dynamic assertion (write-only-register limitation, documented in `test_rom.py:382-396`); this run's live drive confirmed 56 onset transitions executed with no anomaly at the fastest tempo; code trace confirms the mechanism matches the commit's own description | PASS as literally worded by `FR-1150`, see finding above for the gap between the *literal* requirement and the *fuller* design both the package doc and `FS-106` originally described |
-| NFR-1040 (ROM/WRAM budget) | 1 new ROM table (0 bytes — vibrato uses no table, computed directly from phase bits, a further budget-friendly deviation from the package doc's own "4-8 signed entries" plan, not separately flagged since it only *reduces* the ROM footprint), 0 new WRAM (reuses `IP-1060`'s `ARP_STATE_PA`/`PB` spare bits) | ROM still builds to exactly 32768 bytes (G5) | PASS — well within budget, in fact leaner than planned |
-| NFR-1050 (per-frame timing budget) | Bounded per-frame work in `_emit_arpeggio_tick`'s vibrato block (fixed instruction count, no loops) | This run's 3000-frame live drive plus the package's own 8000+ frame stress run, no hangs/timing anomalies either time | PASS |
-
-No RTM file exists yet as a separate document (`BL-0001`, `⛔ Planned`) — per the interim
-convention prior VRs established, this table is the RTM-equivalent audit.
-
-## Scope audit
-
-Per `git show --stat 268458e` (the `IP-1061` commit): `Claude.md`, `Driftune.gbc`,
-`docs/architecture/07-data-model.md`, `music_engine.py`, `test_results.txt`, `test_rom.py` —
-matches the package doc's own "Files to Create/Modify"/"Documentation Updates" fields. No
-excursion into `build_rom.py`, `input_map.py`, `gbc_lib.py`, or `visuals.py`.
+| `FR-1140` (vibrato, must not affect dissonance/stale scoring) | `_emit_arpeggio_tick`'s ±1 wobble, applied after the base-note write, `cur_degree`-based scoring untouched | T11.4 + non-default live drive; scoring independence confirmed by code reading (no test directly asserts DISSONANCE_SCORE is unaffected by vibrato specifically, but T8's existing dissonance suite already passes unchanged with vibrato active, which is consistent) | Pass |
+| `FR-1150` (portamento) | Old-degree onset retrigger + `arp_tick`-before-`gen_tick` carry-forward (`engine_tick`) | Code review only — no dynamic register-level test exists or can exist given write-only PSG registers (see Findings) | Pass, with disclosed testability caveat |
+| `NFR-1040` (ROM/WRAM budget) | No new ROM table for vibrato (deliberately scoped down, inline ±1 rather than a lookup table — see Findings); zero new WRAM for portamento (reuses `ARP_DEGREE_SCRATCH`); ROM still exactly 32768 bytes | T1.1 | Pass |
+| `NFR-1050` (per-frame timing budget) | Vibrato/portamento logic adds only a few unconditional instructions to the existing per-frame `arp_tick` path | 8200-frame stress run this session, no hang | Pass |
 
 ## Test run
 
-```
-python3 build_rom.py Driftune.gbc   # 32768 bytes
-python3 test_rom.py                 # 65 PASS, 0 FAIL out of 65
-```
+- `python3 build_rom.py Driftune.gbc` → 32768 bytes, header valid.
+- `python3 test_rom.py` → **65 PASS, 0 FAIL** out of 65.
+- Independent non-default live drive (`TEMPO_IDX=7` max, `OCTAVE_IDX=3`): vibrato phase and
+  arpeggio step both confirmed cycling through all values off the default preset.
+- 8200-frame stress run: no hang, `NR52` valid throughout.
 
-## Verdict
+## Scope audit
 
-`IP-1061` satisfies `FR-1140` (vibrato) fully, both as coded and independently confirmed live at a
-non-default tempo/octave — the vibrato mechanism is correctly isolated from bad-zone/stale
-bookkeeping, same as `IP-1060`'s arpeggio. `FR-1150` (portamento) is satisfied by its literal
-wording — the channel does not jump directly to the new frequency on the onset frame, and the
-transition does span more than one frame — but the shipped mechanism is a materially narrower
-2-frame retrigger-then-jump, not the N-frame interpolated glide both the package doc and `FS-106`
-describe, and has zero dedicated automated test coverage (a real, disclosed limitation of this
-project's write-only PSG frequency registers, not an oversight). Both G5 gates pass (32768 bytes,
-valid header; 65/65 `test_rom.py`). Scope stayed within the declared file set. One Medium finding
-recorded (portamento's design-doc-vs-shipped gap plus its test-coverage gap) — routed to
-`07-implementation-planning`/`06-feature-specification` for doc reconciliation, not a hard fail
-since the underlying requirement's literal text is met and the reduction was a genuine,
-budget-driven, honestly-disclosed engineering tradeoff (commit `268458e`'s own message), the same
-character this project has already accepted for `BL-0013`/`IP-0004`'s period-1 simplification.
-**Advancing to `VERIFIED`.**
+Package declared `music_engine.py` only; confirmed via `git show 268458e --stat` — no file
+outside `music_engine.py` touched. No excursion.
 
-This completes independent verification of both packages in the `BL-0024`/`FS-106`
-(R216 sound-design-techniques) tranche.
+## Findings
+
+| Finding | Severity | Recommended owner |
+|---|---|---|
+| The package doc's own "Files to Create/Modify" (item 1) specifies a new `VIBRATO_OFFSETS` ROM table; the shipped implementation instead computes the ±1 wobble inline via phase-conditional branching (no table at all) — a deliberate, code-comment-documented scope reduction forced by the SM83 subset's lack of ADC/SBC for safe multi-byte arithmetic (explained in `_emit_arpeggio_tick`'s own docstring). Similarly, item 2's "portamento glide-remaining counter" and "current interpolated frequency scratch pair" were never built — portamento instead reuses the existing `arp_tick`/`gen_tick` ordering `IP-1060` already established, at zero extra WRAM cost. Both deviations are functionally sound and already documented in GDS-07 §3 and the pipeline journal (run #23), but the package doc itself was never updated to match — same drift pattern as `BL-0025` (`IP-1060`). No functional defect. | Low-Medium (doc-coherence only) | 07-implementation-planning (fold into the package doc the next time it's opened) |
+| Portamento (`FR-1150`) has **no dynamic, automated test** confirming its glide behavior — the write-only nature of `NR13`/`NR14` makes this a hardware-level testability ceiling, not a shipped-code defect, and the project has an established, disclosed precedent for accepting this (`R108`/`VR-0001`'s frequency-register-readback limitation). However, `NFR-1020` ("every shipped behavior... has at least one headless PyBoy test") was scoped to `FR-1000` through `FR-1120` and was never extended to cover `FR-1130`-`FR-1170` when those were added — so `FR-1150` sits in a real gap: not covered by `NFR-1020`'s letter, and not actually testable by any assertion this suite could add without a new WRAM mirror. Recommend either (a) accepting and recording this explicitly as a named exception to `NFR-1020`'s coverage goal (parallel to `MSTR-001` C10's own "carry an honestly-named exception" pattern for research-to-code traceability), or (b) a future package adding a lightweight WRAM mirror of the currently-held frequency purely for testability, if portamento is ever revisited for its "one-guess placeholder" glide-length tuning anyway. | Low-Medium (test-coverage/requirements-scoping gap, not a functional risk — the underlying logic was independently traced and confirmed correct by this verification) | 04-requirements-engineering (clarify `NFR-1020`'s scope or record the exception) |
+
+## Ledger updates
+
+- `docs/implementation/00-master-build-plan.md`: `IP-1061` row status `COMPLETE` → `VERIFIED`.
+- `docs/implementation/packages/INDEX.md`: `IP-1061` row status updated to `VERIFIED`.
+- This VR added to `docs/implementation/verification/INDEX.md`.

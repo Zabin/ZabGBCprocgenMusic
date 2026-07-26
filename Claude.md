@@ -23,15 +23,15 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers)
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 60 checks across T1-T10
+                    sound registers + WRAM engine state) — 85 checks across T1-T14
 ```
 
 ### Data layout, WRAM map
 
 Authoritative source: [`docs/architecture/07-data-model.md`](docs/architecture/07-data-model.md)
 (GDS-07). Quick orientation: parameter indices at `0xC000`-`0xC004` (tempo/octave/scale/density/
-channel-mix — `CHMIX_IDX` selects an 8-entry `CHMIX_MASKS` table, `IP-9010`, gating which of the
-4 channels generate/sound), bad-zone state at
+channel-mix — channel-mix now gates each channel's own generation routine, `IP-9010`/`BL-0019`),
+bad-zone state at
 `0xC005`-`0xC00B` (dissonance score, per-channel stale counts, onset-window counter/timer),
 per-channel generation state (note timers, scale degrees, LFSR states) at `0xC00C`+, joypad state
 at `0xC050`-`0xC052`, noise step index at `0xC019`, **arpeggio state (`IP-1060`) at `0xC01D`-
@@ -46,7 +46,7 @@ SRAM** — this project makes no save/battery commitment (MSTR-001 C2).
 | D-pad Right/Left | Octave step +/- |
 | A | Next scale/mode |
 | B | Next density preset (noise-channel Euclidean pattern) |
-| Start | Next channel-mix preset — mutes/unmutes whichever channels the new preset excludes (`IP-9010`) |
+| Start | Next channel-mix preset (`CHMIX_MASKS`-gated — only the preset's included channels sound, `IP-9010`) |
 | Select | Reset all channels + bad-zone state to the known-good preset **and randomize each channel's melodic seed** (unconditional, manual override — not the only recovery path, see below) |
 
 All edge-triggered (rising edge only — holding does not repeat).
@@ -134,7 +134,25 @@ per-channel `STALE_COUNT_*`, overload via the rolling onset window) — see
 `visuals.py` — tile data (`_tile_off_bytes`/`_tile_on_bytes`), the 4 channel-indicator cells
 (`CHANNEL_CELLS`), or the calm/bad-zone palettes (`CALM_PALETTE`/`BAD_PALETTE`).
 
-## Known Good Behavior (MVP — Foundation release bucket, self-tested this session)
+### Change channel-mix presets
+`CHMIX_MASKS` in `music_engine.py` (8 entries, bit0=pulse A/bit1=pulse B/bit2=wave/bit3=noise,
+matching `NR52`'s own bit order) — preset 0 must stay `0b1111` (every pre-existing test assumes
+all channels active at boot/reset) and every entry must stay nonzero (an all-silent preset has no
+recovery path short of Select). Gating itself lives in `_emit_channel_gen`'s and
+`_emit_noise_gen`'s onset blocks (`IP-9010`/`BL-0019`) — extending it to a new channel means
+adding that channel's `dac_reg`/`dac_on`/`bit_index` to its `CHANNELS` entry (or, for a
+non-`CHANNELS` channel like noise, following `_emit_noise_gen`'s own inline pattern).
+
+### Change Scheme E's motif table or scheme assignment
+`MOTIF_TABLE` in `music_engine.py` (8 absolute scale-degree targets, 0-7, shared by every
+Scheme-E channel) — a first-guess placeholder shape, not tuned by ear (`BL-0005`). Which
+`CHMIX_IDX` presets assign Scheme E to which channel is `CHMIX_MASKS`'s bits4-6 (pa=4, pb=5,
+wv=6, 0=Scheme W/1=Scheme E) — preset 0 must stay all-Scheme-W (no regression to the shipped
+default). Scheme E's onset-timing/pitch-selection logic itself lives in `_emit_channel_gen`'s
+note-selection step (`IP-1070`/`BL-0020`) — extending it to a new scheme means adding another
+branch there, keyed off a new bit in the same spare-bit range (`ADR-0001`).
+
+## Known Good Behavior (v1.1 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation, GO 2026-07-25)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
 - Boots within ~90 frames (GBC boot-ROM logo animation time) to: all 3 pitched channels (pulse
@@ -161,16 +179,23 @@ per-channel `STALE_COUNT_*`, overload via the rolling onset window) — see
   no envelope retrigger), vibrato-wobble every frame, glide (portamento) from the old pitch to
   the new one across a degree-changing onset, and vary duty cycle per onset (`IP-1060`/`IP-1061`,
   `R216`)
-- Start-button channel-mix presets actually gate output: an excluded channel silences (`NR52`
-  reads inactive) within one note-cycle, a re-included channel resumes generating and sounding,
-  confirmed live at a non-default preset in addition to the shared test fixture's default
-  (`IP-9010`, `BL-0019`)
-- `OVERLOAD_THRESHOLD` recalibrated (20 → 6, empirically calibrated, not just formula-derived —
-  see the constant's own comment in `music_engine.py`): OVERLOAD is now genuinely reachable at
-  realistic-high tempo/density settings, without spuriously firing at the default preset
-  (`IP-9020`, `BL-0017`)
+- Start-stepped channel-mix presets (`CHMIX_MASKS`, `IP-9010`/`BL-0019`) actually gate which
+  channels sound: an excluded channel's frequency/duty writes are skipped and its DAC/envelope is
+  explicitly forced off, clearing its `NR52` bit within one note-cycle; a re-included channel
+  resumes generating and reporting active on its own next onset. Internal bookkeeping
+  (stale/onset-window counters, the melodic walk itself) keeps running for an excluded channel so
+  it resumes musically-current, not frozen, when re-enabled.
+- Overload detection (`IP-9020`/`BL-0017`) is now empirically reachable: `OVERLOAD_THRESHOLD`
+  recalibrated from `20` (mathematically unreachable) to `7`, based on measured peak onset counts
+  (not just the analytical average-rate formula, which understated real bursts) — reachable at a
+  realistic-high tempo/density combination, not spuriously reachable at the sparse default.
+- Combinable generation schemes (`IP-1070`/`BL-0020`): each pitched channel can independently run
+  Scheme W (the original LFSR walk) or Scheme E (a Euclidean-pattern-gated onset schedule + a
+  fixed 8-step motif), selected per `CHMIX_IDX` preset (preset 6 assigns Scheme E to the wave
+  channel, per `ADS-100`'s own worked example — a recognizable repeating bass motif against pulse
+  A/B's freer drift). Bad-zone detection/recovery applies identically regardless of scheme.
 
-**78/78 `test_rom.py` checks pass** (T1-T13). An 8000+ frame stress run with continuous input
+**85/85 `test_rom.py` checks pass** (T1-T14). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

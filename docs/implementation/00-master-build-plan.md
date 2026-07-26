@@ -47,12 +47,13 @@ both cite their `BL-xxxx` directly per this skill's ID convention):
 
 | IP | Package | BL cited | Status |
 |---|---|---|---|
-| IP-9010 | Channel-mix gating — wire `CHMIX_IDX` to an actual channel-activity-mask table | `BL-0019` (High) | **COMPLETE** — [package](packages/IP-9010-channel-mix-gating.md), 74/74 tests (new suite T12), 8000+ frame stress run clean at a non-default mix preset; verification pending |
-| IP-9020 | Overload threshold recalibration — `OVERLOAD_THRESHOLD`/`ONSET_WINDOW_FRAMES` | `BL-0017` (Medium-High) | **COMPLETE** — [package](packages/IP-9020-overload-threshold-recalibration.md), 78/78 tests (new suite T13), 8000+ frame stress run clean; verification pending |
+| IP-9010 | Channel-mix gating — wire `CHMIX_IDX` to an actual channel-activity-mask table | `BL-0019` (High) | **VERIFIED** — [package](packages/IP-9010-channel-mix-gating.md), [VR-9010](verification/VR-9010-channel-mix-gating.md), `CHMIX_MASKS` table + gating in `_emit_channel_gen`/`_emit_noise_gen`, T12 suite (5 checks), 77/77 full-suite tests, independent non-default live drive (preset 5, wave+noise only) confirmed exclusion + re-inclusion, 8200-frame stress run clean. Two Low/Low-Medium findings (undeclared doc-scope addition; a code-comment's backlog-filing claim not actually filed — see VR-9010) |
+| IP-9020 | Overload threshold recalibration — `OVERLOAD_THRESHOLD`/`ONSET_WINDOW_FRAMES` | `BL-0017` (Medium-High) | **VERIFIED** — [package](packages/IP-9020-overload-threshold-recalibration.md), [VR-9020](verification/VR-9020-overload-threshold-recalibration.md), `OVERLOAD_THRESHOLD` 20→7 (empirically recalibrated, not just the analytical VR-0007 formula — see package note), T13 suite (2 checks), 77/77 full-suite tests, independent non-default live drive (`TEMPO_IDX=5`/`DENSITY_IDX=6`, distinct from T13's own fixture) confirmed OVERLOAD reachable and default preset non-spurious, 8200-frame default-preset stress run clean. One Low finding (undeclared `Claude.md` doc-scope addition — see VR-9020) |
 
 Both depend only on already-`VERIFIED` code (no dependency on each other — see the TWBS's
 sequencing note for the session-hygiene recommendation to build `IP-9010` first, not a technical
-requirement). Both are now `READY` — G3 authorization was the sole blocker, granted this run.
+requirement). Both are `VERIFIED` (see the Status column above) — G3 authorization, granted in
+an earlier run, was the only blocker; no longer outstanding.
 
 ## Technical Work Breakdown (TWBS) — Sound Design Techniques (`FS-106`, `BL-0024`)
 
@@ -61,8 +62,18 @@ supersession-sweep, and split rationale.
 
 | IP | Package | Requirements | Status |
 |---|---|---|---|
-| IP-1060 | Arpeggio + duty-cycle variation | FR-1130, FR-1160 | **VERIFIED** ([package](packages/IP-1060-arpeggio-and-duty-cycle.md), 65/65 tests against the current tree; [VR-1060](verification/VR-1060-arpeggio-and-duty-cycle.md), fresh-session independent verification — non-default scale/octave independently driven live, two Low doc-coherence findings) |
-| IP-1061 | Vibrato + portamento | FR-1140, FR-1150 | **VERIFIED** ([package](packages/IP-1061-vibrato-and-portamento.md), 65/65 tests; [VR-1061](verification/VR-1061-vibrato-and-portamento.md), fresh-session independent verification — one Medium finding on portamento's design-doc-vs-shipped gap, routed to `07`/`06`) |
+| IP-1060 | Arpeggio + duty-cycle variation | FR-1130, FR-1160 | **VERIFIED** — [package](packages/IP-1060-arpeggio-and-duty-cycle.md), [VR-1060](verification/VR-1060-arpeggio-and-duty-cycle.md): 65/65 tests, non-default `OCTAVE_IDX=3`/`SCALE_IDX=2` independently re-driven, 8200-frame stress run clean |
+| IP-1061 | Vibrato + portamento | FR-1140, FR-1150 | **VERIFIED** — [package](packages/IP-1061-vibrato-and-portamento.md), [VR-1061](verification/VR-1061-vibrato-and-portamento.md): 65/65 tests, non-default `TEMPO_IDX=7`/`OCTAVE_IDX=3` independently re-driven, 8200-frame stress run clean |
+
+## Technical Work Breakdown (TWBS) — Combinable Generation Schemes (`FS-107`, `BL-0020`)
+
+| IP | Package | Requirements | Status |
+|---|---|---|---|
+| IP-1070 | Combinable generation schemes — Scheme E (Euclidean onset timing + fixed-motif pitch selection) | FR-1180...FR-1220, NFR-1060, NFR-1070 | **VERIFIED** — [package](packages/IP-1070-combinable-generation-schemes.md), [VR-1070](verification/VR-1070-combinable-generation-schemes.md), 85/85 full-suite tests, independent non-default live drive (density=5/tempo=6/preset 6 + a mid-note scheme-switch scenario) confirms the DoD. One Medium finding (pulse A/B Scheme E is code-complete but unreachable via any shipped preset). |
+
+**G3 authorization for `IP-1070`**: **granted explicitly by the user, 2026-07-25** (asked directly
+via `AskUserQuestion`, confirmed "Yes, authorize and build it" — not assumed from ambiguous
+phrasing). Recorded here as the basis.
 
 **G3 authorization for `IP-1060`/`IP-1061`**: the user's request that filed `BL-0024` — "Iterating
 the pipeline skill run through to implantation the concepts in R216... Iterate until they are all
@@ -84,10 +95,12 @@ project owner's original instruction ("build a new... GBC ROM...", "follow the h
 stage by stage") together with the explicit request to reach working code this session is treated
 as standing authorization for the first foundation package; IP-0002 onward each need their own
 go-ahead at the point the pipeline reaches them (recorded in the journal/backlog, not assumed
-silently). **`IP-9010`/`IP-9020` ARE authorized** — the user explicitly authorized both, per-package, via
-`AskUserQuestion` on 2026-07-25 (run #33): "Authorize both" in response to the pipeline manager's
-G3 gate check, closing the gate open since run #14.
-**`IP-1060`/`IP-1061` ARE authorized** — the user's own `BL-0024`-filing request explicitly
-directed the pipeline to carry the R216 sound-design-techniques feature through implementation
-and verification ("iterate until... committed and pushed"), recorded as the per-package go-ahead
-for these two packages specifically.
+silently). **`IP-1060`/`IP-1061` ARE authorized** — the user's own `BL-0024`-filing request
+explicitly directed the pipeline to carry the R216 sound-design-techniques feature through
+implementation and verification ("iterate until... committed and pushed"), recorded as the
+per-package go-ahead for these two packages specifically. **`IP-9010`/`IP-9020` ARE authorized as
+of 2026-07-25 (pipeline journal run #33)** — after this run's own reconciliation surfaced that
+neither package had actually been built despite an earlier session's directing premise assuming
+otherwise, the user was asked explicitly via `AskUserQuestion` and chose to grant G3 for both now,
+accepting that their independent verification moves to a future fresh session (this session
+cannot verify its own same-session implementation work).

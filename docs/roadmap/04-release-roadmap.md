@@ -48,14 +48,19 @@ traces to Vision/research.
 - **Testing goals:** Suite grew to 65/65 (new suite T11); two clean multi-thousand-frame stress
   runs.
 - **Completion criteria:** `IP-1060`/`IP-1061` `COMPLETE`.
-- **Status:** ✅ Shipped, **not yet independently verified** (`09-package-verification` owed, fresh
-  session required).
+- **Status:** ✅ Shipped and **independently verified** ([VR-1060](../implementation/verification/VR-1060-arpeggio-and-duty-cycle.md),
+  [VR-1061](../implementation/verification/VR-1061-vibrato-and-portamento.md), 2026-07-25 —
+  fresh-session `09-package-verification`, both non-default tunable-parameter combinations
+  re-driven live per this project's own verification standard). Two Low-Medium doc-coherence
+  findings filed (`BL-0025`/`BL-0026`, package-doc text vs. shipped design) and one Low-Medium
+  test-coverage finding (`BL-0027`, portamento has no dynamic register-level test) — none block
+  this release; none are functional defects.
 
 ---
 
 **Everything below this line is new roadmap content — not yet built.**
 
-## R3 — Integrity Remediation
+## R3 — Integrity Remediation (shipped)
 
 - **Purpose:** Close the two open defects blocking this roadmap's entire critical path before any
   new capability is layered on top of a known-broken control and a known-dead detection path.
@@ -74,14 +79,30 @@ traces to Vision/research.
   `11-release-readiness` GO becomes possible for the Foundation bucket.
 - **Potential risks:** `IP-9010`'s own package doc flags a real open design question (should an
   excluded channel's dissonance still count toward bad-zone scoring) needing an explicit answer
-  during implementation, not a guess.
+  during implementation, not a guess. **Resolved 2026-07-25:** left dissonance scoring reading
+  every pitched channel's degree unconditionally (documented choice, not silently defaulted — see
+  `_emit_channel_gen`'s own docstring and `IP-9010`'s implementation commit).
 - **Expected demonstration:** Press Start repeatedly, hear channels drop in/out; drive max tempo +
   density, watch the visualizer's palette actually flip to bad-zone red from overload.
-- **Prerequisite not yet satisfied:** **G3 authorization** — both packages are specified and ready
-  but explicitly not authorized on the Master Build Plan; this release cannot start without it.
+- **Status (2026-07-25):** **Both packages built, independently verified, and integration-reviewed
+  this session** — `IP-9010` (`CHMIX_MASKS` channel-mix gating,
+  [VR-9010](../implementation/verification/VR-9010-channel-mix-gating.md)) and `IP-9020`
+  (`OVERLOAD_THRESHOLD` 20→7, empirically recalibrated,
+  [VR-9020](../implementation/verification/VR-9020-overload-threshold-recalibration.md)) both
+  `VERIFIED`, 77/77 full suite, 8200-frame stress runs clean, both independently re-driven live at
+  non-default parameters by a genuinely fresh-session verification pass.
+  [`10-integration-review`'s re-review](../reviews/integration-review-foundation-bucket.md#re-review--2026-07-25)
+  confirmed both fixes hold at the integration level — one new non-blocking Medium finding
+  (`BL-0030`, channel-mix/overload counting interaction). **R3 is complete: `11-release-readiness`
+  recommended GO for the consolidated R1+R2+R3 release, and the user confirmed GO on 2026-07-25**
+  ([release assessment](../reviews/release-assessment-r1-r2-r3.md)). R3 shipped.
 
-## R4 — Multi-Scheme Foundation
+## R4 — Multi-Scheme Foundation (shipped)
 
+- **Status: ✅ SHIPPED — GO confirmed 2026-07-25**, as an addition to the R1+R2+R3 baseline. See
+  [release-assessment-r1-r2-r3.md](../reviews/release-assessment-r1-r2-r3.md)'s R4 addition
+  re-assessment. Completion criteria met: `IP-1070` `VERIFIED` ([VR-1070](../implementation/verification/VR-1070-combinable-generation-schemes.md)),
+  covered by a clean 12-package integration review.
 - **Purpose:** Introduce the first real structural alternative to the shipped LFSR-walk
   generation, per `BL-0020`/`ADS-100`.
 - **Capabilities introduced:** CAP-09.
@@ -100,8 +121,13 @@ traces to Vision/research.
   different melodic character.
 - **Dependency:** R3 (CAP-10 must be functional first).
 
-## R4.5 — Cart-Shape Decision Checkpoint
+## R4.5 — Cart-Shape Decision Checkpoint (decided)
 
+- **Status: ✅ DECIDED, 2026-07-25.** [ADR-0002](../architecture/adr/ADR-0002-defer-mbc-adoption-single-bank-retained.md):
+  **defer** MBC5/bank-switching and SRAM/battery-save adoption — measured ROM usage post-R4 is
+  10.4% of the single 32KB bank (3419/32768 bytes, 29349 free), no roadmapped feature through
+  Milestone D requires persisted state. Named re-triggers: ROM usage crossing ~75%, or a
+  save-requiring feature reaching an approved FR. Not a build — no code changed by this decision.
 - **Purpose:** Added by this package's own `10-final-roadmap-review.md` (finding #1) — make the
   MBC5/bank-switching adoption call *before* Milestones B-D's cumulative new data tables (Scheme
   E, style presets, song-form/emotional state) create ROM-budget pressure, rather than bundling

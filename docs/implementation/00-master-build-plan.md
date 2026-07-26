@@ -85,7 +85,7 @@ specific, scoped feature. Recorded here as the basis, distinct from and not exte
 
 | IP | Package | Requirements | Status |
 |---|---|---|---|
-| IP-1080 | Genre-aware style presets — parallel `STYLE_TABLE` keyed by `CHMIX_IDX`, applied immediately on Start press | FR-1230...FR-1260, NFR-1080, NFR-1090 | **COMPLETE** — [package](packages/IP-1080-genre-aware-style-presets.md), 93/93 full-suite tests (new T15 suite, 6 checks), 8200-frame randomized-input stress run clean, ROM budget +78 bytes (29271 free of headroom). Not yet `VERIFIED` — same-session implementation, independent verification owed to a fresh session. |
+| IP-1080 | Genre-aware style presets — parallel `STYLE_TABLE` keyed by `CHMIX_IDX`, applied immediately on Start press | FR-1230...FR-1260, NFR-1080, NFR-1090 | **VERIFIED** — [package](packages/IP-1080-genre-aware-style-presets.md), [VR-1080](verification/VR-1080-genre-aware-style-presets.md). 93/93 full-suite tests (T1-T15), ROM budget +78 bytes (29271 free, independently re-measured). Independently live-driven at non-default/exact-frame/adversarial-random combinations the suite's own fixtures don't use — one Medium finding (acceptance-criterion precision on bad-zone independence under general play, not a code defect) and one Low (informational ROM-budget re-confirmation). |
 
 **G3 authorization for `IP-1080`**: **granted explicitly by the user, 2026-07-26** — asked
 directly (chat) whether `IP-1080` was authorized; the user replied "All work is pre authorized

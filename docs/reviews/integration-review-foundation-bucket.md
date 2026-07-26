@@ -1,10 +1,10 @@
 # Integration Review — Foundation Release Bucket
 
-**This document now covers seven reviews: the original 7-package review (2026-07-21, preserved
+**This document now covers eight reviews: the original 7-package review (2026-07-21, preserved
 below in full), a 2026-07-25 re-review at 9-package scope, an 11-package scope, a 12-package
-scope, a 13-package scope, a 14-package scope, and a 2026-07-26 re-review at full 15-package
-scope. See "Re-review — 2026-07-26 (15-package scope, +IP-1100)" for the current state — earlier
-sections are kept verbatim as the historical record, not rewritten.**
+scope, a 13-package scope, a 14-package scope, a 15-package scope, and a 2026-07-26 re-review at
+full 16-package scope. See "Re-review — 2026-07-26 (16-package scope, +IP-1110)" for the current
+state — earlier sections are kept verbatim as the historical record, not rewritten.**
 
 ## Original review — 2026-07-21
 
@@ -771,3 +771,91 @@ adding `IP-1100`/roadmap R6's song-form work to the shipped baseline.** `IP-1110
 Control Visibility) was intentionally excluded from this review's scope, pending its own
 independent verification currently in progress — a future re-review at 16-package scope is the
 natural next step once that verification lands.
+
+## Re-review — 2026-07-26 (16-package scope, +`IP-1110`)
+
+**Scope:** the same 15-package set above, plus `IP-1110` (settings & control visibility,
+`BL-0051`/`ADS-104`), now `VERIFIED` via
+[VR-1110](../implementation/verification/VR-1110-settings-and-control-visibility.md). All 16
+packages confirmed `VERIFIED` on the Master Build Plan/`packages/INDEX.md` before starting.
+
+Reviewed commit: `5bd4773`. Full suite re-run against this commit: **122/122 (T1-T18)**.
+
+### Dimension 1 — Interface consistency
+
+`grep`-confirmed every `LD_nn_A`/`LDH_n_A` write in `visuals.py` (the whole module) targets only
+VRAM tilemap addresses (`CHANNEL_CELLS`/`SETTINGS_CELLS`), the CGB palette I/O ports
+(`BCPS`/`BCPD`), or `LCDC` — never a `0xC0xx` engine-state WRAM address or an `NR1x`-`NR5x` PSG
+register. This directly confirms `IP-1110`'s own read-only characterization holds structurally,
+not just by the package's own claim: `visuals.py` cannot write engine state by construction,
+consistent with GDS-03 §1's invariant every prior visualizer change has preserved. `CHANNEL_CELLS`
+(`0x9800`-`0x9803`), `TILE_OFF`(`=0`), and `TILE_ON`(`=1`) — `IP-0006`'s own constants — are
+unmodified; `IP-1110` only adds alongside them (`SETTINGS_CELLS` at `0x9804`-`0x9808`, tile
+indices 2-9), confirmed by direct read of the current source.
+
+### Dimension 2 — Invariant sweep
+
+ROM: 32768 bytes, valid header, 4240 used/28528 free (`rom.pos` instrumentation, `ADR-0002`'s
+method) — matches `VR-1110`'s own independent measurement exactly. WRAM map: unaffected —
+`IP-1110` introduces no new WRAM address (a pure read/render feature), confirmed by GDS-07 §9 (the
+new visualizer VRAM/tile-layout section `IP-1110` itself added) listing only ROM tile-pattern and
+tilemap-cell additions, no WRAM row. Module boundary: `visuals.py` remains the sole owner of the
+settings-indicator mechanism — no second module took on any part of this job.
+
+### Dimension 3 — Behavioral coherence — the actual new seam, exercised live
+
+Live-drove the exact disclosed-finding scenario this review's own arguments named for direct
+re-exercise: 5 button taps drifting all base controls away from boot preset, then a Select press,
+sampling `NR52`/`CHANNEL_CELLS`/`SETTINGS_CELLS`/`BAD_ZONE_FLAGS` on the exact reset frame. Result:
+`CHANNEL_CELLS` (`IP-0006`'s own mechanism) correctly tracked `NR52` on that same frame
+(`[1,1,1,0]`, matching `NR52`'s bits exactly) — confirming the disclosed Select-frame VRAM-write
+timing exception found by `VR-1110` is scoped to `IP-1110`'s own settings-row writes only (which
+were, as expected, stale on that frame — `[8,4,4,8,3]`, the pre-Select drifted values) and does
+**not** also affect `IP-0006`'s channel-activity writes on the same frame class. `BAD_ZONE_FLAGS`
+correctly cleared to 0 on the same Select frame (from a pre-Select value of 9), confirming
+`IP-0007`'s bad-zone-reset path is likewise unaffected by `IP-1110`'s presence. No corruption, no
+interaction beyond the already-disclosed, already-scoped exception.
+
+### Dimension 4 — Traceability coherence
+
+`ROADMAP.md` (stages 05-10), `docs/features/INDEX.md`, `docs/feature-planning/
+01-feature-catalog.md`, `docs/implementation/packages/INDEX.md`, `docs/implementation/
+verification/INDEX.md`, and the Master Build Plan all agree: 16/16 packages `VERIFIED`, `IP-1110`
+cross-linked to `FS-111`/`VR-1110` bidirectionally, and every `FEAT-1110` row already reflects
+`VERIFIED` status (the staleness `VR-1110` itself found and corrected in-place before this review
+began — confirmed still correct, not re-introduced). No stale row found this pass.
+
+### Dimension 5 — Documentation coherence
+
+`memory.md` (visualizer quick-reference, `SETTINGS_CELLS` addresses) and GDS-07 (§9, the tile
+pattern/tilemap layout `IP-1110` added) both confirmed accurate against the shipped code.
+`Claude.md`'s "Known Good Behavior" heading correctly reads `IP-1110` `VERIFIED` via `VR-1110`,
+not yet part of the shipped baseline — the staleness a prior pass in this same session caught and
+fixed (the heading briefly said `COMPLETE`/not-yet-verified after `VR-1110` landed) is confirmed
+fixed and not stale again.
+
+## Findings (16-package re-review)
+
+| Finding | Packages/artifacts involved | Description | Severity | Recommended owner |
+|---|---|---|---|---|
+| (carried forward, non-blocking) | `IP-1090`, `IP-1070`, `IP-1080` | `BL-0048` — no shipped `CHMIX_IDX` preset exercises `IP-1090`'s motif-variant selection together with a muted Scheme-E channel or a named (non-default) style. Already filed. | Low (data/test-coverage gap, not a functional defect) | 05/07 (already `SCHEDULED`, listed here for this scope's own completeness) |
+| (carried forward, non-blocking) | `IP-1100` | `BL-0052` — `T17.6` only forces the first Start-press/phase-transition collision, not all three boundaries. Already filed. | Low-Medium (test-coverage precision only; no functional risk) | 08-code-implementation (already `DEFERRED`, listed here for this scope's own completeness) |
+| (carried forward, non-blocking) | `IP-1100` | `BL-0053` — descriptive `OVERLOAD`-frequency data across song-form phases for a future `SONG_TABLE` content-tuning pass. Already filed. | Low (descriptive data, no violation) | 09-content-review (already `DEFERRED`, listed here for this scope's own completeness) |
+| (carried forward, non-blocking) | `IP-1110` | `BL-0057` — the shipped `T18.8`-`T18.10` Select-frame-lag sequence exercises only one pre-Select button combination, though `VR-1110`'s own independent drive confirmed the behavior holds across two additional sequences. Already filed. | Low (test-coverage gap, not a functional defect) | 08-code-implementation (already `DEFERRED`, listed here for this scope's own completeness) |
+| (carried forward, non-blocking) | `IP-1080` | `BL-0040` — `FS-108`'s acceptance criterion (4) states the bad-zone-independence invariant in absolute terms; a real but narrower guarantee holds. Already filed. | Medium (requirements-wording precision only; no functional risk) | 04 (already `SCHEDULED`, listed here for this scope's own completeness) |
+| (carried forward, non-blocking) | `IP-1090` | `BL-0044`/`BL-0045` — `VR-1090`'s own two test-strength findings on the shipped `T16.6`/`T16.8`. Already filed. | Medium (test-coverage precision only; no functional risk) | 08 (already `SCHEDULED`, listed here for this scope's own completeness) |
+
+## Verdict (16-package re-review)
+
+The full 16-package tranche integrates cleanly. `IP-1110`'s new seam (the settings-indicator
+visualizer extension) was confirmed structurally read-only against all engine state and PSG
+registers by direct code inspection (`visuals.py`'s complete write-target set is VRAM/palette/
+`LCDC` only), consistent with GDS-03 §1's invariant every prior visualizer change has preserved.
+Its one disclosed cross-cutting risk (a Select-frame VRAM-write timing exception) was live-verified
+to be scoped to `IP-1110`'s own writes only — `IP-0006`'s channel-activity mechanism and `IP-0007`'s
+bad-zone-reset path both continue to update correctly on the very same frame class. No new
+finding; six findings carried forward from prior verification/review passes remain non-blocking,
+none newly elevated. **No Critical/High finding anywhere. Recommend: this review does not block a
+future `11-release-readiness` call adding `IP-1110`/`BL-0051`'s settings & control visibility work
+to the shipped baseline.** With this pass, all 16 currently `VERIFIED` packages have now been
+integration-reviewed together at least once.

@@ -124,6 +124,53 @@ narrowing of scope. `IP-1090` is therefore treated as G3-authorized on that same
 new, independently-solicited go-ahead, and named here explicitly so the trail is auditable rather
 than assumed silently.
 
+## Technical Work Breakdown (TWBS) — Song-Form via Autonomous Phase Cycling (`FS-110`, roadmap R6)
+
+| IP | Package | Requirements | Status |
+|---|---|---|---|
+| IP-1100 | Song-form via autonomous phase cycling — a new, independent state machine (`SONG_STATE`/`SONG_STATE_TIMER_LO`/`SONG_STATE_TIMER_HI`) cycling 4 phases, overwriting `TEMPO_IDX`/`DENSITY_IDX` per phase transition | FR-1310...FR-1340, NFR-1120, NFR-1130 | **READY** (fully specified, sole dependency `FEAT-1000`/`IP-0001`-`IP-0003` `VERIFIED`, G3 authorized — see below) |
+
+**Verb inventory** (one verb, single package — no split needed): this capability needs only
+*apply* (autonomously cycling phases and overwriting `TEMPO_IDX`/`DENSITY_IDX`) — no *generate*
+(phase data is authored, not derived at runtime), no *render* (no visualizer signal requested by
+any FR), no *persist* (no save data), no *review* (deferred to `09-content-review` per the
+standing convention). One package, `08-code-implementation`.
+
+**Supersession sweep**: `FS-110` neither retires nor generalizes an existing model — it adds a
+new, independent tick alongside `_emit_badzone_tick`/each channel's `gen_tick`, none of which are
+modified. No sweep applicable (nothing being superseded); confirmed by re-reading `ADS-103` §2's
+own "entirely unmodified" claim against the current `engine_tick` call sequence — clean.
+
+**Concrete data resolved this pass** (`FS-110` Open Question 1): `SONG_TABLE` — 4 rows × 4 bytes
+(`tempo_idx`, `density_idx`, `duration_lo`, `duration_hi`, duration in frames, 16-bit to support a
+genuinely multi-minute cycle per R6's own framing, first-guess placeholders per the standing
+`BL-0005`-class deferral):
+
+| Phase | `TEMPO_IDX` (BPM) | `DENSITY_IDX` (k) | Duration (frames, ~60fps) |
+|---|---|---|---|
+| 0 INTRO | 2 (90 BPM) | 1 (k=3) | 1800 (~30s) |
+| 1 BUILD | 4 (120 BPM) | 4 (k=6) | 1800 (~30s) |
+| 2 PEAK | 6 (160 BPM) | 6 (k=10) | 1200 (~20s) |
+| 3 BREAKDOWN | 3 (105 BPM) | 2 (k=4) | 1800 (~30s) |
+
+Full cycle ≈ 6600 frames (~110s, ~1.8 minutes) — satisfies R6's "audible over a multi-minute
+session" framing. **WRAM addresses resolved**: `SONG_STATE` = `0xC03D`, `SONG_STATE_TIMER_LO` =
+`0xC03E`, `SONG_STATE_TIMER_HI` = `0xC03F` (confirmed free against `docs/architecture/
+07-data-model.md`: `0xC03C` is `IP-1090`'s `MOTIF_VARIANT_IDX`, `0xC03D`-`0xC04F` remains genuine
+unused headroom before `JOY_PREV` at `0xC050`) — **3 new WRAM bytes, not `ADS-103`/`FS-110`'s
+originally-estimated 2**, a small, disclosed deviation: a 16-bit timer (not 1 byte) is needed to
+reach multi-minute phase durations without an awkward sub-frame-counting workaround; `SONG_TABLE`
+is correspondingly 16 bytes (4×4), not `ADS-103`'s originally-estimated 12 (4×3) — both deviations
+are negligible in absolute ROM/WRAM terms (`NFR-1120`'s own budget framing is unaffected in
+substance) and are recorded here rather than silently absorbed.
+
+**G3 authorization for `IP-1100`**: **granted explicitly by the user, 2026-07-26** — the user's own
+words, "Use your judgement according to the release plan to iterate," is a direct, fresh
+delegation of judgment to continue building per `docs/roadmap/04-release-roadmap.md`'s own
+sequence (R6 is that sequence's next release) — a stronger and more explicit basis than the
+"standing forward authorization" reasoning used for `IP-1090`, and recorded here as such rather
+than conflated with it.
+
 ## G5 gate (every stage-08 run)
 
 The ROM must build (`python3 build_rom.py <path>` -> fixed size, valid header) and the full

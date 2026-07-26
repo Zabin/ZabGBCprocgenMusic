@@ -39,6 +39,10 @@
 | FR-1280 | On the frame a Scheme-E channel's motif-step counter completes a full cycle (wraps back to its first step), the engine selects the motif variant that will be used for the following cycle via a weighted, non-uniform selection among the defined variants — with no button input required. | ADS-102 §2/§5 (FR-candidate 2) |
 | FR-1290 | The motif-variant selection weighting favors the channel's currently-active variant over switching to a different one on most cycle-boundary selections, rather than choosing uniformly among all defined variants each time. | ADS-102 §3/§5 (FR-candidate 3) |
 | FR-1300 | With motif-variant selection held at variant index 0 for an entire run, a Scheme-E channel's onset-by-onset pitch sequence is identical to the sequence produced before motif variants were introduced — no regression to the previously shipped single-motif behavior. | ADS-102 §5 (FR-candidate 4) |
+| FR-1310 | The engine cycles autonomously through 4 named song-form phases (intro, build, peak, breakdown), looping back to the first after the last, with no button input required. | ADS-103 §5 (FR-candidate 1) |
+| FR-1320 | On each song-form phase transition, the engine overwrites `TEMPO_IDX`/`DENSITY_IDX` to that phase's documented target values on the same tick as the transition, not gated to any future event. | ADS-103 §5 (FR-candidate 2) |
+| FR-1330 | Bad-zone detection/recovery (`FR-1080`-`FR-1110`) and Scheme-E motif-variant selection (`FR-1270`-`FR-1300`) both operate identically regardless of the current song-form phase — no phase-specific logic exists in either mechanism. | ADS-103 §5 (FR-candidate 3) |
+| FR-1340 | Over a sufficiently long run, all 4 song-form phases occur in their defined cyclic order with no hang or stall. | ADS-103 §5 (FR-candidate 4) |
 
 ## Non-Functional Requirements
 
@@ -56,6 +60,8 @@
 | NFR-1090 | Style selection introduces no new input control — it is triggered by the existing `CHMIX_IDX`/Start mechanism (`FR-1060`) already in use for channel-activity/scheme-select, reusing the same preset index rather than requesting a distinct control. | ADS-101 §6/§7 |
 | NFR-1100 | The motif-variant table(s) and the motif-variant-selection weighting table (both ROM-resident, fixed at build time) and any per-channel "current motif variant" scratch state add bounded ROM/WRAM — the total addition stays within the current 32KB single-bank budget (GDS-07 §6's headroom) with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5). | ADS-102 §6, MSTR-001 §4, GDS-07 §6 |
 | NFR-1110 | Motif-variant selection introduces no new input control and no new WRAM control byte beyond the single variant-index scratch field — selection happens autonomously at motif-cycle boundaries, the same class of no-input-required behavior already established for bad-zone detection/recovery (`FR-1080`-`FR-1110`). | ADS-102 §6/§7 |
+| NFR-1120 | The song-form phase table and its scratch state add bounded ROM/WRAM — the total addition stays within the current 32KB single-bank budget (GDS-07 §6's headroom) with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5). | ADS-103 §6, MSTR-001 §4, GDS-07 §6 |
+| NFR-1130 | The song-form state machine introduces no new input control — phase advancement happens autonomously on a per-frame timer, the same class of no-input-required behavior already established for bad-zone detection/recovery and motif-variant selection. | ADS-103 §6/§7 |
 
 ## Open items carried to feature decomposition
 
@@ -83,6 +89,10 @@
   data/implementation decisions deferred to feature decomposition/spec/implementation — `ADS-102`
   §3 proposes 4 variants (variant 0 the existing shipped sequence) as a starting point, not yet
   baselined as requirement text, same convention as every prior preset/table-value deferral.
+- FR-1310-FR-1340's exact parameters (each phase's target `TEMPO_IDX`/`DENSITY_IDX` values and
+  duration) are likewise data/implementation decisions deferred to feature decomposition/spec/
+  implementation — `ADS-103` explicitly leaves these as first-guess placeholders, same
+  `BL-0005`-class deferral as every prior preset/table-value addition.
 
 ## Changelog
 
@@ -92,6 +102,7 @@
 | 2026-07-25 | Added FR-1180 (scheme-select determines note-selection strategy), FR-1190 (scheme switch takes effect at next onset, mirroring `IP-9010`'s activity-mask behavior), FR-1200 (Scheme E onset timing reuses the Euclidean-pattern mechanism), FR-1210 (Scheme E pitch selection via a fixed motif), FR-1220 (bad-zone detection/recovery is scheme-agnostic), NFR-1060 (ROM/WRAM budget), NFR-1070 (no new WRAM control byte/input control). Delta update formalizing `ADS-100` §5's candidate FRs per `BL-0020`, now that `IP-9010` has shipped with the bit layout `ADR-0001`'s contingency assumed (bits 0-3 channel-active, confirmed against the actual shipped `CHMIX_MASKS` — no re-check needed). No existing FR/NFR changed. | `BL-0020`, grounded in `ADS-100`/`ADR-0001`. |
 | 2026-07-26 | Added FR-1230 (`CHMIX_IDX` preset maps to a style data row), FR-1240 (style values applied immediately, not gated to next onset — the one behavioral contrast with `FR-1190`'s scheme-select timing), FR-1250 (at least 3 audibly-distinct styles), FR-1260 (preset-0 style matches shipped default, no regression), NFR-1080 (ROM/WRAM budget), NFR-1090 (no new input control). Delta update formalizing `ADS-101` §5/§6's candidate FRs/NFRs for R5 (Genre-Aware Style Presets). No existing FR/NFR changed. | Roadmap R5, grounded in `ADS-101`. |
 | 2026-07-26 | Added FR-1270 (motif data is a small fixed set of variants, variant 0 matches the shipped sequence), FR-1280 (weighted variant selection at motif-cycle boundaries, no input required), FR-1290 (weighting favors retaining the current variant), FR-1300 (variant 0 held throughout a run reproduces pre-change behavior exactly, no regression), NFR-1100 (ROM/WRAM budget), NFR-1110 (no new input control/WRAM control byte beyond the variant-index field). Delta update formalizing `ADS-102` §5/§6's candidate FRs/NFRs for `BL-0010`'s motif-recurrence half. No existing FR/NFR changed. | `BL-0010`, grounded in `ADS-102`. |
+| 2026-07-26 | Added FR-1310 (autonomous 4-phase song-form cycle), FR-1320 (phase transition overwrites tempo/density immediately), FR-1330 (bad-zone/motif-variant mechanisms are phase-agnostic), FR-1340 (all 4 phases occur in cyclic order over a long run), NFR-1120 (ROM/WRAM budget), NFR-1130 (no new input control). Delta update formalizing `ADS-103` §5/§6's candidate FRs/NFRs for roadmap R6 (song-form half of `BL-0010`). No existing FR/NFR changed. | Roadmap R6, grounded in `ADS-103`. |
 
 ## Delta Review — 2026-07-25 (`FR-1180`-`FR-1220`, `NFR-1060`/`1070`)
 
@@ -187,3 +198,32 @@ Reviewed this delta only, same "not a wholesale regeneration" convention as ever
 
 No Critical/High finding. This delta is ready for `05-feature-decomposition` to add a
 `FEAT-1090`-equivalent catalog row once picked up.
+
+## Delta Review — 2026-07-26 (`FR-1310`-`FR-1340`, `NFR-1120`/`1130`)
+
+Reviewed this delta only, same "not a wholesale regeneration" convention as every prior delta pass:
+
+- **No duplicate or conflicting requirement.** `FR-1310`-`FR-1340` introduce a genuinely new
+  concept (an autonomous song-form phase cycle) that writes the same `TEMPO_IDX`/`DENSITY_IDX`
+  fields `IP-1080`'s style application (`FR-1240`) and the D-pad/B handlers already write —
+  checked explicitly for conflict: `FR-1320`'s "overwrites... on the same tick as the transition"
+  is the same "last write wins, no special-casing" contract `FR-1240` itself already established
+  for a different trigger (Start press vs. an autonomous timer), not a new or contradictory rule.
+  `FR-1330` explicitly confirms no interaction with bad-zone detection/recovery or motif-variant
+  selection, closing the one place a real conflict could have existed (both mechanisms are
+  scheme/phase-agnostic by the same construction `FR-1220`/prior delta reviews already verified).
+- **No architecture violation.** Each FR/NFR traces directly to `ADS-103`; no ADR is directly
+  implicated (`ADS-103`'s own Decision Log carries its binding decisions, same pattern
+  `ADS-101`/`ADS-102` already established).
+- **No missing requirement.** `ADS-103` §5/§6's four FR-candidates and two NFR-candidates all
+  became baseline requirements — none silently dropped. `ADS-103`'s Open Questions (BUILD-phase/
+  `OVERLOAD` tuning interaction, style-drift's eventual mechanism, exact phase values/durations,
+  whether `SCALE_IDX`/`DUTY_BIAS` join the envelope) are correctly *not* baselined here —
+  tuning/future-scope decisions, not requirements gaps.
+- **Traceability:** every new ID's Source Documents column cites `ADS-103`'s specific section. No
+  candidate needed — every statement in `ADS-103` §5/§6 was traceable to the document itself.
+- **Forward traceability (Module/FS/IP/Test):** all `UNASSIGNED` — correctly honest, no `FS-xxx`/
+  package/test exists yet for R6.
+
+No Critical/High finding. This delta is ready for `05-feature-decomposition` to add a
+`FEAT-1100`-equivalent catalog row once picked up.

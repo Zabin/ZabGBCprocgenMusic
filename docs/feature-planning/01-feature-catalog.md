@@ -5,9 +5,11 @@
   minimal visualizer, all headlessly verified. Everything below is one release bucket; there is
   no epic/phase split yet at this project's size.
 - **Release status: ✅ SHIPPED — GO confirmed 2026-07-25.** Every feature below (`FEAT-1000`
-  through `FEAT-1060`) is `VERIFIED` and integration-reviewed as part of the consolidated
-  R1 (Foundation) + R2 (Sound Design) + R3 (Integrity Remediation) release — see
-  [`docs/reviews/release-assessment-r1-r2-r3.md`](../reviews/release-assessment-r1-r2-r3.md).
+  through `FEAT-1070`) is `VERIFIED` and integration-reviewed as part of the consolidated
+  R1 (Foundation) + R2 (Sound Design) + R3 (Integrity Remediation) + R4 (Multi-Scheme Foundation)
+  release — see
+  [`docs/reviews/release-assessment-r1-r2-r3.md`](../reviews/release-assessment-r1-r2-r3.md)
+  (R4 addition confirmed via that document's second re-assessment section).
 
 | ID | Feature | Summary | FR/NFR traced |
 |---|---|---|---|

@@ -261,3 +261,20 @@ GO recommendation is not itself authorization to flip `ROADMAP.md`, the Feature 
 `Claude.md`'s status line, or any other tracker to reflect R4 as shipped — that flip happens only
 after the user's separate, explicit confirmation of this GO decision (G4). This assessment's job
 ends at the recommendation.
+
+---
+
+## G4 — User confirmation (R4 addition)
+
+**The user gave explicit GO confirmation on 2026-07-25** ("Go"), following this re-assessment's
+recommendation. The baseline update below was performed as this skill's own final step, per its
+own workflow ("on the user's explicit GO — update the baseline").
+
+**Release: CONFIRMED GO, 2026-07-25 — R4 (`FEAT-1070`/`IP-1070`) added to the shipped baseline
+alongside R1+R2+R3.** Baseline records updated: `ROADMAP.md` (stage 11 row, now R1+R2+R3+R4),
+`docs/feature-planning/01-feature-catalog.md` (bucket status header now spans `FEAT-1000`-`FEAT-1070`)
++ its `INDEX.md`, `Claude.md` (Known Good Behavior heading → v1.1, "+ Multi-Scheme Foundation"),
+`docs/roadmap/04-release-roadmap.md` (R4 header → "(shipped)", status recorded), `docs/roadmap/05-milestone-definitions.md`
+(Milestone B status → R3+R4 shipped, CAP-09 delivered), `docs/roadmap/02-capability-map.md`
+(CAP-09 row → shipped). See each file's own diff for the exact wording; this assessment is the
+authoritative record of the decision itself.

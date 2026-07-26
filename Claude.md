@@ -138,7 +138,7 @@ default). Scheme E's onset-timing/pitch-selection logic itself lives in `_emit_c
 note-selection step (`IP-1070`/`BL-0020`) — extending it to a new scheme means adding another
 branch there, keyed off a new bit in the same spare-bit range (`ADR-0001`).
 
-## Known Good Behavior (v1.0 — Foundation + Sound Design + Integrity Remediation, GO 2026-07-25)
+## Known Good Behavior (v1.1 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation, GO 2026-07-25)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
 - Boots within ~90 frames (GBC boot-ROM logo animation time) to: all 3 pitched channels (pulse

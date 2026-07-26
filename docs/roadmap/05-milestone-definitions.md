@@ -40,9 +40,15 @@ Six milestones group the fourteen releases into demonstrable, decision-relevant 
   a G4 decision reserved for the user. Also includes **R4.5**, the cart-shape decision checkpoint
   (moved into this milestone per `10-final-roadmap-review.md` finding #1, applied) — a decision,
   not a build, sequenced after R4 so a real ROM-budget trajectory is visible first.
-- **Status:** ✅ **R3 shipped — GO confirmed 2026-07-25.** CAP-09/CAP-11 work in this milestone is
-  now unblocked (pending R4's own scheduling); R4.5's cart-shape decision remains a separate,
-  not-yet-made checkpoint.
+- **R4 complete as of 2026-07-25:** `IP-1070` `VERIFIED`
+  ([VR-1070](../implementation/verification/VR-1070-combinable-generation-schemes.md)), CAP-09
+  delivered (Scheme E, selectable per pitched channel). `10-integration-review` re-ran clean at
+  12-package scope (one new non-blocking Low finding, `BL-0033`, alongside the still-open
+  non-blocking `BL-0030`/`BL-0032`). `11-release-readiness` recommended GO for the R4 addition;
+  **user confirmed GO 2026-07-25.**
+- **Status:** ✅ **R3+R4 shipped — GO confirmed 2026-07-25.** CAP-09 delivered; CAP-11 (style
+  regions) remains this milestone's only unshipped capability. R4.5's cart-shape decision remains
+  a separate, not-yet-made checkpoint.
 
 ## Milestone C — Musical Maturity (R6-R7)
 

@@ -97,8 +97,12 @@ traces to Vision/research.
   recommended GO for the consolidated R1+R2+R3 release, and the user confirmed GO on 2026-07-25**
   ([release assessment](../reviews/release-assessment-r1-r2-r3.md)). R3 shipped.
 
-## R4 — Multi-Scheme Foundation
+## R4 — Multi-Scheme Foundation (shipped)
 
+- **Status: ✅ SHIPPED — GO confirmed 2026-07-25**, as an addition to the R1+R2+R3 baseline. See
+  [release-assessment-r1-r2-r3.md](../reviews/release-assessment-r1-r2-r3.md)'s R4 addition
+  re-assessment. Completion criteria met: `IP-1070` `VERIFIED` ([VR-1070](../implementation/verification/VR-1070-combinable-generation-schemes.md)),
+  covered by a clean 12-package integration review.
 - **Purpose:** Introduce the first real structural alternative to the shipped LFSR-walk
   generation, per `BL-0020`/`ADS-100`.
 - **Capabilities introduced:** CAP-09.

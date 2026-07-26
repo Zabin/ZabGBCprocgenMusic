@@ -33,6 +33,9 @@ Suites:
   T16 Motif recurrence via weighted variant selection (IP-1090, BL-0010): Scheme E's
       MOTIF_TABLE now has N_VARIANTS rows, autonomously selected at motif-cycle boundaries
       via a weighted lookup, retention-biased, with no regression when variant 0 is active
+  T17 Song-form via autonomous phase cycling (IP-1100, roadmap R6): the engine cycles
+      autonomously through 4 named phases, each overwriting TEMPO_IDX/DENSITY_IDX, with no
+      interaction with bad-zone recovery or Scheme-E motif-variant selection
 
 Run from the repo root: python3 test_rom.py
 Requires: pyboy (pinned 2.7.0, matching the reference project), numpy.
@@ -58,6 +61,7 @@ STALE_COUNT_PA = 0xC007; ONSET_WINDOW_COUNT = 0xC00A
 ARP_STATE_PA = 0xC01D; ARP_STATE_PB = 0xC01E
 MOTIF_STEP_PA = 0xC038; MOTIF_STEP_PB = 0xC039; MOTIF_STEP_WV = 0xC03A
 MOTIF_VARIANT_IDX = 0xC03C
+SONG_STATE = 0xC03D; SONG_STATE_TIMER_LO = 0xC03E; SONG_STATE_TIMER_HI = 0xC03F
 LCDC = 0xFF40
 CHANNEL_CELLS = [0x9800, 0x9801, 0x9802, 0x9803]
 BCPD = 0xFF69
@@ -68,6 +72,7 @@ NR11 = 0xFF11; NR13 = 0xFF13; NR14 = 0xFF14; NR52 = 0xFF26
 from music_engine import PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX, PRESET_SCALE_IDX
 from music_engine import STYLE_TABLE, DUTY_BIAS
 from music_engine import MOTIF_TABLE, N_VARIANTS
+from music_engine import SONG_TABLE, N_SONG_PHASES
 
 results = []
 PASS = 0
@@ -731,6 +736,12 @@ def t16_motif_recurrence_via_weighted_variant_selection():
     prev_step = (pb.memory[MOTIF_STEP_WV] >> 4) & 0x07
     N = 6000
     for frame in range(N):
+        # IP-0007's dissonant-pull/stuck-escape override (checked inside this tick's own
+        # gen_tick_wv) reads BAD_ZONE_FLAGS as computed by the *previous* frame's badzone_tick
+        # (badzone_tick runs after every channel's gen_tick each frame) -- sample it here, before
+        # this tick, so the override-in-effect check below reflects the value the override
+        # mechanism actually used, not this frame's own just-recomputed flags.
+        flags_in_effect = pb.memory[BAD_ZONE_FLAGS]
         pb.tick()
         variant = pb.memory[MOTIF_VARIANT_IDX]
         step = (pb.memory[MOTIF_STEP_WV] >> 4) & 0x07
@@ -745,7 +756,7 @@ def t16_motif_recurrence_via_weighted_variant_selection():
             # scheme), so only sample onsets where neither override was in effect this frame;
             # same "plus bad-zone-override reachable degrees" caveat T14.3 already established
             # for the pre-IP-1090 single-variant table.
-            if pb.memory[BAD_ZONE_FLAGS] & 0x03 == 0:
+            if flags_in_effect & 0x03 == 0:
                 lookup_checks.append((variant, step, pb.memory[CUR_DEGREE_WV]))
         prev_variant = variant
         prev_step = step
@@ -791,6 +802,129 @@ def t16_motif_recurrence_via_weighted_variant_selection():
     pb2.stop(save=False)
 
 
+def t17_song_form_via_autonomous_phase_cycling():
+    """IP-1100 (roadmap R6, ADS-103): the engine autonomously cycles 4 named song-form phases
+    (INTRO/BUILD/PEAK/BREAKDOWN), overwriting TEMPO_IDX/DENSITY_IDX per phase transition, entirely
+    independent of bad-zone recovery and Scheme-E motif-variant selection."""
+
+    def song_timer(pb):
+        return pb.memory[SONG_STATE_TIMER_LO] | (pb.memory[SONG_STATE_TIMER_HI] << 8)
+
+    # (a)/(b): drive a bit more than one full cycle and confirm phases occur in cyclic order,
+    # each transition landing exactly SONG_TABLE's documented TEMPO_IDX/DENSITY_IDX.
+    pb = fresh_boot()
+    seen_states = set()
+    transition_frames = []
+    prev_state = pb.memory[SONG_STATE]
+    mismatches = []
+    N = 7000
+    for frame in range(N):
+        pb.tick()
+        state = pb.memory[SONG_STATE]
+        seen_states.add(state)
+        if state != prev_state:
+            transition_frames.append((frame, state))
+            expected = (SONG_TABLE[state][0], SONG_TABLE[state][1])
+            got = (pb.memory[TEMPO_IDX], pb.memory[DENSITY_IDX])
+            if got != expected:
+                mismatches.append((frame, state, got, expected))
+        prev_state = state
+    pb.stop(save=False)
+
+    check("T17.1 SONG_STATE stays within the defined phase range",
+          seen_states.issubset(set(range(N_SONG_PHASES))), f"seen: {sorted(seen_states)}")
+    check("T17.2 At least one full phase cycle (INTRO->BUILD->PEAK->BREAKDOWN->INTRO) occurred",
+          len(transition_frames) >= N_SONG_PHASES,
+          f"got {len(transition_frames)} transitions: {transition_frames}")
+    check("T17.3 Phase order is cyclic (0,1,2,3,0,...)",
+          [s for (_f, s) in transition_frames[:4]] == [1, 2, 3, 0],
+          f"got order: {[s for (_f, s) in transition_frames[:4]]}")
+    check("T17.4 Every phase transition applies exactly that phase's documented TEMPO_IDX/"
+          "DENSITY_IDX", not mismatches, f"mismatches: {mismatches}")
+
+    # (c)/(d): a phase transition during an active bad-zone state leaves bad-zone/motif-variant
+    # WRAM fields untouched on the transition frame itself (same assertion shape T15.5 uses).
+    pb2 = fresh_boot()
+    for _ in range(6):
+        tap(pb2, 'start')  # CHMIX_IDX preset 6: Scheme E on the wave channel, for MOTIF_VARIANT_IDX
+    first_transition_frame = None
+    for frame in range(N):
+        prev_state2 = pb2.memory[SONG_STATE]
+        pb2.tick()
+        if pb2.memory[SONG_STATE] != prev_state2:
+            first_transition_frame = frame
+            break
+    check("T17.5.setup a phase transition was observed", first_transition_frame is not None,
+          f"got {first_transition_frame}")
+    pb2.stop(save=False)
+
+    pb3 = fresh_boot()
+    for _ in range(6):
+        tap(pb3, 'start')
+    for _ in range(first_transition_frame - 1):
+        pb3.tick()
+    flags_before = pb3.memory[BAD_ZONE_FLAGS]
+    stale_before = pb3.memory[STALE_COUNT_PA]
+    onset_before = pb3.memory[ONSET_WINDOW_COUNT]
+    variant_before = pb3.memory[MOTIF_VARIANT_IDX]
+    pb3.tick()  # the transition frame itself
+    check("T17.5 A phase transition leaves BAD_ZONE_FLAGS/STALE_COUNT_PA/ONSET_WINDOW_COUNT/"
+          "MOTIF_VARIANT_IDX unchanged on the transition frame itself",
+          (pb3.memory[BAD_ZONE_FLAGS], pb3.memory[STALE_COUNT_PA], pb3.memory[ONSET_WINDOW_COUNT],
+           pb3.memory[MOTIF_VARIANT_IDX]) == (flags_before, stale_before, onset_before, variant_before),
+          f"before={(flags_before, stale_before, onset_before, variant_before)}, "
+          f"after={(pb3.memory[BAD_ZONE_FLAGS], pb3.memory[STALE_COUNT_PA], pb3.memory[ONSET_WINDOW_COUNT], pb3.memory[MOTIF_VARIANT_IDX])}")
+    pb3.stop(save=False)
+
+    # (e): force a guaranteed collision between a Start press (IP-1080 style application) and a
+    # phase transition, using the empirically-derived plain-boot transition frame from the (a)/(b)
+    # run above (not a merely plausible interval, per BL-0045's own lesson) -- deliberately not
+    # first_transition_frame, which was measured on a timeline with 6 prior Start taps already
+    # consumed and would desync from this scenario's own untapped boot.
+    plain_transition_frame = transition_frames[0][0]
+    pb4 = fresh_boot()
+    for _ in range(plain_transition_frame):
+        pb4.tick()
+    song_state_before = pb4.memory[SONG_STATE]
+    pb4.button_press('start')
+    pb4.tick()  # the exact transition frame, with Start also held down
+    pb4.button_release('start')
+    # Per the real per-frame call order (build_rom.py: apply_input -> engine_tick, and
+    # engine_tick's own call order: gen_tick_*/badzone_tick -> song_tick last), a Start-press
+    # style-application write and a same-frame song-form transition write both land on
+    # TEMPO_IDX/DENSITY_IDX, but song_tick always runs after apply_input this frame -- so the
+    # phase's own target values are expected to win deterministically ("last write wins", the
+    # same contract FR-1240/FR-1320 both already establish), while CHMIX_IDX (untouched by
+    # song_tick) still reflects the Start press.
+    new_state = (song_state_before + 1) % N_SONG_PHASES
+    ok = (pb4.memory[SONG_STATE] == new_state and
+          pb4.memory[CHMIX_IDX] == 1 and
+          (pb4.memory[TEMPO_IDX], pb4.memory[DENSITY_IDX]) ==
+          (SONG_TABLE[new_state][0], SONG_TABLE[new_state][1]))
+    check("T17.6 A Start press landing on the exact same frame as a phase transition corrupts "
+          "neither mechanism's own state (SONG_STATE advances, CHMIX_IDX steps, song-form's "
+          "value wins per call order)", ok,
+          f"SONG_STATE={pb4.memory[SONG_STATE]}, CHMIX_IDX={pb4.memory[CHMIX_IDX]}, "
+          f"TEMPO_IDX={pb4.memory[TEMPO_IDX]}, DENSITY_IDX={pb4.memory[DENSITY_IDX]}")
+    pb4.stop(save=False)
+
+    # (f): Select resets SONG_STATE/SONG_STATE_TIMER to phase 0 and re-applies its target values.
+    pb5 = fresh_boot()
+    for _ in range(plain_transition_frame + 5):
+        pb5.tick()
+    check("T17.7.setup SONG_STATE drifted away from phase 0 before Select",
+          pb5.memory[SONG_STATE] != 0, f"got {pb5.memory[SONG_STATE]}")
+    pb5.button_press('select')
+    pb5.tick()
+    pb5.button_release('select')
+    check("T17.7 Select resets SONG_STATE to phase 0 (read on the exact reset frame)",
+          pb5.memory[SONG_STATE] == 0, f"got {pb5.memory[SONG_STATE]}")
+    check("T17.8 Select re-applies phase 0's TEMPO_IDX/DENSITY_IDX target values",
+          (pb5.memory[TEMPO_IDX], pb5.memory[DENSITY_IDX]) == (SONG_TABLE[0][0], SONG_TABLE[0][1]),
+          f"got {(pb5.memory[TEMPO_IDX], pb5.memory[DENSITY_IDX])}")
+    pb5.stop(save=False)
+
+
 def main():
     t1_header()
     t2_boot()
@@ -808,6 +942,7 @@ def main():
     t14_combinable_generation_schemes()
     t15_genre_aware_style_presets()
     t16_motif_recurrence_via_weighted_variant_selection()
+    t17_song_form_via_autonomous_phase_cycling()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

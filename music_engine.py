@@ -78,6 +78,15 @@ DUTY_BIAS = 0xC03B
 # JOY_PREV at 0xC050.
 MOTIF_VARIANT_IDX = 0xC03C
 
+# IP-1100 (roadmap R6, ADS-103): autonomous song-form phase-cycling state — which of SONG_TABLE's
+# 4 phases is active, and how many frames remain in it (16-bit, to reach genuinely multi-minute
+# phase durations without an awkward sub-frame-counting workaround). Placed at 0xC03D-0xC03F:
+# 0xC03C is IP-1090's MOTIF_VARIANT_IDX; 0xC03D-0xC04F remains genuine unused headroom before
+# JOY_PREV at 0xC050.
+SONG_STATE = 0xC03D
+SONG_STATE_TIMER_LO = 0xC03E
+SONG_STATE_TIMER_HI = 0xC03F
+
 # IP-0004 thresholds (GDS-03 SS4, R204 SS5) — first-guess placeholders, per BL-0005's own
 # deferred-tuning convention; the dissonance weight table itself is literature-grounded (R204),
 # these threshold *numbers* are not yet tuned by ear.
@@ -254,6 +263,23 @@ STYLE_TABLE = [
     (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 6: default (unassigned)
     (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 7: default (unassigned)
 ]
+
+# IP-1100 (roadmap R6, ADS-103): autonomous song-form phase table — 4 rows of (tempo_idx,
+# density_idx, duration_lo, duration_hi), duration in frames (16-bit, ~60fps) so a full cycle
+# genuinely spans multiple minutes per R6's own framing. First-guess placeholder values/durations,
+# not tuned by ear (BL-0005's standing disposition). IP-1100's own explicit decision (package
+# Implementation Task 5), REVISED from this package's own initial draft after discovering it broke
+# 10 pre-existing tests that assume boot/Select-reset lands exactly on PRESET_TEMPO_IDX/
+# PRESET_DENSITY_IDX: phase 0 (INTRO) DOES match the shipped default preset exactly — the same
+# no-regression discipline STYLE_TABLE/MOTIF_TABLE's own index-0 rows already established, applied
+# here too rather than treated as an exception.
+SONG_TABLE = [
+    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, 1800 & 0xFF, (1800 >> 8) & 0xFF),  # 0: INTRO (matches shipped default) - ~30s
+    (4, 4, 1800 & 0xFF, (1800 >> 8) & 0xFF),  # 1: BUILD - 120 BPM, k=6, ~30s
+    (6, 6, 1200 & 0xFF, (1200 >> 8) & 0xFF),  # 2: PEAK  - 160 BPM, k=10, ~20s
+    (3, 2, 1800 & 0xFF, (1800 >> 8) & 0xFF),  # 3: BREAKDOWN - 105 BPM, k=4, ~30s
+]
+N_SONG_PHASES = 4
 
 # IP-1060: arpeggio-as-polyphony (R216) — a period-4 up/down offset pattern (root, third, fifth,
 # third, within the active scale's 8-degree table) avoids needing a mod-3 counter (SM83 has no
@@ -1045,6 +1071,55 @@ def _emit_badzone_tick(rom):
     rom.RET()
 
 
+def _emit_song_tick(rom):
+    """IP-1100 (roadmap R6, ADS-103): autonomous song-form phase cycling, entirely independent of
+    bad-zone recovery (IP-0007) and Scheme-E motif-variant selection (IP-1090) — this routine
+    never reads or writes BAD_ZONE_FLAGS/DISSONANCE_SCORE/STALE_COUNT_*/ONSET_WINDOW_COUNT/
+    CUR_DEGREE_*/MOTIF_VARIANT_IDX/scheme_state, so no ordering dependency with either mechanism
+    exists (ADS-103 SS2). Decrements a 16-bit frame counter each tick (standard decrement-with-
+    borrow: if the low byte is 0 before decrementing, the high byte is decremented first); on the
+    counter reaching zero, advances SONG_STATE (wrap mod N_SONG_PHASES) and overwrites
+    TEMPO_IDX/DENSITY_IDX to the new phase's target values — the same coordinated-overwrite
+    contract IP-1080's _emit_apply_style already established for those two fields, just
+    autonomously triggered by this countdown rather than a Start press."""
+    rom.label('song_tick')
+    rom.LD_A_nn(SONG_STATE_TIMER_LO)
+    rom.OR_A()
+    rom.JR_NZ('st_dec_lo_only')
+    rom.LD_A_nn(SONG_STATE_TIMER_HI)
+    rom.DEC_A()
+    rom.LD_nn_A(SONG_STATE_TIMER_HI)
+    rom.label('st_dec_lo_only')
+    rom.LD_A_nn(SONG_STATE_TIMER_LO)
+    rom.DEC_A()
+    rom.LD_nn_A(SONG_STATE_TIMER_LO)
+
+    # Transition only when both bytes have reached zero.
+    rom.OR_A()
+    rom.JR_NZ('st_no_transition')
+    rom.LD_A_nn(SONG_STATE_TIMER_HI)
+    rom.OR_A()
+    rom.JR_NZ('st_no_transition')
+
+    rom.LD_A_nn(SONG_STATE)
+    rom.INC_A()
+    rom.AND_n(N_SONG_PHASES - 1)
+    rom.LD_nn_A(SONG_STATE)
+
+    rom.LD_A_nn(SONG_STATE)
+    rom.SLA_A(); rom.SLA_A()   # *4 (row width)
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'song_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HLI(); rom.LD_nn_A(TEMPO_IDX)
+    rom.LD_A_HLI(); rom.LD_nn_A(DENSITY_IDX)
+    rom.LD_A_HLI(); rom.LD_nn_A(SONG_STATE_TIMER_LO)
+    rom.LD_A_HL();  rom.LD_nn_A(SONG_STATE_TIMER_HI)
+
+    rom.label('st_no_transition')
+    rom.RET()
+
+
 def build_engine_asm(rom: ROM) -> dict:
     """Emits data tables + init/tick/reset routines. Returns a patch dict (unused for now,
     kept for parity with the reference project's build_game_asm return-shape convention)."""
@@ -1066,6 +1141,17 @@ def build_engine_asm(rom: ROM) -> dict:
     # zeroes each channel's scheme_state below (which resets the motif-step counter to 0 too),
     # keeping a reset fully deterministic: variant 0, step 0 (FS-109's own Open Question 4).
     rom.XOR_A(); rom.LD_nn_A(MOTIF_VARIANT_IDX)
+    # IP-1100 (roadmap R6, ADS-103): SONG_STATE resets to phase 0 (INTRO) on both boot and
+    # Select-reset, with SONG_STATE_TIMER reloaded from SONG_TABLE[0]'s own duration.
+    # SONG_TABLE[0]'s tempo_idx/density_idx match PRESET_TEMPO_IDX/PRESET_DENSITY_IDX exactly (see
+    # SONG_TABLE's own comment), so the TEMPO_IDX/DENSITY_IDX writes just above are not disturbed
+    # — a reset always returns to a deterministic, known-good starting phase with no regression to
+    # existing boot/reset behavior.
+    rom.XOR_A(); rom.LD_nn_A(SONG_STATE)
+    rom.LD_A_n(SONG_TABLE[0][0]); rom.LD_nn_A(TEMPO_IDX)
+    rom.LD_A_n(SONG_TABLE[0][1]); rom.LD_nn_A(DENSITY_IDX)
+    rom.LD_A_n(SONG_TABLE[0][2]); rom.LD_nn_A(SONG_STATE_TIMER_LO)
+    rom.LD_A_n(SONG_TABLE[0][3]); rom.LD_nn_A(SONG_STATE_TIMER_HI)
     for (suffix, note_timer, cur_degree, lfsr_state, lfsr_seed, *_rest, duty_reg,
          arp_state, _dac_reg, _dac_on, _bit_index, _scheme_bit, scheme_state) in CHANNELS:
         rom.XOR_A(); rom.LD_nn_A(cur_degree)
@@ -1123,6 +1209,7 @@ def build_engine_asm(rom: ROM) -> dict:
         rom.CALL(f'gen_tick_{suffix}')
     rom.CALL('gen_tick_nz')
     rom.CALL('badzone_tick')
+    rom.CALL('song_tick')
     rom.RET()
 
     for (suffix, note_timer, cur_degree, lfsr_state, _seed, nr_lo, nr_hi, oct_delta, tempo_mult,
@@ -1137,6 +1224,7 @@ def build_engine_asm(rom: ROM) -> dict:
             _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, nr_lo, nr_hi)
     _emit_noise_gen(rom)
     _emit_badzone_tick(rom)
+    _emit_song_tick(rom)
 
     # ── Data tables ───────────────────────────────────────────────────
     rom.label('delta_table')
@@ -1178,6 +1266,10 @@ def build_engine_asm(rom: ROM) -> dict:
 
     rom.label('style_table')
     for row in STYLE_TABLE:
+        rom.emit(*row)
+
+    rom.label('song_table')
+    for row in SONG_TABLE:
         rom.emit(*row)
 
     note_table_labels = []

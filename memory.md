@@ -47,6 +47,8 @@ no hangs, bad-zone entry and self-recovery both observed.
 | `0xC038`-`0xC03A` | `MOTIF_STEP_PA`/`PB`/`WV` (`IP-1070`) — packed: bits0-3 Euclidean-pattern step (0-15), bits4-6 motif step (0-7); only advances under Scheme E |
 | `0xC03B` | `DUTY_BIAS` (`IP-1080`, roadmap R5) — per-style duty-cycle timbre offset, added to the degree-derived duty-table index before lookup (wrap via `AND 0x03`); 0 for the default style/preset 0 |
 | `0xC03C` | `MOTIF_VARIANT_IDX` (`IP-1090`, `BL-0010`) — which row of the now-multi-variant `MOTIF_TABLE` is active for Scheme E's motif lookup; single shared byte (v1 scope); drawn via a weighted lookup only at a motif-cycle boundary; 0 (variant 0, the original shipped sequence) on boot/Select-reset |
+| `0xC03D` | `SONG_STATE` (`IP-1100`, roadmap R6) — which of `SONG_TABLE`'s 4 song-form phases is active (0=INTRO); autonomously cycled by `_emit_song_tick`; 0 on boot/Select-reset |
+| `0xC03E`-`0xC03F` | `SONG_STATE_TIMER_LO`/`HI` (`IP-1100`, roadmap R6) — 16-bit frames-remaining countdown in the current phase; reloaded from `SONG_TABLE`'s duration field on each transition |
 | `0xC050`-`0xC052` | `JOY_PREV`/`JOY_CUR`/`JOY_NEW` |
 | `0xC060` | `VBLANK_FLAG` |
 

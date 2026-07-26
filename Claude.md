@@ -23,7 +23,7 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers)
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 102 checks across T1-T16
+                    sound registers + WRAM engine state) — 112 checks across T1-T17
 ```
 
 ### Data layout, WRAM map
@@ -170,7 +170,18 @@ boundary (motif step wraps 7→0) inside `_emit_channel_gen`'s Scheme-E branch (
 — never mid-cycle, and never for a channel running Scheme W. The selection draw reuses that
 channel's own LFSR (otherwise idle while running Scheme E), introducing no new randomness source.
 
-## Known Good Behavior (v1.3 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation + Genre-Aware Style Presets + Motif Recurrence via Weighted Variant Selection, GO 2026-07-26)
+### Change song-form phases
+`SONG_TABLE` in `music_engine.py` (4 rows of 4 bytes — `tempo_idx`, `density_idx`, `duration_lo`,
+`duration_hi`, duration in frames — first-guess placeholder values/durations, not tuned by ear,
+`BL-0005`). Phase 0 (INTRO) must stay identical to `PRESET_TEMPO_IDX`/`PRESET_DENSITY_IDX` (no
+regression to boot/Select-reset behavior — this was a real regression caught and fixed during
+`IP-1100`'s own implementation, not merely a design guideline). The state machine
+(`SONG_STATE`/`SONG_STATE_TIMER_LO`/`SONG_STATE_TIMER_HI`) autonomously cycles all 4 phases via
+`_emit_song_tick` (`IP-1100`/roadmap R6), called once per frame from `engine_tick` alongside
+`_emit_badzone_tick` — entirely independent of bad-zone recovery and Scheme-E motif-variant
+selection (disjoint WRAM fields). No new input control.
+
+## Known Good Behavior (v1.4 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation + Genre-Aware Style Presets + Motif Recurrence via Weighted Variant Selection + Song-Form via Autonomous Phase Cycling, `IP-1100` `COMPLETE` 2026-07-26, not yet independently verified/GO'd)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
 - Boots within ~90 frames (GBC boot-ROM logo animation time) to: all 3 pitched channels (pulse
@@ -221,8 +232,13 @@ channel's own LFSR (otherwise idle while running Scheme E), introducing no new r
   variants (variant 0 identical to the original shipped sequence); at each motif-cycle boundary
   the engine autonomously draws which variant plays next via a retention-biased weighted lookup,
   no input required. Bad-zone detection/recovery and every other mechanism are unaffected.
+- Song-form via autonomous phase cycling (`IP-1100`, roadmap R6/`ADS-103`, **`COMPLETE`, not yet
+  independently verified**): the engine autonomously cycles 4 named phases (INTRO/BUILD/PEAK/
+  BREAKDOWN, looping), overwriting `TEMPO_IDX`/`DENSITY_IDX` to that phase's target values on
+  each transition, no input required, over a ~110-second full cycle. Entirely independent of
+  bad-zone detection/recovery and Scheme-E motif-variant selection.
 
-**102/102 `test_rom.py` checks pass** (T1-T16). An 8000+ frame stress run with continuous input
+**112/112 `test_rom.py` checks pass** (T1-T17). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

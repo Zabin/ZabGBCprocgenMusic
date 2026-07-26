@@ -69,6 +69,20 @@ Recovery acts at the granularity of each channel's own note cadence (it changes 
 not what's already sounding), so it takes effect within roughly one note duration per channel, not
 instantly — see `docs/architecture/03-architecture.md` §5's amendment for the full rationale.
 
+### Channel-mix gating (`IP-9010`, `BL-0019`)
+
+`CHMIX_IDX` (stepped by Start) indexes an 8-entry `CHMIX_MASKS` table (one 4-bit mask per preset,
+bit0=pulse A/bit1=pulse B/bit2=wave/bit3=noise, matching `NR52`'s own channel-bit order). Each
+channel's generation routine checks its own bit before writing its onset/hit registers: included
+→ normal write (plus restoring the channel's DAC/envelope in case it was previously silenced);
+excluded → the channel's DAC is explicitly turned off (`NR12`/`NR22`/`NR30`/`NR42` written `0x00`),
+which hardware-clears the channel's `NR52` bit immediately rather than merely skipping the next
+trigger. Note-timer/degree/stale/onset-window bookkeeping still runs every frame regardless of
+inclusion, so an excluded channel's internal walk stays live and it resumes cleanly the instant
+its mask bit is re-enabled. Preset 0 (`PRESET_CHMIX_IDX`) is always "all 4 active." Dissonance
+scoring deliberately still reads all 3 pitched channels' semitones regardless of exclusion — an
+explicit, documented design decision (see `_emit_badzone_tick`'s own docstring), not an oversight.
+
 ### Sound design techniques (`IP-1060`/`IP-1061`, R216)
 
 Pulse A/B (not wave — it keeps its plain sustained bass role) get four layered timbral effects,

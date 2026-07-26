@@ -771,6 +771,7 @@ def _emit_noise_gen(rom):
     rom.label('gt_nz_muted')
     rom.XOR_A(); rom.LDH_n_A(NR42)         # force DAC off — guarantee inactive in NR52
     rom.label('gt_nz_no_hit')
+
     rom.LD_A_nn(TEMPO_IDX)
     rom.LD_C_A(); rom.LD_B_n(0)
     _ld_hl_label(rom, 'noise_step_table')
@@ -836,7 +837,18 @@ def _emit_pairwise_dissonance(rom, semi_a_addr, semi_b_addr, suffix):
 def _emit_badzone_tick(rom):
     """Recomputes DISSONANCE_SCORE (3 pitched-channel pairs), evaluates the STUCK condition
     (any channel's STALE_COUNT over threshold), manages the rolling onset-overload window, and
-    combines all three into BAD_ZONE_FLAGS bit3 (IP-0004, GDS-03 SS4)."""
+    combines all three into BAD_ZONE_FLAGS bit3 (IP-0004, GDS-03 SS4).
+
+    IP-9010 (BL-0019) design decision, explicitly documented per that package's own named risk:
+    this unconditionally scores all 3 pitched-channel pairs regardless of CHMIX_IDX exclusion —
+    a channel silenced by the channel-mix gate still counts toward DISSONANCE_SCORE. Deliberate,
+    not an oversight: each channel's melodic walk (and therefore its scale degree) keeps running
+    even while excluded, per this same package's requirement that internal state stay consistent
+    across exclusion/re-inclusion; treating an inaudible-but-still-walking channel as tonally
+    "not there" would be a second, independent behavior change to IP-0004's already-`VERIFIED`
+    bad-zone scoring, riding along with an unrelated remediation, adding untested surface to a
+    subsystem no test currently varies by mix preset. No DoD item for this package requires
+    excluding silenced channels from scoring."""
     rom.label('badzone_tick')
     rom.XOR_A(); rom.LD_nn_A(DISSONANCE_SCORE)
 

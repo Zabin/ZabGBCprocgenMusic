@@ -52,9 +52,8 @@ both cite their `BL-xxxx` directly per this skill's ID convention):
 
 Both depend only on already-`VERIFIED` code (no dependency on each other — see the TWBS's
 sequencing note for the session-hygiene recommendation to build `IP-9010` first, not a technical
-requirement). Neither is `READY` in the stage-07 sense used elsewhere on this plan, since that
-label is reserved for "dependencies `VERIFIED`" — these packages' blocker is **G3 authorization**,
-not a dependency.
+requirement). Both are `VERIFIED` (see the Status column above) — G3 authorization, granted in
+an earlier run, was the only blocker; no longer outstanding.
 
 ## Technical Work Breakdown (TWBS) — Sound Design Techniques (`FS-106`, `BL-0024`)
 

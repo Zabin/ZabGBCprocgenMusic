@@ -496,3 +496,114 @@ records updated: `ROADMAP.md` (stage 11 row, now R1+R2+R3+R4+R5+`IP-1090` SHIPPE
 INDEX.md`'s `FEAT-1090` row was already accurate (set by `VR-1090`'s own commit), confirmed not
 requiring a further edit. See each file's own diff for the exact wording; this assessment is the
 authoritative record of the decision itself.
+
+---
+
+## Re-assessment — 2026-07-26 (adding R6/`IP-1100` and `BL-0051`/`IP-1110` scope)
+
+**Release:** Consolidated R1 (Foundation) + R2 (Sound Design) + R3 (Integrity Remediation) + R4
+(Combinable Generation Schemes) + R5 (Genre-Aware Style Presets) + `IP-1090`/`BL-0010` (Motif
+Recurrence via Weighted Variant Selection), now considering the addition of **both** `IP-1100`
+(roadmap R6 — Song-Form via Autonomous Phase Cycling) **and** `IP-1110` (`BL-0051` — Settings &
+Control Visibility) together. **Date:** 2026-07-26. **Commit:** `a56bb01`.
+
+### Scope audit
+
+Two independent additions, assessed together since both are `VERIFIED` and both were just
+integration-reviewed clean at the same 16-package scope — no dependency between them (`ADS-104`
+§4/§7 explicitly confirms `IP-1110`'s v1 scope has no dependency on `IP-1100`), so there is no
+sequencing constraint requiring them to ship separately.
+
+| Item | R6 / `IP-1100` | `BL-0051` / `IP-1110` |
+|---|---|---|
+| Catalog entry | `FEAT-1100`, authored 2026-07-26, traces `FR-1310`-`FR-1340`/`NFR-1120`/`1130`, Feature Review clean | `FEAT-1110`, authored 2026-07-26, traces `FR-1350`-`FR-1380`/`NFR-1140`-`NFR-1160`, Feature Review clean |
+| Feature Spec | `FS-110`, full 20-field spec, all Open Questions resolved or explicitly deferred | `FS-111`, full 20-field spec, both Open Questions resolved (shared tile set; tilemap placement) or explicitly deferred |
+| Implementation Package | `VERIFIED` via [VR-1100](implementation/verification/VR-1100-song-form-via-autonomous-phase-cycling.md) | `VERIFIED` via [VR-1110](implementation/verification/VR-1110-settings-and-control-visibility.md) |
+| Integration coverage | [15-package re-review](reviews/integration-review-foundation-bucket.md#re-review--2026-07-26-15-package-scope-ip-1100), clean, no Critical/High; independence from bad-zone/motif-variant re-confirmed live | [16-package re-review](reviews/integration-review-foundation-bucket.md#re-review--2026-07-26-16-package-scope-ip-1110), clean, no Critical/High; read-only characterization confirmed structurally, disclosed timing finding confirmed scoped to its own writes only |
+
+No feature was deferred, descoped, or split since planning for either. `IP-1100` delivers exactly
+what `FS-110`/`ADS-103` scoped (a 4-phase autonomous state machine overwriting
+`TEMPO_IDX`/`DENSITY_IDX`, disjoint from bad-zone/motif-variant mechanisms). `IP-1110` delivers
+exactly what `FS-111`/`ADS-104` scoped (5 base-control bar-height indicators, purely additive,
+read-only) — the four newer per-feature reactive-signal indicators (`ADS-104` §9) were always
+named out-of-v1-scope, not a deferral discovered late.
+
+### Evidence
+
+ROM builds to exactly 32768 bytes, valid header. Full `test_rom.py` suite: **122/122 (T1-T18)**,
+re-confirmed against commit `a56bb01` immediately before writing this assessment. ROM budget:
+28528 bytes free (`ADR-0002`'s `rom.pos` instrumentation), comfortably inside the single-bank
+ceiling. Relied on:
+
+- **`VR-1100`** (independent verification, genuinely fresh session): 112/112 tests at the time,
+  ROM budget independently re-measured exact match, all 3 phase-transition boundaries
+  forced-collision-tested against `IP-1080`'s style trigger (not just the shipped `T17.6`'s own
+  first boundary), a 40,000-frame `OVERLOAD`-frequency comparison across all 4 phases, a
+  20,000-frame stability run.
+- **`VR-1110`** (independent verification, genuinely fresh session): 122/122 tests, ROM budget
+  independently re-measured exact match, the reverted channel-activity regression independently
+  re-derived clean via a fresh 3000-frame zero-input stress test (0 mismatches), the disclosed
+  Select-frame display-lag finding independently reproduced across 3 distinct pre-Select button
+  sequences, a non-default scenario drive (6 consecutive Start taps, 10 consecutive D-pad Up taps
+  including the 7→0 wraparound) beyond `T18`'s own single-tap fixture.
+- **15-package integration review** (`+IP-1100`): song-form state machine confirmed structurally
+  independent of bad-zone detection/recovery and Scheme-E motif-variant selection by direct code
+  inspection (disjoint WRAM fields), plus a live 2000-frame drive combining an active Scheme-E
+  channel, ongoing bad-zone activity, and a phase transition in the same run.
+- **16-package integration review** (`+IP-1110`): `visuals.py`'s complete write-target set
+  confirmed read-only against all engine state/PSG registers by direct code inspection (VRAM/
+  palette/`LCDC` only), plus a live re-exercise of the exact disclosed-finding scenario confirming
+  the Select-frame timing exception is scoped to `IP-1110`'s own writes and doesn't touch
+  `IP-0006`'s channel-activity mechanism or `IP-0007`'s bad-zone-reset path on the same frame.
+
+### Deviations
+
+None found for either package. `IP-1100`'s G3 authorization was recorded on an explicit fresh
+basis (the user's own words, "Use your judgement according to the release plan to iterate," a
+direct delegation to continue building per the roadmap's own sequence). `IP-1110`'s G3
+authorization was recorded on the standing basis (the user's own words, "Iterate pipeline skill
+with pre authorization as per before," reaffirming the same standing-authorization reasoning
+already used for `IP-1090`). Both bases are explicitly cited on the Master Build Plan, not
+assumed silently.
+
+### Residual risks (accepted if GO is given)
+
+| Item | Severity | Disposition |
+|---|---|---|
+| `BL-0052` — `T17.6` only forces the first (INTRO→BUILD) Start-press/phase-transition collision, not all three boundaries (though `VR-1100` independently confirmed all three by non-collision derivation) | Low-Medium | `DEFERRED`, non-blocking — test-coverage precision only; the underlying mechanism is verified correct at all 3 boundaries |
+| `BL-0053` — descriptive `OVERLOAD`-frequency data across song-form phases (BUILD 0.000%, PEAK 21.0%) for a future `SONG_TABLE` content-tuning pass | Low | `DEFERRED`, non-blocking — descriptive data, no requirements violation |
+| `BL-0057` — `T18.8`-`T18.10`'s Select-frame-lag sequence exercises only one pre-Select button combination, though `VR-1110`'s own independent drive confirmed the behavior holds across two additional sequences | Low | `DEFERRED`, non-blocking — test-coverage gap, not a functional defect |
+| `BL-0048` — no shipped `CHMIX_IDX` preset exercises `IP-1090`'s motif-variant selection together with a muted Scheme-E channel or a named style (pre-existing, carried forward, unrelated to this addition) | Low | `SCHEDULED`, non-blocking |
+| `BL-0040` — `FS-108`'s acceptance criterion (4) states the bad-zone-independence invariant in absolute terms (pre-existing, carried forward, unrelated to this addition) | Medium | `SCHEDULED`, non-blocking — requirements-wording precision only |
+| `BL-0044`/`BL-0045` — `VR-1090`'s own two test-strength findings (pre-existing, carried forward, unrelated to this addition) | Medium | `SCHEDULED`, non-blocking — test-strength only |
+| `IP-1110`'s disclosed self-healing Select-frame display-lag (not a `BL-xxxx` finding — a documented, tested, accepted characteristic of the shipped behavior, not residual risk in the usual sense) | Low (cosmetic, self-corrects the very next frame) | Accepted as shipped behavior, per `IP-1110`'s own Definition of Done and `T18.9`/`T18.10` |
+
+### Assessment
+
+**GO** — recommended, advisory, for adding **both** `IP-1100` (song-form via autonomous phase
+cycling, roadmap R6) **and** `IP-1110` (settings & control visibility, `BL-0051`) to the shipped
+baseline alongside R1+R2+R3+R4+R5+`IP-1090`:
+
+- Both `FEAT-1100` and `FEAT-1110` trace to `VERIFIED` packages with real, independent VRs
+  (`VR-1100`/`VR-1110`), the same evidentiary bar as every other shipped feature.
+- Both are now covered by clean `10-integration-review` passes (15-package then 16-package
+  re-reviews), with zero Critical/High findings anywhere in the tree — every new finding either
+  package's own verification/review surfaced is explicitly non-blocking (Low or Low-Medium,
+  test-coverage/descriptive-data class).
+- Every deviation has a recorded, explicitly-cited authorization trail; neither package is
+  unauthorized drift.
+- Every residual risk carries an explicit, honest disposition; none is a silently-accepted
+  Critical/High item. `IP-1110`'s one disclosed behavioral nuance (the self-healing Select-frame
+  display lag) is fully tested, documented, and accepted as shipped behavior, not hidden.
+- `IP-1100` closes the song-form half of `BL-0010`'s original R214 §8 finding (the motif-recurrence
+  half already shipped via `IP-1090`), completing that long-open research-to-code thread end to
+  end.
+- `IP-1110` closes the base-control half of `BL-0051`'s user-filed request (the four newer
+  per-feature reactive-signal indicators remain a named, deliberate v1.1+ deferral per `ADS-104`
+  §9, not an incomplete delivery of what was promised for this pass).
+
+**No baseline record has been touched by this run.** Per the user's own standing instruction,
+this GO recommendation is not itself authorization to flip `ROADMAP.md`, the Feature Catalog,
+`Claude.md`'s status line, or any other tracker to reflect either addition as shipped — that flip
+happens only after the user's separate, explicit confirmation of this GO decision (G4). This
+assessment's job ends at the recommendation.

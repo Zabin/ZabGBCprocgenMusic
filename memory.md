@@ -32,7 +32,7 @@ no hangs, bad-zone entry and self-recovery both observed.
 
 | Range | Content |
 |---|---|
-| `0xC000`-`0xC004` | `TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX` (`CHMIX_IDX` wired, not yet consumed) |
+| `0xC000`-`0xC004` | `TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX` (`CHMIX_IDX` indexes `CHMIX_MASKS`, gating channel output — `IP-9010`) |
 | `0xC005` | `BAD_ZONE_FLAGS` (bit0 DISSONANT, bit1 STUCK, bit2 OVERLOAD, bit3 COMBINED) |
 | `0xC006` | `DISSONANCE_SCORE` |
 | `0xC007`-`0xC009` | `STALE_COUNT_PA`/`PB`/`WV` |

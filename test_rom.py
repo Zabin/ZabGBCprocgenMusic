@@ -21,6 +21,10 @@ Suites:
   T11 Arpeggio + vibrato + duty-cycle variation (IP-1060/IP-1061): per-note chord-tone
       cycling, periodic pitch wobble, varying timbre (portamento verified by code review only,
       see t11's own docstring — no PSG-frequency-register readback is possible)
+  T12 Channel-mix gating (IP-9010): CHMIX_IDX-selected masks actually gate PSG output —
+      excluded channels silence (NR52), re-included channels resume
+  T13 Overload threshold recalibration (IP-9020): OVERLOAD is reachable at realistic-high
+      settings and does not spuriously fire at the default preset
 
 Run from the repo root: python3 test_rom.py
 Requires: pyboy (pinned 2.7.0, matching the reference project), numpy.
@@ -434,6 +438,108 @@ def t11_arpeggio_vibrato_duty():
     pb.stop(save=False)
 
 
+def t12_channel_mix_gating():
+    """IP-9010 (BL-0019): CHMIX_IDX-indexed channel-activity masks actually gate the channels'
+    PSG output -- closing the gap where Start correctly stepped CHMIX_IDX but nothing consumed
+    it (every channel always played regardless). Pulse A/B/wave sustain continuously between
+    onsets, so a single-frame NR52 snapshot reliably reflects their include/exclude state; noise
+    only sounds briefly on its sparse Euclidean-gated hits, so its checks use an onset-count-over-
+    a-window approach (same methodology T7 already uses), not an instantaneous snapshot, to avoid
+    a flaky false negative landing between hits."""
+    pb = fresh_boot()
+
+    def noise_onsets(frames):
+        n = 0
+        for _ in range(frames):
+            pb.tick()
+            if pb.memory[NR52] & 0x08:
+                n += 1
+        return n
+
+    check("T12.1 Boot preset (CHMIX_IDX=0): pulse A/B/wave all active in NR52",
+          pb.memory[NR52] & 0x07 == 0x07, f"NR52={hex(pb.memory[NR52])}")
+    onsets_included = noise_onsets(600)
+    check("T12.2 Boot preset (CHMIX_IDX=0): noise produces onsets over a sustained window",
+          onsets_included > 0, f"onset-frame count: {onsets_included}")
+
+    # Step Start once: CHMIX_IDX 0 -> 1 (CHMIX_MASKS[1] = 0x03, pulse A+B only -- wave+noise
+    # excluded, GDS-03 SS3's own cited "pulse-only" example).
+    tap(pb, 'start')
+    check("T12.setup CHMIX_IDX reached 1", pb.memory[CHMIX_IDX] == 1, f"got {pb.memory[CHMIX_IDX]}")
+
+    # Run enough frames for every channel's current note to finish, so exclusion has had a full
+    # note-cycle to take effect (per this package's own Definition of Done wording).
+    for _ in range(60):
+        pb.tick()
+    nr52 = pb.memory[NR52]
+    check("T12.3 Excluded wave channel (bit2) reads inactive in NR52",
+          nr52 & 0x04 == 0, f"NR52={hex(nr52)}")
+    check("T12.4 Still-included pulse A (bit0) remains active in NR52",
+          nr52 & 0x01 != 0, f"NR52={hex(nr52)}")
+    check("T12.5 Still-included pulse B (bit1) remains active in NR52",
+          nr52 & 0x02 != 0, f"NR52={hex(nr52)}")
+    onsets_excluded = noise_onsets(600)
+    check("T12.6 Excluded noise channel produces zero onsets over a sustained window",
+          onsets_excluded == 0, f"onset-frame count: {onsets_excluded}")
+
+    # Reset to preset (Select) re-includes every channel (PRESET_CHMIX_IDX=0, all-active).
+    tap(pb, 'select')
+    for _ in range(60):
+        pb.tick()
+    check("T12.7 Re-included wave channel resumes (active in NR52) after reset to preset 0",
+          pb.memory[NR52] & 0x04 != 0, f"NR52={hex(pb.memory[NR52])}")
+    onsets_reincluded = noise_onsets(600)
+    check("T12.8 Re-included noise channel resumes producing onsets over a sustained window",
+          onsets_reincluded > 0, f"onset-frame count: {onsets_reincluded}")
+
+    pb.stop(save=False)
+
+
+def t13_overload_recalibration():
+    """IP-9020 (BL-0017): OVERLOAD_THRESHOLD, recalibrated from its original mathematically-
+    unreachable placeholder (20, per VR-0007's own computed ~8.8-onset/window ceiling), must be
+    empirically reachable at realistic-but-not-maximal settings and must NOT spuriously fire at
+    the default/sparse preset -- the exact regression guard BL-0017's root cause (an untested,
+    unreachable branch) was missing. Direct regression guard for the constant itself, not a
+    re-test of the (already-VERIFIED) OVERLOAD detection/recovery *mechanism* T8/T10 cover."""
+    pb = fresh_boot()
+
+    # Default preset: must NOT spuriously trigger OVERLOAD over a long run (the opposite failure
+    # mode this package's own Risks section warns against).
+    overload_at_default = False
+    for _ in range(6000):
+        pb.tick()
+        if pb.memory[BAD_ZONE_FLAGS] & 0x04:
+            overload_at_default = True
+    check("T13.1 OVERLOAD does not spuriously trigger at the default/sparse preset over a "
+          "sustained run", not overload_at_default,
+          f"overload observed: {overload_at_default}")
+    pb.stop(save=False)
+
+    # Realistic-high, not maximal: max tempo (Up x3) + a mid-high, non-maximal density (B x5) --
+    # a combination reachable through ordinary play, not the absolute max/max corner VR-0007
+    # used only to prove the old threshold unreachable.
+    pb = fresh_boot()
+    for _ in range(3):
+        tap(pb, 'up')
+    for _ in range(5):
+        tap(pb, 'b')
+    check("T13.setup TEMPO_IDX reached 7", pb.memory[TEMPO_IDX] == 7,
+          f"got {pb.memory[TEMPO_IDX]}")
+    check("T13.setup DENSITY_IDX reached 5", pb.memory[DENSITY_IDX] == 5,
+          f"got {pb.memory[DENSITY_IDX]}")
+    overload_triggered = False
+    for _ in range(6000):
+        pb.tick()
+        if pb.memory[BAD_ZONE_FLAGS] & 0x04:
+            overload_triggered = True
+            break
+    check("T13.2 OVERLOAD is empirically reachable at a realistic-high (not maximal) "
+          "tempo/density combination within a bounded frame budget",
+          overload_triggered, f"overload observed within 6000 frames: {overload_triggered}")
+    pb.stop(save=False)
+
+
 def main():
     t1_header()
     t2_boot()
@@ -446,6 +552,8 @@ def main():
     t9_visualizer()
     t10_bad_zone_recovery()
     t11_arpeggio_vibrato_duty()
+    t12_channel_mix_gating()
+    t13_overload_recalibration()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

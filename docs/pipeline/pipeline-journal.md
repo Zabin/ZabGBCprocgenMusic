@@ -2,7 +2,79 @@
 
 ## Position
 
-- **Updated:** 2026-07-22 (run #32) — **`docs/roadmap/` wired into `00-pipeline-manager`'s own loop as a read-only sequencing input**
+- **Updated:** 2026-07-25 (run #33) — **`IP-1060`/`IP-1061` `VERIFIED`, R216 tranche
+  integration-reviewed clean, G3 GRANTED, `IP-9010`+`IP-9020` both built `COMPLETE`; loop
+  stopped needing a fresh session for their verification**
+- **Run #33, `IP-9020` build:** `08-code-implementation` recalibrated `OVERLOAD_THRESHOLD` from
+  its proven-unreachable placeholder (`20`) to `6`. The naive deterministic-average ceiling
+  formula suggested `5` would be safe (default preset averages ~3.17 onsets/window) — **live
+  PyBoy calibration caught what the formula missed**: independently-phased periodic channels can
+  align within one 32-frame window well above their average rate; default preset's actual
+  observed max across 40000 live-driven frames is `6`, not ~3. Threshold `5` was confirmed to
+  spuriously fire at default before correcting to `6` — caught and corrected within this same
+  run, not shipped. `6` leaves default's headroom intact (zero spurious triggers, 40000 frames)
+  while reliably reaching OVERLOAD within ~12 frames at a realistic-high, non-maximal
+  tempo/density combination. Added `test_rom.py` T13 (2 checks) — 78/78 total, 8000+ frame stress
+  run clean. Updated `Claude.md`. `IP-9020` `COMPLETE`, not yet `VERIFIED` (same-session).
+- **Run #33, `IP-9010` build:** `08-code-implementation` wired `CHMIX_MASKS` (8-entry, bit0=pulse
+  A/bit1=pulse B/bit2=wave/bit3=noise) into all 4 channels' generation routines — included
+  channels restore DAC/envelope right before their trigger write (self-healing after a prior
+  exclusion); excluded channels get an explicit DAC-off write (hardware-clears `NR52`
+  immediately, not just a skipped trigger); bookkeeping (note-timer/degree/stale/onset-window)
+  still runs unconditionally so excluded channels resume cleanly. **Caught and fixed a real bug
+  during implementation**: the CHMIX check inserted into `_emit_noise_gen` initially clobbered
+  register A between `NOISE_STEP_IDX`'s update and the next instruction that still needed to read
+  it, corrupting the pattern-table lookup and silencing noise entirely regardless of mask (caught
+  by `test_rom.py` T7.0.2 regressing to 0 onsets; root-caused via a debug WRAM mirror, fixed by
+  re-reading `NOISE_STEP_IDX` from WRAM after the gating check rather than trusting the stale
+  register). Made and documented the package's own named open design decision: dissonance
+  scoring still reads all 3 pitched channels regardless of mix exclusion (documented in
+  `_emit_badzone_tick`'s own docstring — a deliberate choice not to add a second, untested
+  behavior change to `IP-0004`'s already-`VERIFIED` scoring). Added `test_rom.py` T12 (9 checks) —
+  74/74 total, 8000+ frame stress run clean at a non-default mix preset. Updated `Claude.md`/
+  `memory.md` (dropped "wired, not consumed"). `IP-9010` `COMPLETE`, not yet `VERIFIED` (standing
+  fresh-session-independence rule, same posture as every prior same-session-built package).
+- **Run #33, gate resolution:** the user answered the G3 `AskUserQuestion` this run posed:
+  **"Authorize both"** — `IP-9010` and `IP-9020` are now G3-authorized, closing the gate open
+  since run #14 (~20 runs). Updated the Master Build Plan (`NOT STARTED`/unauthorized →
+  `READY`/authorized for both), `packages/INDEX.md`, and `BL-0019`/`BL-0017`'s dispositions
+  (`SCHEDULED` → `IN PIPELINE`, both now naming `08-code-implementation` as the immediate next
+  step). Per the TWBS's session-hygiene sequencing note (no technical dependency between the two),
+  `IP-9010` builds first. Iteration resumes with `08-code-implementation` on `IP-9010`.
+- **Run #33 (iterate mode, multiple internal steps):** user directed "Iterate pipeline skill" (no
+  further scope given). Reconciled journal/backlog against the ledgers first — no drift found.
+  **Step A** — the standing obligation still owed and genuinely unblocked (no G3 needed — this is
+  a fresh session with no memory of building `IP-1060`/`IP-1061`) was `09-package-verification` on
+  both `COMPLETE`-not-`VERIFIED` packages. Invoked `09-package-verification` on `IP-1060`:
+  installed `pyboy==2.7.0` (fresh-session friction `BL-0023` already tracks), rebuilt the ROM
+  (32768 bytes), ran the full suite (65/65), then independently drove a non-default scale/octave
+  (`SCALE_IDX=1`/`OCTAVE_IDX=3`, off the shared T11 fixture's default) confirming both arpeggio
+  step-cycling and duty-cycle variation hold off the default preset — this package's own
+  Verification Checklist item. Audited the package's named interaction risk (arpeggio must not
+  leak into `CUR_DEGREE_*`/stale/dissonance bookkeeping) directly against `_emit_arpeggio_tick` —
+  confirmed clean. Wrote [VR-1060](../implementation/verification/VR-1060-arpeggio-and-duty-cycle.md),
+  advanced `IP-1060` `COMPLETE`→`VERIFIED`. Two new Low-severity doc-coherence findings filed
+  (`BL-0025`: package-doc's 3-entry arpeggio-table wording vs. the shipped 4-entry table;
+  `BL-0026`: `FS-106`'s title framing vs. `IP-1060`'s documented pulse-A/B-only scope) — same
+  character as the project's existing `BL-0013`/`BL-0016` pattern, neither blocking. (A
+  same-session filesystem case-collision between a scratch `driftune.gbc` build artifact this run
+  created and the tracked `Driftune.gbc` binary was caught and reverted before committing — no
+  tracked content lost.) **Step B** — invoked `09-package-verification` on `IP-1061`: ROM rebuilt,
+  full suite 65/65, vibrato (`FR-1140`) confirmed live at non-default tempo/octave
+  (`TEMPO_IDX=5`/`OCTAVE_IDX=3`, all 4 phase values observed). Portamento (`FR-1150`) confirmed
+  via 56 live onset transitions with no anomaly at the fastest tempo plus a full code trace,
+  since `NR13`/`NR14` are write-only (confirmed empirically this run — reads return fixed values
+  regardless of what was last written, the same limitation `R108`/`VR-0001` already established).
+  Wrote [VR-1061](../implementation/verification/VR-1061-vibrato-and-portamento.md), advanced
+  `IP-1061` `COMPLETE`→`VERIFIED`. **One new Medium finding filed (`BL-0027`)**: the shipped
+  portamento mechanism is a 2-frame retrigger-then-jump, materially narrower than both the package
+  doc's and `FS-106`'s described N-frame interpolated glide (never built — no dedicated glide
+  WRAM exists), with zero dedicated test coverage of the mechanism itself; satisfies `FR-1150`'s
+  literal wording so this did not block `VERIFIED`, but is a real design-doc-vs-shipped gap routed
+  to `07-implementation-planning`/`06-feature-specification` for reconciliation — more significant
+  than the two Low findings from Step A, consistent with severity-honesty (`SCHEDULED`, not
+  `DEFERRED`).
+- **Prior position (run #32):** `docs/roadmap/` wired into `00-pipeline-manager`'s own loop as a read-only sequencing input
 - **Run #32:** user directed: "Ensure these docs are integrated with the pipeline manager
   process." Run #31's `docs/roadmap/` package existed as a standalone artifact with no mechanical
   tie into the manager's actual Step 1/Step 3 workflow — this run closed that gap. Edited
@@ -205,38 +277,52 @@
     ADC/SBC available in this project's opcode subset; portamento: onset trigger writes use the
     *old* degree, `engine_tick`'s `arp_tick`-before-`gen_tick` reordering carries the pitch to
     the new target over the following frame(s), zero extra WRAM) — 65/65 tests (new suite T11),
-    8000+ frame stress run clean. Both packages `COMPLETE` on the Master Build Plan/`INDEX.md`.
-  - `09-package-verification`: 🟡 unchanged for `IP-1060`/`IP-1061` this run — both stay
-    `COMPLETE`, not `VERIFIED`; the standing fresh-session-independence rule applies and no
-    waiver was given, same posture as the still-unauthorized `IP-9010`/`IP-9020` (a future run's
-    job, not skipped).
-- **Backlog:** 20 open entries (`BL-0001`, `BL-0005`...`BL-0007`, `BL-0010`...`BL-0013`, `BL-0015`
-  ...`BL-0023`; `BL-0002`/`BL-0003`/`BL-0004`/`BL-0008`/`BL-0009`/`BL-0014`/`BL-0018` are `DONE`,
-  pending archiving at the next triage sweep). `BL-0013`/`BL-0020` remain `IN PIPELINE`
-  (architecture halves done, remainder owed to `02-research-game-design`/
-  `04-requirements-engineering`). `BL-0024` (this run's thread) now `IN PIPELINE` — carried
-  through `04`→`08`, both packages `COMPLETE`/not yet `VERIFIED`; folds in and supersedes
-  `BL-0011` item (1) (arpeggio), noted there. `BL-0021`/`BL-0022`/`BL-0023` remain
-  `SCHEDULED`/`DEFERRED` with named triggers. `IP-9010`/`IP-9020`'s G3 authorization remains an
-  open gate, not touched this run.
-- **Next step:** the Product Roadmap package (`docs/roadmap/`) now gives this project's next
-  moves a concrete, traced sequence for the first time: **R3** (integrity remediation, `IP-9010`/
-  `IP-9020`) is named as the critical-path-first release, blocked only on the standing G3
-  authorization gate below. Once authorized, **R4.5** (the cart-shape decision) and **R6** (song-
-  form/style-drift, parallelizable with R4/R5) are the next-highest-value moves per the roadmap's
-  own dependency analysis. Separately, still owed from earlier runs, all independent of the
-  roadmap: **visual evolution & audio-visual synchronization** research (owed to
-  `02-research-game-design`/`02-research-gbc-hardware`, and now also a named hard prerequisite for
-  the roadmap's own R9), the **forward-traceability audit** (run #26's C10), `09-package-
-  verification` on `IP-1060`/`IP-1061` (fresh session needed), and the standing **G3 authorization
-  gate for `IP-9010`/`IP-9020`** (open since run #14) — now doubly load-bearing, since the roadmap
-  confirms it blocks not just the Foundation bucket's own release-readiness but the entire
-  Milestone B/D chain (Multi-Scheme, Style Engine, Genre Blending).
-- **Open gates:** **G3 authorization for `IP-9010` and `IP-9020`** — open since run #14, untouched
-  this run; still the standing blocker for `10-integration-review`'s eventual re-run and
-  `11-release-readiness`. **Independent verification owed for `IP-1060`/`IP-1061`** — not a G3
-  gate (both already build-authorized), but `09-package-verification`'s own fresh-session rule,
-  unmet this run same as every same-session-authored package before a later independent pass.
+    8000+ frame stress run clean. **Run #33**: `IP-9010` built (`CHMIX_MASKS` gating, caught and
+    fixed a real register-clobber bug in `_emit_noise_gen` during implementation — see run-log row
+    37) — 74/74 tests (new T12). `IP-9020` built (`OVERLOAD_THRESHOLD` recalibrated `20`→`6`, live
+    calibration corrected a formula-derived value that would have spuriously fired at default) —
+    78/78 tests (new T13). All 4 packages `COMPLETE` on the Master Build Plan/`INDEX.md`, none yet
+    `VERIFIED`.
+  - `09-package-verification`: ✅ **Run #33**: both `IP-1060` ([VR-1060](../implementation/verification/VR-1060-arpeggio-and-duty-cycle.md))
+    and `IP-1061` ([VR-1061](../implementation/verification/VR-1061-vibrato-and-portamento.md))
+    independently `VERIFIED` this run, genuinely fresh session. `IP-1060`: two Low findings
+    (`BL-0025`/`BL-0026`). `IP-1061`: one Medium finding (`BL-0027`, portamento's shipped
+    mechanism is materially narrower than its own design docs describe, no dedicated test
+    coverage — doesn't block `VERIFIED`, `FR-1150`'s literal wording is satisfied). Completes
+    independent verification of the full `BL-0024`/`FS-106` tranche.
+  - `10-integration-review`: ✅ **Run #33**: [R216 sound-design tranche review](../reviews/integration-review-r216-sound-design.md)
+    (`IP-1060`+`IP-1061`) — clean across all 5 dimensions (interface consistency, invariant sweep
+    including a combined 8000-frame stress run reconfirming coexistence with `IP-0007`'s
+    autonomous bad-zone recovery, behavioral coherence, traceability). One Medium finding
+    (`BL-0028`: `ROADMAP.md` rows 04/06/07/08/09 stale for this entire thread since run #19, no
+    functional impact). No Critical/High — this tranche is clean.
+- **Backlog:** 24 open entries (`BL-0001`, `BL-0005`...`BL-0007`, `BL-0010`...`BL-0013`, `BL-0015`
+  ...`BL-0017`, `BL-0019`...`BL-0023`, `BL-0025`...`BL-0028`; `BL-0002`/`BL-0003`/`BL-0004`/
+  `BL-0008`/`BL-0009`/`BL-0014`/`BL-0018` are `DONE`, pending archiving at the next triage sweep).
+  `BL-0013`/`BL-0020` remain `IN PIPELINE` (architecture halves done, remainder owed to
+  `02-research-game-design`/`04-requirements-engineering`). `BL-0024` `IN PIPELINE`, both packages
+  `VERIFIED` and integration-reviewed clean. `BL-0019`/`BL-0017` now `IN PIPELINE` — both remedy
+  packages (`IP-9010`/`IP-9020`) built `COMPLETE` this run, awaiting a fresh-session
+  `09-package-verification` pass (not `DONE` until verified). `BL-0025`/`BL-0026` (Low,
+  `DEFERRED`), `BL-0027`/`BL-0028` (Medium, `SCHEDULED`). `BL-0021`/`BL-0022`/`BL-0023` remain
+  `SCHEDULED`/`DEFERRED` with named triggers. G3 for `IP-9010`/`IP-9020` — **granted this run**,
+  no longer an open gate.
+- **Next step:** `09-package-verification` on `IP-9010`, then `IP-9020` — **needs a genuinely
+  fresh session**; both were built in this same session, so independent verification isn't
+  available right now (the standing fresh-session-independence rule this project has applied to
+  every package since `IP-0001`, no waiver given or sought this run). This is why the loop stopped
+  here rather than continuing: the highest-leverage next step is degraded-independence-blocked,
+  not gate-blocked, but the effect is the same — it needs something only a future session (or an
+  explicit user waiver) can provide. Once both are `VERIFIED`, `10-integration-review` should
+  re-run the Foundation bucket (the original review recommended against `11-release-readiness`
+  specifically until `BL-0019` was remediated and re-verified — that condition will then be met).
+  Independent of this thread and available to a future run without any gate: `BL-0001` (GDS-08/
+  09/10 authoring), the doc-coherence sweep (`BL-0013`/`BL-0016`/`BL-0025`-`BL-0028`), **visual
+  evolution & audio-visual synchronization** research, and the **forward-traceability audit**
+  (run #26's C10).
+- **Open gates:** none — the standing G3 gate for `IP-9010`/`IP-9020` (open since run #14) was
+  granted this run. The only thing blocking further progress on this specific thread is the
+  fresh-session-independence rule for verification, not a human decision gate.
 
 ## Run log
 
@@ -280,6 +366,12 @@
 | 31 | 2026-07-22 | run (user-directed, explicit Lead-Systems-Architect/TPM framing) | cross-cutting planning synthesis (no single numbered skill — spans what `03-architecture-design-synthesis`/`05-feature-decomposition` would normally own at a higher grain, per the user's explicit permission to adjust deliverables to fit the existing pipeline) | `docs/roadmap/01-10.md` + `INDEX.md` | Authored the full requested planning package from the existing Vision (MSTR-001 v1.4) and Research Encyclopedia (42 topics) only — no new research performed, per instruction. 21-capability map with honest shipped/partial/broken/planned status; dependency graph naming `CAP-10`'s fix (`BL-0019`) as the true critical-path blocker and identifying two parallel streams (Integrity & Diversity vs. Musical Maturity) converging only at the visualizer; 14-release sequence `R0`-`R13` (`R0`-`R2` shipped, included for continuity/traceability only) mapping the user's requested capability arc onto this session's own research findings (R219/R220/R221, R106/R302); six milestones; catalog-grain `RM-xxxx` features (distinct from, feeding, the live `FEAT-xxxx`/`FS-xxx` grain); a full traceability matrix with one deliberately-named gap (L-system motif recurrence, correctly excluded, not silently dropped); a development strategy restating already-proven pipeline practice at roadmap scale; per-release exit criteria; and a genuinely critical final review (5 ranked findings) whose top finding — cart-shape decision bundled too late — was **applied directly** (new `R4.5` checkpoint release) rather than left as a dangling note. No implementation details, algorithms, source code, APIs, or file structures named anywhere, per the user's explicit scope limit. Authorizes nothing (G3 unchanged); cross-linked from `docs/INDEX.md`/`ROADMAP.md`. | `Next: R3 (integrity remediation) is the roadmap's own named critical-path-first release, blocked on the standing G3 gate for IP-9010/IP-9020 (open since run #14) — same gate as before, now with the roadmap's own dependency analysis confirming its downstream blast radius (Milestones B and D both wait on it). Once authorized: R4.5 (cart-shape decision) and R6 (song-form/style-drift, parallelizable) are next. Unrelated, still owed: visual-evolution research (now also R9's named prerequisite), the C10 forward-traceability audit, and 09-package-verification on IP-1060/IP-1061.` |
 
 | 32 | 2026-07-22 | run (user-directed, doc-governance work) | none (direct edits to `.claude/skills/README.md`/`00-pipeline-manager/SKILL.md`/`docs/roadmap/INDEX.md` — meta-pipeline wiring, not a stage-skill invocation) | `docs/roadmap/` integration | User directed integrating the run #31 roadmap package with the pipeline manager's actual process, not just cross-linking it as a passive reference. Added `docs/roadmap/04-release-roadmap.md`/`INDEX.md` to `00-pipeline-manager`'s Step 1 reconciliation ledger list; added explicit Step 3 guidance treating the roadmap's release sequence as a tie-breaker among already-unblocked, backlog-cleared candidates, never an override of gates/tier-precedence/stage-order, with backlog winning any conflict (journaled, not silently resolved). Added a matching "Product Roadmap" section to `README.md` and an "Integration with `00-pipeline-manager`" section to `docs/roadmap/INDEX.md` so the mechanics are documented from both directions. Established write ownership explicitly: the manager reads/flags-drift only, never writes `docs/roadmap/`, consistent with its existing guardrail — whichever skill completes a named release keeps that release's status line current, mirroring the existing `ROADMAP.md` per-stage-row convention. | `Next: unchanged from run #31 — R3 (integrity remediation) remains the roadmap's own named critical-path-first release, blocked on the standing G3 gate for IP-9010/IP-9020 (open since run #14). This run's own scope (wiring the roadmap into the manager's process) is complete; the wiring itself doesn't change what's next, only how the manager will reason about it going forward.` |
+| 33 | 2026-07-23 | iterate | `09-package-verification` | `IP-1060` | Reconciled — no drift. Fresh session confirmed (no memory of building `IP-1060`/`IP-1061`), so independent verification was genuinely available and unblocked (no G3 needed). Installed `pyboy==2.7.0` (`BL-0023` friction, again). ROM built (32768 bytes), full suite 65/65, non-default scale/octave (`SCALE_IDX=1`/`OCTAVE_IDX=3`) independently driven live confirming arpeggio step-cycling and duty-cycle variation both hold off default. Interaction-risk audit (arpeggio must not touch `CUR_DEGREE_*`/stale/dissonance) confirmed clean by direct code read. `IP-1060` advanced `COMPLETE`→`VERIFIED` ([VR-1060](../implementation/verification/VR-1060-arpeggio-and-duty-cycle.md)). Two new Low doc-coherence findings filed (`BL-0025`, `BL-0026`), both `DEFERRED` with named triggers — consistent with severity-honesty (Low findings don't need `SCHEDULED`/user attention). | `Next: 09-package-verification on IP-1061 (vibrato + portamento) — same fresh session, same standing obligation, not yet attempted this run.` |
+| 34 | 2026-07-23 | iterate | `09-package-verification` | `IP-1061` | Same fresh session as run-log row 33. ROM rebuilt (32768 bytes), full suite 65/65. Vibrato (`FR-1140`) confirmed live at non-default tempo/octave (`TEMPO_IDX=5`/`OCTAVE_IDX=3`, all 4 phase values observed) plus the same interaction-risk audit already covering this shared routine. Portamento (`FR-1150`) confirmed via 56 live onset transitions at the fastest tempo (no anomaly) plus a full code trace, since `NR13`/`NR14` proved empirically write-only this run (reads return fixed values regardless of last write) — the established `R108`/`VR-0001` limitation. `IP-1061` advanced `COMPLETE`→`VERIFIED` ([VR-1061](../implementation/verification/VR-1061-vibrato-and-portamento.md)). One new Medium finding filed (`BL-0027`: portamento's shipped 2-frame mechanism is materially narrower than its own package doc/`FS-106` describe, no dedicated test coverage — satisfies `FR-1150`'s literal wording, doesn't block `VERIFIED`) — `SCHEDULED`, not `DEFERRED`, consistent with severity-honesty for a Medium finding. Completes independent verification of the `BL-0024`/`FS-106` tranche. | `Next: 10-integration-review on the BL-0024/FS-106 tranche (IP-1060+IP-1061 together) — both now VERIFIED and genuinely unblocked (no G3 needed for a review step).` |
+| 35 | 2026-07-25 | iterate | `10-integration-review` | `IP-1060`+`IP-1061` (`BL-0024`/`FS-106` R216 tranche) | Both packages confirmed `VERIFIED` before starting. All 5 dimensions exercised: interface consistency (shared `_emit_channel_gen`/`_emit_arpeggio_tick`/`ARP_STATE` packing traced end to end), invariant sweep (WRAM map non-colliding and fully GDS-07-documented, ROM exactly 32768 bytes, plus a combined 8000-frame stress run with randomized input churn reconfirming the new effects coexist with `IP-0007`'s autonomous bad-zone recovery under load), behavioral coherence (no dead-ends, no divergent reimplementation), traceability (full `FR`→`FEAT`→`FS`→`IP`→`VR` chain confirmed unbroken). One Medium finding filed (`BL-0028`: `ROADMAP.md` rows 04/06/07/08/09 stale since run #19 for this entire thread, no functional impact). No Critical/High. Updated `ROADMAP.md`'s reviews row and `docs/reviews/INDEX.md` (this skill's own named responsibility). Per Step 3's severity-honesty/critical-path-first ordering, chose to surface the standing `BL-0019`/`BL-0017` (`IP-9010`/`IP-9020`) G3 gate as this run's next step rather than opening the independent-scope `BL-0001` architecture-ladder thread — loop stopped here. | `GATE: G3 authorization for IP-9010 (BL-0019, High) and IP-9020 (BL-0017, Medium-High) — open since run #14. Both packages fully specified and READY pending only the user's explicit per-package go-ahead. This is the roadmap's own named critical-path-first release (R3) and the standing blocker for the Foundation bucket's 11-release-readiness.` |
+| 36 | 2026-07-25 | iterate | (gate resolution) | `IP-9010`/`IP-9020` G3 authorization | User answered the standing gate via `AskUserQuestion`: **"Authorize both."** Updated the Master Build Plan (`NOT STARTED`/unauthorized → `READY`/authorized for both), `packages/INDEX.md`, and `BL-0019`/`BL-0017`'s dispositions (`SCHEDULED`→`IN PIPELINE`). No skill invoked — this is the manager's own gate-resolution bookkeeping step. | `Next: 08-code-implementation on IP-9010 (session-hygiene sequencing per the TWBS — no technical dependency between IP-9010/IP-9020).` |
+| 37 | 2026-07-25 | iterate | `08-code-implementation` | `IP-9010` | Wired `CHMIX_MASKS` into all 4 channels' generation routines (DAC-off gating on exclusion, envelope/DAC restore on inclusion, bookkeeping unconditional). Caught and fixed a real bug during implementation: the CHMIX check inserted into `_emit_noise_gen` clobbered register A between `NOISE_STEP_IDX`'s update and the next instruction still needing it, silencing noise regardless of mask — caught by T7.0.2 regressing to 0 onsets, root-caused via a debug WRAM mirror, fixed by re-reading `NOISE_STEP_IDX` from WRAM post-gate. Made and documented the package's own named open design decision (dissonance scoring still reads all 3 pitched channels regardless of exclusion, per `_emit_badzone_tick`'s own docstring). Added `test_rom.py` T12 (9 checks) — 74/74 total, 8000+ frame stress run clean at a non-default mix preset. Updated `Claude.md`/`memory.md`. `IP-9010` `COMPLETE`, not yet `VERIFIED` (same-session). | `Next: 09-package-verification on IP-9010 needs a fresh session (not this one — same-session independence is degraded, same standing rule as every prior package). Meanwhile IP-9020 is also G3-authorized and independent — 08-code-implementation on IP-9020 is the next unblocked step this session.` |
+| 38 | 2026-07-25 | iterate | `08-code-implementation` | `IP-9020` | Recalibrated `OVERLOAD_THRESHOLD` `20`→`6`. A naive deterministic-average formula suggested `5`; live PyBoy calibration caught what the formula missed (independently-phased channels aligning above their average rate within one window) — confirmed `5` would spuriously fire at the default preset before correcting to `6`, caught and fixed within this same run. `6` gives zero spurious triggers across 40000 live-driven default-preset frames while reliably reaching OVERLOAD within ~12 frames at a realistic-high, non-maximal setting. Added `test_rom.py` T13 (2 checks) — 78/78 total, 8000+ frame stress run clean. Updated `Claude.md`. `IP-9020` `COMPLETE`, not yet `VERIFIED` (same-session). Both `IP-9010`/`IP-9020` now built; both need a fresh session for independent verification — chose to stop the loop here rather than attempt same-session verification (this project's standing rule, unwaived) or open a new, separately-scoped thread (`BL-0001`'s architecture-ladder work) at the tail of an already long run. | `Next: 09-package-verification on IP-9010 and IP-9020, each in a genuinely fresh session — not available this run. No gate is open; this is the fresh-session-independence rule, not a human decision.` |
 
 **Note on this run's format:** the pipeline manager's own rules (`00-pipeline-manager/SKILL.md`)
 require one journal row per internal step/skill invocation, never batched. Run #1 above is a

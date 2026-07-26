@@ -47,14 +47,12 @@ both cite their `BL-xxxx` directly per this skill's ID convention):
 
 | IP | Package | BL cited | Status |
 |---|---|---|---|
-| IP-9010 | Channel-mix gating — wire `CHMIX_IDX` to an actual channel-activity-mask table | `BL-0019` (High) | **NOT STARTED** — fully specified, [package](packages/IP-9010-channel-mix-gating.md) written; **not `READY`, no G3 authorization on record** |
-| IP-9020 | Overload threshold recalibration — `OVERLOAD_THRESHOLD`/`ONSET_WINDOW_FRAMES` | `BL-0017` (Medium-High) | **NOT STARTED** — fully specified, [package](packages/IP-9020-overload-threshold-recalibration.md) written; **not `READY`, no G3 authorization on record** |
+| IP-9010 | Channel-mix gating — wire `CHMIX_IDX` to an actual channel-activity-mask table | `BL-0019` (High) | **COMPLETE** — [package](packages/IP-9010-channel-mix-gating.md), 74/74 tests (new suite T12), 8000+ frame stress run clean at a non-default mix preset; verification pending |
+| IP-9020 | Overload threshold recalibration — `OVERLOAD_THRESHOLD`/`ONSET_WINDOW_FRAMES` | `BL-0017` (Medium-High) | **COMPLETE** — [package](packages/IP-9020-overload-threshold-recalibration.md), 78/78 tests (new suite T13), 8000+ frame stress run clean; verification pending |
 
 Both depend only on already-`VERIFIED` code (no dependency on each other — see the TWBS's
 sequencing note for the session-hygiene recommendation to build `IP-9010` first, not a technical
-requirement). Neither is `READY` in the stage-07 sense used elsewhere on this plan, since that
-label is reserved for "dependencies `VERIFIED`" — these packages' blocker is **G3 authorization**,
-not a dependency.
+requirement). Both are now `READY` — G3 authorization was the sole blocker, granted this run.
 
 ## Technical Work Breakdown (TWBS) — Sound Design Techniques (`FS-106`, `BL-0024`)
 
@@ -63,8 +61,8 @@ supersession-sweep, and split rationale.
 
 | IP | Package | Requirements | Status |
 |---|---|---|---|
-| IP-1060 | Arpeggio + duty-cycle variation | FR-1130, FR-1160 | **COMPLETE** — [package](packages/IP-1060-arpeggio-and-duty-cycle.md), 63/63 tests, 6000+ frame stress run clean; verification pending |
-| IP-1061 | Vibrato + portamento | FR-1140, FR-1150 | **COMPLETE** — [package](packages/IP-1061-vibrato-and-portamento.md), 65/65 tests, 8000+ frame stress run clean; verification pending |
+| IP-1060 | Arpeggio + duty-cycle variation | FR-1130, FR-1160 | **VERIFIED** ([package](packages/IP-1060-arpeggio-and-duty-cycle.md), 65/65 tests against the current tree; [VR-1060](verification/VR-1060-arpeggio-and-duty-cycle.md), fresh-session independent verification — non-default scale/octave independently driven live, two Low doc-coherence findings) |
+| IP-1061 | Vibrato + portamento | FR-1140, FR-1150 | **VERIFIED** ([package](packages/IP-1061-vibrato-and-portamento.md), 65/65 tests; [VR-1061](verification/VR-1061-vibrato-and-portamento.md), fresh-session independent verification — one Medium finding on portamento's design-doc-vs-shipped gap, routed to `07`/`06`) |
 
 **G3 authorization for `IP-1060`/`IP-1061`**: the user's request that filed `BL-0024` — "Iterating
 the pipeline skill run through to implantation the concepts in R216... Iterate until they are all
@@ -86,8 +84,9 @@ project owner's original instruction ("build a new... GBC ROM...", "follow the h
 stage by stage") together with the explicit request to reach working code this session is treated
 as standing authorization for the first foundation package; IP-0002 onward each need their own
 go-ahead at the point the pipeline reaches them (recorded in the journal/backlog, not assumed
-silently). **`IP-9010`/`IP-9020` are not authorized** — no user go-ahead is on record for either;
-both require an explicit per-package go-ahead before `08-code-implementation` may build them.
+silently). **`IP-9010`/`IP-9020` ARE authorized** — the user explicitly authorized both, per-package, via
+`AskUserQuestion` on 2026-07-25 (run #33): "Authorize both" in response to the pipeline manager's
+G3 gate check, closing the gate open since run #14.
 **`IP-1060`/`IP-1061` ARE authorized** — the user's own `BL-0024`-filing request explicitly
 directed the pipeline to carry the R216 sound-design-techniques feature through implementation
 and verification ("iterate until... committed and pushed"), recorded as the per-package go-ahead

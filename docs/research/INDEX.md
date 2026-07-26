@@ -65,9 +65,18 @@ into R108 SS4).
 | R219 | Genre feasibility on 4-channel GBC PSG | [encyclopedia/R219-genre-feasibility-on-4-channel-gbc-psg.md](encyclopedia/R219-genre-feasibility-on-4-channel-gbc-psg.md) | ✅ Authored 2026-07-22 (MSTR-001 §9 thread — grounds which of the user's ~25 genre references are realistically expressible on this hardware) |
 | R220 | Style evolution, blending & song-form structure | [encyclopedia/R220-style-evolution-and-song-form-structure.md](encyclopedia/R220-style-evolution-and-song-form-structure.md) | ✅ Authored 2026-07-22 (MSTR-001 §9 thread — extends `BL-0010`/R211/R212's phrase/form gap; horizontal-resequencing/vertical-layering technique identified as a cheap, existing-parameter-driven answer for song-form + style-drift) |
 | R221 | Emotional/energy parameter mapping | [encyclopedia/R221-emotional-energy-parameter-mapping.md](encyclopedia/R221-emotional-energy-parameter-mapping.md) | ✅ Authored 2026-07-22 (MSTR-001 §9 thread — valence-arousal model mapped onto Driftune's existing tempo/density/scale/dissonance-score state) |
+| R222 | Visual evolution conventions | [encyclopedia/R222-visual-evolution-conventions.md](encyclopedia/R222-visual-evolution-conventions.md) | ✅ Authored 2026-07-26 (`BL-0034` — palette-swap-only day/night/seasonal theming is the established, hardware-precedented technique, Pokemon Gold/Silver cited; grounds `CAP-14`/R9's design half, VRAM-budget half still owed to `02-research-gbc-hardware`) |
+| R223 | Audio-visual synchronization conventions | [encyclopedia/R223-audio-visual-synchronization.md](encyclopedia/R223-audio-visual-synchronization.md) | ✅ Authored 2026-07-26 (`BL-0035` — pitch is the highest-confidence mapping dimension, green-channel-preferential intensity mapping, one-frame sync lag confirmed perceptually acceptable, corroborating `VR-0006`'s own prior finding) |
 
 Superseded: [R200-generative-music-design.md](R200-generative-music-design.md) (content split
 across R201-R204, R206-R207).
+
+**Addenda landed 2026-07-26** (all closing previously-filed backlog research-gaps, none a new
+topic): **R211 §8** (`BL-0037` — weighted random selection, grounding `DELTA_TABLE`'s existing
+shipped bias); **R214 §8** (`BL-0010` — L-systems for motif recurrence, deep-evaluated with a
+concrete bounded-depth/weighted-rule design constraint); **R219 §8** (`BL-0036` — Celtic/Seasonal/
+Holiday genre-coverage gap, Celtic joins the Folk/World tier, Holiday found high-confidence and
+uniquely cheap, Seasonal reclassified as a preset-rotation concern not a genre).
 
 ## R300 — Tooling, Emulation & Verification
 

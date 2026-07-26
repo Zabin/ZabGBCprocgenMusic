@@ -69,3 +69,81 @@ backlog candidates for post-v1 consideration.
 ## 7. Related Topics
 R201 (the Markov/random-walk baseline these are alternatives to), R202 (Euclidean rhythm, the CA
 alternative's point of comparison), R211 (the phrase/motif gap the L-system idea addresses).
+
+## 8. Addendum — 2026-07-26: L-Systems for Motif Recurrence, Deep Evaluation (`BL-0010`)
+
+§3's original L-system note flagged it as "the most promising *specific* candidate, not yet
+evaluated in depth" for R211/R212's phrase/motif-development gap. `BL-0010` tracked exactly this
+follow-up. This addendum performs that deeper evaluation.
+
+**Probabilistic L-systems, not deterministic ones, are the concretely cited approach for
+melodic/motif generation on constrained systems.** Jon McCormack's foundational work "presented
+probabilistic L-systems that include probabilities about several possible rules associated with a
+symbol, mapping the resulting symbols to melodic notes" [McCormack — Grammar Based Music
+Composition](https://users.monash.edu/~jonmc/research/Papers/L-systemsMusic.pdf) (title/author
+confirmed via search, primary PDF not independently fetchable this pass, see Sources). This is
+directly SM83-tractable in the same spirit as Driftune's own LFSR-driven walk: a small
+production-rule table with weighted-choice-among-rules (the same weighted-lookup-table mechanism
+`BL-0037`'s addendum to R211 §8 just grounded), not a general string-rewriting engine.
+
+**L-systems demonstrably work for genuine musical *motif selection/recurrence* in real
+compositional practice, not just as a graphical/algorithmic curiosity.** Composer Hanspeter
+Kyburz's "Cells" (for saxophone and ensemble) "used results from 13 generations of L-system
+rewrites to select pre-composed musical motifs" [search-synthesized description, primary source
+not independently fetched — see Sources]. This confirms the specific application `BL-0010` asks
+about — using L-system output to *select among a small set of recurring motifs* — is an
+established, real-world compositional technique, not a speculative extension.
+
+**A genuinely important limitation, confirmed by dedicated study, is that L-system-generated
+melody quality degrades with derivation length — the opposite of what "more generations = richer
+music" would suggest.** Worth & Stepney's study of musical L-system interpretations found that "a
+typical L-system contains enough information to create only a short melody and still be
+interesting, and at longer derivations the melodies begin to get dull with repeating sections"
+[Worth & Stepney — Growing Music: Musical Interpretations of L-Systems, title/finding confirmed
+via search, primary PDF not independently fetchable this pass — see Sources]. This is a **directly
+actionable, load-bearing finding for Driftune specifically**: a naive "run the L-system longer for
+more variety" design would be actively counterproductive. The correct design shape is a
+**small, fixed-depth rule table re-applied per motif-recurrence event** (bounded derivation,
+matching the "short melody, still interesting" finding), not an ever-growing derivation string —
+structurally similar to Driftune's own `MOTIF_TABLE` (`IP-1070`, 8 fixed absolute-degree targets,
+no growth over time), which is closer to this finding's own recommended shape than a
+naive from-scratch L-system implementation would have been.
+
+**Verdict: L-systems remain the recommended concrete technique for motif-recurrence**, now with a
+specific, cited design constraint (bounded-depth rule application, weighted-probabilistic rule
+choice, reusing the already-grounded weighted-lookup-table mechanism) rather than an open-ended
+"L-systems are promising" note. This closes `BL-0010`'s motif-recurrence half at the research
+layer — a concrete architecture/requirements pass is the correct next step, not further research,
+per this topic's own §6 disposition.
+
+### Addendum sources
+- [McCormack — Grammar Based Music Composition](https://users.monash.edu/~jonmc/research/Papers/L-systemsMusic.pdf)
+  (probabilistic L-systems for melody; primary PDF returned HTTP 403 on direct fetch this pass,
+  title/author/core-finding confirmed via WebSearch's own synthesis of the paper's abstract/
+  description — **flagged needs fetch-verification** for direct quotation-level citation)
+- [Worth & Stepney — Growing Music: Musical Interpretations of L-Systems](https://ccrma.stanford.edu/~elisse/256A/final/growing%20music%20-%20musical%20interpretations%20of%20l-systems.pdf)
+  (short-melody/dulls-at-length finding; primary PDF returned HTTP 403 on direct fetch this pass,
+  finding confirmed via WebSearch's own synthesis — **flagged needs fetch-verification**)
+- Kyburz "Cells" motif-selection-via-L-system-rewrites description — search-synthesized, no
+  primary musicological source independently fetched this pass — **flagged needs
+  fetch-verification**
+- **Note on this addendum's citation confidence**: every primary source attempted for direct
+  WebFetch in this research session returned HTTP 403 (a proxy/access constraint encountered this
+  pass, not a claim about the sources' unavailability in general) — all three findings above rest
+  on WebSearch's own synthesized summaries of real, named, findable sources rather than
+  independently-verified full-text quotation. A future pass with working direct fetch access
+  should upgrade these to primary-verified citations before this addendum is treated as
+  fully closed-loop per this skill's own quality gate.
+
+### Addendum implementation guidance
+- **Design a motif-recurrence mechanism as a small, fixed-depth (not growing) rule table with
+  weighted rule selection** — directly buildable on the same lookup-table-weighting mechanism this
+  session's other addendum (R211 §8) just grounded, and structurally similar to `IP-1070`'s already
+  -shipped `MOTIF_TABLE` (8 fixed targets, no derivation growth).
+- **Do not implement an open-ended/growing L-system string** — Worth & Stepney's own finding is
+  that longer derivations get *worse*, not richer; a bounded, re-triggered rule application per
+  recurrence event is the correct shape.
+- **`BL-0010`'s disposition should move from `DEFERRED` (research needed) to `SCHEDULED`
+  (architecture-ready)** — the concrete design shape is now specified enough for
+  `03-architecture-design-synthesis` to pick up directly, the same maturity level R220 reached for
+  song-form before its own architecture pass.

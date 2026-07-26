@@ -2,21 +2,22 @@
 
 ## Position
 
-- **Updated:** 2026-07-26 (run #84) — `05-feature-decomposition` added `FEAT-1110` (Settings &
-  control visibility) to the Feature Catalog, tracing `FR-1350`-`FR-1380`/`NFR-1140`-`NFR-1160`;
-  depends on `FEAT-1040`, explicitly confirmed no dependency on `FEAT-1080`/`FEAT-1090`/
-  `FEAT-1100` (v1 scope covers only the 5 pre-existing base-control fields). `BL-0051` now rides
-  `06-feature-specification` next. **15/15 implementation packages remain `VERIFIED`** (since
-  run #82's `IP-1100`/`VR-1100` merge). **R1-R5+`IP-1090` remains the fully shipped baseline**
-  (run #74) — `IP-1100`/R6 is `VERIFIED` but not yet added to the shipped baseline (awaits its
-  own `11-release-readiness` G4 GO). No gate is open. Every backlog item remains non-blocking
-  `SCHEDULED`/`DEFERRED`
+- **Updated:** 2026-07-26 (run #85) — `06-feature-specification` authored [`FS-111`](../features/fs-111-settings-and-control-visibility.md)
+  (Settings & Control Visibility, full 20-field spec) for `FEAT-1110`, tracing
+  `FR-1350`-`FR-1380`/`NFR-1140`-`NFR-1160`. Grounded against the actual shipped tables: found
+  `OCTAVE_IDX`/`SCALE_IDX` (4 entries each) only use fill levels 0-3 of the 8-level tile set,
+  unlike `TEMPO_IDX`/`DENSITY_IDX`/`CHMIX_IDX` (8 entries each) — recorded as Open Question 1,
+  not silently assumed uniform. `BL-0051` now rides `07-implementation-planning` next. **15/15
+  implementation packages remain `VERIFIED`** (since run #82's `IP-1100`/`VR-1100` merge).
+  **R1-R5+`IP-1090` remains the fully shipped baseline** (run #74) — `IP-1100`/R6 is `VERIFIED`
+  but not yet added to the shipped baseline (awaits its own `11-release-readiness` G4 GO). No
+  gate is open. Every backlog item remains non-blocking `SCHEDULED`/`DEFERRED`
   (`BL-0001`/`0005`-`0007`/`0012`-`0013`/`0015`-`0016`/`0021`-`0023`/`0025`-`0028`/`0030`/
   `0032`-`0033`/`0039`/`0042`/`0044`/`0045`/`0048`/`0052`-`0053`), none Critical/High. Next up:
-  `06-feature-specification` to author `FEAT-1110`'s full 20-field FS (this run's chosen next
-  internal step, continuing the per-feature loop); `10-integration-review` on the 15-package
-  tranche remains available in parallel (`VR-1100`'s own recommended next step, per-release-stage
-  work, still not yet picked up).
+  `07-implementation-planning` to convert `FS-111` into an Implementation Package (`IP-1110`,
+  this run's chosen next internal step, continuing the per-feature loop); `10-integration-review`
+  on the 15-package tranche remains available in parallel (`VR-1100`'s own recommended next step,
+  per-release-stage work, still not yet picked up).
 - **Runs #33-52 summary:** the "Foundation + R216 + integrity remediation into one releasable
   state" convergence directive ran to completion and beyond: `IP-1060`/`IP-1061` (R216 sound
   design) and `IP-9010`/`IP-9020` (integrity remediation, `BL-0019`/`BL-0017`) were all built
@@ -529,3 +530,5 @@ per-step journaling rather than treating run #1 as a precedent to repeat.
 | 83 | 2026-07-26 | run (iterate mode, continuing) | `04-requirements-engineering` | `ADS-104`/`BL-0051` | Added `FR-1350` (5 settings indicators, bar-height glyph per parameter), `FR-1360` (each indicator updates same-frame as its parameter), `FR-1370` (purely additive, no change to existing channel-activity/palette behavior), `FR-1380` (at least one indicator demonstrably live-reflects a manual button change), `NFR-1140` (ROM/VRAM budget), `NFR-1150` (VBlank-gated, comparable per-frame cost), `NFR-1160` (no new input control). Delta review found no conflicts against the existing baseline — checked explicitly against `FR-1120`'s existing visualizer requirement and GDS-03 §1's read-only invariant; no existing FR/NFR changed. Three NFRs this time (not the usual two) since `ADS-104` §6 states three genuinely distinct concerns rather than two. Updated `docs/requirements/INDEX.md` and `ROADMAP.md`'s stage-04 row. Rebuilt+tested (112/112, no code touched). Committed (`b8f6ad5`), pushed. | `Next: 05-feature-decomposition to add a FEAT-1110-equivalent catalog row for BL-0051's settings-visibility feature, continuing the per-feature loop. 10-integration-review on the 15-package tranche remains available in parallel per run #82's own note.` |
 
 | 84 | 2026-07-26 | run (iterate mode, continuing) | `05-feature-decomposition` | `BL-0051`/`ADS-104` | Added `FEAT-1110` (Settings & control visibility) to `docs/feature-planning/01-feature-catalog.md`, tracing `FR-1350`-`FR-1380`/`NFR-1140`-`NFR-1160`. Dependency-graph review: depends on `FEAT-1040` (extends its `update_visuals` call site) and reads `FEAT-1000`/`FEAT-1010`/`FEAT-1070` state read-only; explicitly confirmed **no dependency** on `FEAT-1080`/`FEAT-1090`/`FEAT-1100` despite `ADS-104` naming their reactive signals as deferred v1.1+ follow-on indicators using the same bar-tile mechanism -- this feature's v1 scope only covers the 5 pre-existing base-control fields. Feature Review: no conflict, no requirement double-assigned, right-sized for a single implementation package. Also corrected the catalog/INDEX/ROADMAP rows' stale `FEAT-1100`/`IP-1100` wording (still said 'not yet built'/'not yet specified' after run #82's `VERIFIED` merge) while touching these files anyway, same triviality-bar fix as `BL-0049`/`BL-0050`, no new backlog entry needed. Updated `docs/feature-planning/INDEX.md` and `ROADMAP.md`'s stage-05 row. Rebuilt+tested (112/112, no code touched). Committed (`980d8bb`), pushed. | `Next: 06-feature-specification to author the full 20-field FS for FEAT-1110 (Settings & Control Visibility), continuing the per-feature loop. 10-integration-review on the 15-package tranche remains available in parallel, still not yet picked up.` |
+
+| 85 | 2026-07-26 | run (iterate mode, continuing) | `06-feature-specification` | `FEAT-1110` | Authored [`FS-111`](../features/fs-111-settings-and-control-visibility.md) (Settings & Control Visibility), full 20-field spec tracing `FR-1350`-`FR-1380`/`NFR-1140`-`NFR-1160`, carrying `ADS-104`'s design forward verbatim. Grounded against the actual shipped tables while drafting: found `OCTAVE_IDX` (`OCTAVE_ROOT_HZ`, 4 entries) and `SCALE_IDX` (`SCALES`, 4 entries) only ever produce fill levels 0-3 out of the tile set's full 0-7 range, unlike `TEMPO_IDX`/`DENSITY_IDX`/`CHMIX_IDX` (8 entries each) which use the full range -- `ADS-104` itself didn't distinguish this; recorded as Open Question 1 rather than silently assumed uniform. Also flagged the tilemap-cell-placement decision (Open Question 2) and confirmed no dependency on `FEAT-1080`/`FEAT-1090`/`FEAT-1100` per their own v1-scope boundary. Updated `docs/features/INDEX.md` and `FEAT-1110`'s catalog row (FS cross-link, metadata only). Rebuilt+tested (112/112, no code touched). Committed (`7b1c590`), pushed. | `Next: 07-implementation-planning to convert FS-111 into an Implementation Package (IP-1110), continuing the per-feature loop. 10-integration-review on the 15-package tranche remains available in parallel, still not yet picked up.` |

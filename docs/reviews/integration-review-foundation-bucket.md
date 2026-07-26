@@ -571,3 +571,99 @@ Low finding (named style + Scheme E combination untested, same data-coverage pat
 `BL-0032`/`BL-0033`) and one already-filed Medium requirements-wording finding (`BL-0040`,
 non-blocking). No Critical/High finding anywhere. **Recommend: this review does not block any
 future `11-release-readiness` call touching R5 scope.**
+
+## Re-review — 2026-07-26 (14-package scope, +`IP-1090`)
+
+**Scope:** the same 13-package set above, plus `IP-1090` (motif recurrence via weighted variant
+selection, `BL-0010`/`ADS-102`), now `VERIFIED` via
+[VR-1090](../implementation/verification/VR-1090-motif-recurrence-via-weighted-variant-selection.md).
+Reviewed commit: `c568934` (all 14 packages confirmed `VERIFIED` on the Master Build Plan before
+starting). Full suite re-run against this commit: **102/102 (T1-T16)**.
+
+### Dimension 1 — Interface consistency
+
+`grep`-confirmed every reference to `motif_table`/`MOTIF_TABLE`/`MOTIF_VARIANT_IDX` lives
+entirely inside `music_engine.py` — no `build_rom.py` or `input_map.py` coupling was introduced;
+the emission site (`rom.label('motif_table')` / `rom.emit(*MOTIF_TABLE)`) and the one consuming
+lookup site (`_emit_channel_gen`'s Scheme-E branch) are the whole surface. `STYLE_TABLE`'s
+independent read path (`IP-1080`) and `CHMIX_MASKS`'s scheme-select bits (`IP-1070`) are each
+confirmed to never reference `MOTIF_VARIANT_IDX` or vice versa — the three tables genuinely stay
+on separate seams, as each package's own design already claimed.
+
+### Dimension 2 — Invariant sweep
+
+ROM: 32768 bytes, valid header, 29089 bytes free (`rom.pos` instrumentation, `ADR-0002`'s
+method) — comfortably inside the single-bank budget. WRAM map: `MOTIF_VARIANT_IDX` (`0xC03C`)
+confirmed present in GDS-07 and `memory.md`, no collision with any other address (`0xC03B`
+`DUTY_BIAS` immediately precedes it, `0xC03D`-`0xC04F` remains free headroom). Module boundary:
+`music_engine.py` remains the sole owner of Scheme E's mechanism — no second module took on any
+part of this job.
+
+### Dimension 3 — Behavioral coherence — the actual new seam, exercised live
+
+Live-drove `CHMIX_IDX` preset 6 (`IP-1070`'s only shipped Scheme-E-assigning preset — wave
+channel, default/preset-0 style since `STYLE_TABLE`'s named rows sit at different indices) for
+6000 frames: the wave channel's Euclidean-pattern step cycled through all 16 positions
+(unaffected by `IP-1090`), and `MOTIF_VARIANT_IDX` stayed at its initial value for this particular
+run (statistically unsurprising at a ~20% per-boundary switch rate over the small number of
+boundaries a 6000-frame run produces — consistent with `VR-1090`'s own much larger 60,000-frame
+sample). No corruption, no crash, no interaction with `DUTY_BIAS`/`STYLE_TABLE`'s fields.
+
+**Finding surfaced by this exercise, extending the pattern `BL-0032`/`BL-0033`/`BL-0041` already
+established:** `IP-1090`'s motif-variant mechanism only has observable effect on a channel
+running Scheme E, and today's only shipped Scheme-E-assigning preset (6) is also the only preset
+where that channel (wave) is active/unmuted and carries the default (unnamed) style. There is
+therefore no shipped preset that exercises **motif-variant selection together with either a
+muted Scheme-E channel or a named style** — both combinations are reasoned-correct by
+construction (confirmed by this review's own grep-level independence check above, and by
+`VR-1090`'s adversarial live testing of the style-collision case specifically), but neither is
+reachable through any shipped `CHMIX_IDX` preset. Same "mechanism supports the combination, data
+doesn't yet exercise it" pattern as `BL-0032` (Scheme E unreachable for pulse A/B), `BL-0033`
+(mute + Scheme E untested), and `BL-0041` (named style + Scheme E untested) — this finding
+extends that same family to cover `IP-1090`'s own new dimension, rather than opening an
+unrelated new one.
+
+### Dimension 4 — Traceability coherence
+
+`ROADMAP.md`, `docs/features/INDEX.md`, `docs/implementation/packages/INDEX.md`,
+`docs/implementation/verification/INDEX.md`, and the Master Build Plan all agree: 14/14 packages
+`VERIFIED`, `IP-1090` cross-linked to `FS-109`/`VR-1090` bidirectionally (the `docs/features/
+INDEX.md` staleness `VR-1090` itself flagged, `BL-0047`, was already fixed before this review
+began). No further stale row found this pass.
+
+### Dimension 5 — Documentation coherence
+
+`memory.md` (`MOTIF_VARIANT_IDX` row) and GDS-07 (`MOTIF_VARIANT_IDX` row) both confirmed
+accurate against the shipped code. **One genuine staleness found by this review, not previously
+caught:** `Claude.md`'s "Known Good Behavior" heading (line ~173) still reads "`IP-1090`
+`COMPLETE` 2026-07-26, not yet independently verified/GO'd" — `IP-1090` is now `VERIFIED` (this
+review's own scope confirms it), so the parenthetical is stale by one pipeline stage; it is,
+separately and correctly, still true that no `11-release-readiness` GO has been given for this
+work (GO and VERIFIED are different facts, and only the "not yet verified" half is now wrong).
+Likewise `docs/feature-planning/01-feature-catalog.md`'s release-bucket header (lines ~13-14)
+still reads "`FEAT-1090`... is not yet built," which is also now inaccurate for the same reason.
+Neither is fixed in this pass (this skill's own read-only rule) — both filed below.
+
+## Findings (14-package re-review)
+
+| Finding | Packages/artifacts involved | Description | Severity | Recommended owner |
+|---|---|---|---|---|
+| (new) | `IP-1090`, `IP-1070`, `IP-1080` | No shipped `CHMIX_IDX` preset exercises `IP-1090`'s motif-variant selection together with a muted Scheme-E channel or a named (non-default) style — the only shipped Scheme-E-assigning preset (6) has that channel active and carrying the default style. Both mechanisms independently confirmed correct by this review's own interface check and by `VR-1090`'s adversarial testing; the combination itself is untested/unreachable via shipped data. Extends the same pattern already tracked by `BL-0032`/`BL-0033`/`BL-0041`. | Low (all mechanisms individually correct and verified; a data/test-coverage gap, not a functional defect) | 05/07 (fold into `BL-0032`'s eventual follow-up preset-data package, so one future pass assigns a preset combining a mute, a named style, *and* a Scheme-E assignment with an active motif-variant channel — closing all four related coverage gaps at once) |
+| (new) | `Claude.md` | The "Known Good Behavior" heading's parenthetical still says `IP-1090` is "not yet independently verified" — stale since `VR-1090`; the separate "not yet GO'd" half remains accurate. | Low (doc-coherence only, no functional impact) | 08-code-implementation or 00-pipeline-manager (a one-line heading edit the next time either touches this file) |
+| (new) | `docs/feature-planning/01-feature-catalog.md` | The release-bucket header's `FEAT-1090` note still says "not yet built" — stale since `IP-1090` reached `VERIFIED`; the separate "not part of the shipped baseline" claim (pending `11-release-readiness` GO) remains accurate. | Low (doc-coherence only, no functional impact) | 05-feature-decomposition (a one-line header edit the next time it touches this file) |
+| (carried forward, non-blocking) | `IP-1080`, `IP-1070` | `BL-0041` — no shipped preset combines a named style with Scheme E. Already filed; this review's own new finding above extends it to also cover `IP-1090`'s variant mechanism rather than opening a duplicate entry. | Low (already `SCHEDULED`) | 05/07 (same eventual follow-up package as the new finding above) |
+| (carried forward, non-blocking) | `IP-1080` | `BL-0040` — `FS-108`'s acceptance criterion (4) states the bad-zone-independence invariant in absolute terms; a ≈16% same-frame-collision rate from unrelated channel activity was found (not a code defect). Already filed, routed to `04-requirements-engineering`. | Medium (requirements-wording precision only; no functional risk) | 04 (already `SCHEDULED`, listed here for this scope's own completeness) |
+| (carried forward, non-blocking) | `IP-1090` | `BL-0044`/`BL-0045` — `VR-1090`'s own two test-strength findings on the shipped `T16.6`/`T16.8` (statistically weak sample size; a claimed same-frame-collision test whose own fixture doesn't actually produce one). Already filed, routed to `08-code-implementation`. | Medium (test-coverage precision only; no functional risk, both independently re-confirmed correct by `VR-1090`'s own stronger methodology) | 08 (already `SCHEDULED`, listed here for this scope's own completeness) |
+
+## Verdict (14-package re-review)
+
+The full 14-package tranche integrates cleanly. `IP-1090`'s new seam (motif-variant selection
+inside Scheme E) was confirmed structurally independent of both `IP-1080`'s style mechanism and
+`IP-9010`'s channel-mix gating by direct code inspection, and its one genuinely adversarial
+cross-package risk (a style change landing on the exact same frame as a variant draw) was already
+exercised to a guaranteed collision by `VR-1090` with no corruption found. Two new Low
+documentation-staleness findings and one new Low data-coverage finding (extending the
+`BL-0032`/`BL-0033`/`BL-0041` family) were filed; three findings carried forward from prior
+verification passes remain non-blocking. **No Critical/High finding anywhere. Recommend: this
+review does not block a future `11-release-readiness` call adding `IP-1090`/`BL-0010`'s
+motif-recurrence work to the shipped baseline.**

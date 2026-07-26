@@ -726,13 +726,11 @@ three mechanisms was observed beyond the shared, independently-confirmed-disjoin
 `docs/implementation/verification/INDEX.md`, and the Master Build Plan all agree: 15/15 packages
 `VERIFIED`, `IP-1100` cross-linked to `FS-110`/`VR-1100` bidirectionally, and `IP-1110` correctly
 shown as `COMPLETE` (not `VERIFIED`) everywhere checked — no tracker prematurely calls it done.
-**One stale row found, not previously caught:** `docs/feature-planning/01-feature-catalog.md`'s
-release-bucket header (lines ~14-17) still reads "`FEAT-1100`... is not yet built" — inaccurate
-since `IP-1100` reached `VERIFIED` (this review's own scope confirms it); the same document's own
-per-feature body text and its most recent Feature Review entry (lines ~164 onward) already
-correctly describe `FEAT-1100` as reviewed/right-sized, so only the header's summary line is
-stale, the same class of drift the 14-package review already caught once for `FEAT-1090`'s own
-header wording.
+`docs/feature-planning/01-feature-catalog.md`'s release-bucket header already correctly reads
+"`FEAT-1100`... is `VERIFIED` (`IP-1100`/`VR-1100`) but not yet part of the shipped baseline" —
+this staleness (the same class the 14-package review caught once for `FEAT-1090`'s own header
+wording) was already fixed by `07-implementation-planning`'s own pass while it happened to be
+touching this file, before this review began. No stale row found this pass.
 
 ### Dimension 5 — Documentation coherence
 
@@ -747,7 +745,6 @@ and no new staleness was introduced for `IP-1100`'s own heading text.
 
 | Finding | Packages/artifacts involved | Description | Severity | Recommended owner |
 |---|---|---|---|---|
-| (new) | `docs/feature-planning/01-feature-catalog.md` | The release-bucket header's `FEAT-1100` note still says "not yet built" — stale since `IP-1100` reached `VERIFIED`; the separate "not part of the shipped baseline" claim (pending `11-release-readiness` GO) remains accurate. Same class of drift the 14-package review already caught once for `FEAT-1090`'s own header wording. | Low (doc-coherence only, no functional impact) | 05-feature-decomposition (a one-line header edit the next time it touches this file) |
 | (carried forward, non-blocking) | `IP-1090`, `IP-1070`, `IP-1080` | `BL-0048` — no shipped `CHMIX_IDX` preset exercises `IP-1090`'s motif-variant selection together with a muted Scheme-E channel or a named (non-default) style. Already filed, extends the `BL-0032`/`BL-0033`/`BL-0041` family. | Low (data/test-coverage gap, not a functional defect) | 05/07 (already `SCHEDULED`, listed here for this scope's own completeness) |
 | (carried forward, non-blocking) | `IP-1100` | `BL-0052` — `T17.6` only forces the first (INTRO→BUILD) Start-press/phase-transition collision, not all three boundaries (though `VR-1100` independently confirmed all three by non-collision derivation, and the underlying mechanism is boundary-agnostic by construction). Already filed. | Low-Medium (test-coverage precision only; no functional risk) | 08-code-implementation (already `DEFERRED`, listed here for this scope's own completeness) |
 | (carried forward, non-blocking) | `IP-1100` | `BL-0053` — descriptive `OVERLOAD`-frequency data across song-form phases (BUILD 0.000%, PEAK 21.0%) for a future `SONG_TABLE` content-tuning pass. Already filed. | Low (descriptive data, no violation) | 09-content-review (already `DEFERRED`, listed here for this scope's own completeness) |
@@ -764,10 +761,11 @@ style change landing on the exact same frame as a phase transition) was already 
 guaranteed collision at all three cycle-internal boundaries by `VR-1100`, with no corruption
 found. A 2000-frame live drive combining an active Scheme-E channel, ongoing bad-zone
 detection/recovery, and a song-form phase transition in the same run produced no interaction
-beyond the already-confirmed-disjoint `TEMPO_IDX`/`DENSITY_IDX` write path. One new Low
-documentation-staleness finding was filed (the same recurring class of drift this review series
-keeps catching one release-bucket-header line at a time); five findings carried forward from
-prior verification/review passes remain non-blocking, none newly elevated. **No Critical/High
+beyond the already-confirmed-disjoint `TEMPO_IDX`/`DENSITY_IDX` write path. No new finding — the
+documentation-staleness class this review series has repeatedly caught for prior additions
+(`FEAT-1090`'s own header wording, at 14-package scope) was already fixed before this review
+began; five findings carried forward from prior verification/review passes remain non-blocking,
+none newly elevated. **No Critical/High
 finding anywhere. Recommend: this review does not block a future `11-release-readiness` call
 adding `IP-1100`/roadmap R6's song-form work to the shipped baseline.** `IP-1110` (Settings &
 Control Visibility) was intentionally excluded from this review's scope, pending its own

@@ -121,8 +121,13 @@ traces to Vision/research.
   different melodic character.
 - **Dependency:** R3 (CAP-10 must be functional first).
 
-## R4.5 — Cart-Shape Decision Checkpoint
+## R4.5 — Cart-Shape Decision Checkpoint (decided)
 
+- **Status: ✅ DECIDED, 2026-07-25.** [ADR-0002](../architecture/adr/ADR-0002-defer-mbc-adoption-single-bank-retained.md):
+  **defer** MBC5/bank-switching and SRAM/battery-save adoption — measured ROM usage post-R4 is
+  10.4% of the single 32KB bank (3419/32768 bytes, 29349 free), no roadmapped feature through
+  Milestone D requires persisted state. Named re-triggers: ROM usage crossing ~75%, or a
+  save-requiring feature reaching an approved FR. Not a build — no code changed by this decision.
 - **Purpose:** Added by this package's own `10-final-roadmap-review.md` (finding #1) — make the
   MBC5/bank-switching adoption call *before* Milestones B-D's cumulative new data tables (Scheme
   E, style presets, song-form/emotional state) create ROM-budget pressure, rather than bundling

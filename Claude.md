@@ -23,7 +23,7 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers)
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 85 checks across T1-T14
+                    sound registers + WRAM engine state) — 93 checks across T1-T15
 ```
 
 ### Data layout, WRAM map
@@ -152,6 +152,15 @@ default). Scheme E's onset-timing/pitch-selection logic itself lives in `_emit_c
 note-selection step (`IP-1070`/`BL-0020`) — extending it to a new scheme means adding another
 branch there, keyed off a new bit in the same spare-bit range (`ADR-0001`).
 
+### Change style-preset values
+`STYLE_TABLE` in `music_engine.py` (8 rows, one per `CHMIX_IDX` preset — independent of
+`CHMIX_MASKS`, `ADS-101` SS2 — each `(tempo_idx, density_idx, scale_idx, duty_bias)`) — first-guess
+placeholder values, not tuned by ear (`BL-0005`). Index 0 must stay identical to
+`PRESET_TEMPO_IDX`/`PRESET_DENSITY_IDX`/`PRESET_SCALE_IDX`/`duty_bias=0` (no regression to the
+shipped default, `FR-1260`). Applying a style is `_emit_apply_style` (`music_engine.py`), called
+from `input_map.py`'s Start-press handler immediately after `CHMIX_IDX` steps — unlike
+`CHMIX_MASKS`'s channel-mix/scheme half, style values apply the same frame, not at next onset.
+
 ## Known Good Behavior (v1.1 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation, GO 2026-07-25)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
@@ -194,8 +203,13 @@ branch there, keyed off a new bit in the same spare-bit range (`ADR-0001`).
   fixed 8-step motif), selected per `CHMIX_IDX` preset (preset 6 assigns Scheme E to the wave
   channel, per `ADS-100`'s own worked example — a recognizable repeating bass motif against pulse
   A/B's freer drift). Bad-zone detection/recovery applies identically regardless of scheme.
+- Genre-aware style presets (`IP-1080`, roadmap R5/`ADS-101`): pressing Start now applies a
+  coordinated tempo/density/scale/duty-bias combination immediately (same frame), not just a
+  channel-mix/scheme change — 3 named v1 styles (Techno/Chiptune-Driving, Ambient/Lo-Fi, Holiday)
+  plus the shipped default at preset 0. Bad-zone state (`DISSONANCE_SCORE`/`BAD_ZONE_FLAGS`/
+  `STALE_COUNT_*`/`ONSET_WINDOW_COUNT`) is untouched by a style change.
 
-**85/85 `test_rom.py` checks pass** (T1-T14). An 8000+ frame stress run with continuous input
+**93/93 `test_rom.py` checks pass** (T1-T15). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

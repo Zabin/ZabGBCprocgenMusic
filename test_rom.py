@@ -60,6 +60,7 @@ BCPD = 0xFF69
 NR11 = 0xFF11; NR13 = 0xFF13; NR14 = 0xFF14; NR52 = 0xFF26
 
 from music_engine import PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX, PRESET_SCALE_IDX
+from music_engine import STYLE_TABLE, DUTY_BIAS
 
 results = []
 PASS = 0
@@ -167,7 +168,6 @@ def t4_input_steering():
         ("left", OCTAVE_IDX, "T4.4 D-pad Left steps OCTAVE_IDX (back down)"),
         ("a", SCALE_IDX, "T4.5 A steps SCALE_IDX"),
         ("b", DENSITY_IDX, "T4.6 B steps DENSITY_IDX"),
-        ("start", CHMIX_IDX, "T4.7 Start steps CHMIX_IDX"),
     ]
     pb = fresh_boot()
     for button, addr, label in cases:
@@ -179,6 +179,19 @@ def t4_input_steering():
         check(label, after != before, f"{hex(addr)}: {before} -> {after}")
         unaffected = all(pb.memory[a] == others[a] for a in others)
         check(label + " — no other parameter changed", unaffected)
+
+    # T4.7 (IP-1080, FR-1240): Start still steps CHMIX_IDX, but — unlike every other control
+    # above — now *also* immediately applies the newly-selected preset's style row to
+    # TEMPO_IDX/DENSITY_IDX/SCALE_IDX/DUTY_BIAS, a deliberate behavior change from the
+    # "no other parameter changed" invariant the other 6 controls still hold.
+    before = pb.memory[CHMIX_IDX]
+    tap(pb, "start")
+    after = pb.memory[CHMIX_IDX]
+    check("T4.7 Start steps CHMIX_IDX", after != before, f"{hex(CHMIX_IDX)}: {before} -> {after}")
+    style = STYLE_TABLE[after]
+    check("T4.7 Start immediately applies the new preset's style (TEMPO_IDX/DENSITY_IDX/SCALE_IDX/DUTY_BIAS)",
+          (pb.memory[TEMPO_IDX], pb.memory[DENSITY_IDX], pb.memory[SCALE_IDX], pb.memory[DUTY_BIAS]) == style,
+          f"got {(pb.memory[TEMPO_IDX], pb.memory[DENSITY_IDX], pb.memory[SCALE_IDX], pb.memory[DUTY_BIAS])}, expected {style}")
     pb.stop(save=False)
 
 
@@ -605,6 +618,85 @@ def t14_combinable_generation_schemes():
     pb4.stop(save=False)
 
 
+def t15_genre_aware_style_presets():
+    """IP-1080 (roadmap R5): each CHMIX_IDX preset maps to a STYLE_TABLE row (tempo_idx,
+    density_idx, scale_idx, duty_bias), applied immediately (same frame) on a Start press —
+    unlike CHMIX_MASKS's channel-mix/scheme half, which takes effect at the next onset."""
+
+    def style_now(pb):
+        return (pb.memory[TEMPO_IDX], pb.memory[DENSITY_IDX], pb.memory[SCALE_IDX],
+                pb.memory[DUTY_BIAS])
+
+    # (a)/(b)/(c): each of the 3 named v1 styles applies immediately and matches its own row.
+    pb = fresh_boot()
+    for preset, name in [(1, "Techno/Chiptune-Driving"), (2, "Ambient/Lo-Fi"), (3, "Holiday")]:
+        tap(pb, 'start')
+        got = style_now(pb)
+        expected = STYLE_TABLE[preset]
+        check(f"T15.{preset} CHMIX_IDX preset {preset} ({name}) applies its style immediately",
+              got == expected, f"got {got}, expected {expected}")
+    pb.stop(save=False)
+
+    # (d): cycling all the way back around to preset 0 exactly matches the shipped default —
+    # no regression to pre-IP-1080 boot/reset behavior (FR-1260).
+    pb2 = fresh_boot()
+    default_style = style_now(pb2)
+    for _ in range(8):  # wraps mod 8 back to preset 0
+        tap(pb2, 'start')
+    check("T15.4 Cycling CHMIX_IDX all the way around to preset 0 matches the shipped default "
+          "style exactly (no regression)",
+          pb2.memory[CHMIX_IDX] == 0 and style_now(pb2) == default_style,
+          f"CHMIX_IDX={pb2.memory[CHMIX_IDX]}, style={style_now(pb2)}, default={default_style}")
+    pb2.stop(save=False)
+
+    # (e): a style change during an active bad-zone state leaves bad-zone WRAM untouched — only
+    # TEMPO_IDX/DENSITY_IDX/SCALE_IDX/DUTY_BIAS differ, per FS-108's acceptance criterion (4).
+    pb3 = fresh_boot()
+    was_bad = False
+    for _ in range(8000):
+        pb3.tick()
+        if pb3.memory[BAD_ZONE_FLAGS] & 0x08:
+            was_bad = True
+            break
+    check("T15.5.setup engine reached a bad-zone state before the style-change probe", was_bad,
+          f"got was_bad={was_bad}")
+    # Note: DISSONANCE_SCORE is excluded from this check — a live probe (independent of this
+    # package) confirmed it recomputes every single frame regardless of any button press at all
+    # (background dynamics from the channels' own ongoing onsets), so "unchanged on this frame"
+    # isn't a meaningful invariant for that specific field; BAD_ZONE_FLAGS/STALE_COUNT_PA/
+    # ONSET_WINDOW_COUNT only change at an actual onset event, a much rarer coincidence, and are
+    # the fields FS-108's acceptance criterion (4) is actually meant to protect (no *new* onset
+    # bookkeeping caused by the style-change write itself, which touches only
+    # TEMPO_IDX/DENSITY_IDX/SCALE_IDX/DUTY_BIAS — none of which any bad-zone computation reads).
+    flags_before = pb3.memory[BAD_ZONE_FLAGS]
+    stale_before = pb3.memory[STALE_COUNT_PA]
+    onset_before = pb3.memory[ONSET_WINDOW_COUNT]
+    # Read on the exact style-change frame (press + one tick, no settling ticks) — unlike
+    # tap()'s multi-frame settle, which would let further ordinary background activity run too.
+    pb3.button_press('start')
+    pb3.tick()
+    pb3.button_release('start')
+    check("T15.5 A style change during an active bad-zone state leaves BAD_ZONE_FLAGS/"
+          "STALE_COUNT_PA/ONSET_WINDOW_COUNT unchanged on the change frame itself",
+          (pb3.memory[BAD_ZONE_FLAGS], pb3.memory[STALE_COUNT_PA], pb3.memory[ONSET_WINDOW_COUNT])
+          == (flags_before, stale_before, onset_before),
+          f"before={(flags_before, stale_before, onset_before)}, "
+          f"after={(pb3.memory[BAD_ZONE_FLAGS], pb3.memory[STALE_COUNT_PA], pb3.memory[ONSET_WINDOW_COUNT])}")
+    pb3.stop(save=False)
+
+    # (f): Select resets DUTY_BIAS to 0 alongside every other per-preset field it already resets.
+    pb4 = fresh_boot()
+    tap(pb4, 'start')  # drift DUTY_BIAS away from 0 (preset 1's style sets duty_bias=1)
+    check("T15.6.setup DUTY_BIAS drifted away from 0 before Select", pb4.memory[DUTY_BIAS] != 0,
+          f"got {pb4.memory[DUTY_BIAS]}")
+    pb4.button_press('select')
+    pb4.tick()
+    pb4.button_release('select')
+    check("T15.6 Select resets DUTY_BIAS to 0 (read on the exact reset frame)",
+          pb4.memory[DUTY_BIAS] == 0, f"got {pb4.memory[DUTY_BIAS]}")
+    pb4.stop(save=False)
+
+
 def main():
     t1_header()
     t2_boot()
@@ -620,6 +712,7 @@ def main():
     t12_channel_mix_gating()
     t13_overload_recalibration()
     t14_combinable_generation_schemes()
+    t15_genre_aware_style_presets()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

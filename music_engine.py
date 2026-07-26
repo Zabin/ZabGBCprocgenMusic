@@ -65,6 +65,12 @@ MOTIF_STEP_PA = 0xC038
 MOTIF_STEP_PB = 0xC039
 MOTIF_STEP_WV = 0xC03A
 
+# IP-1080: Genre-aware style presets (roadmap R5, ADS-101) — a per-style duty-cycle timbre
+# offset, added to the existing (cur_degree & 0x03) duty-table index at the duty-write site
+# below, then re-masked (wrap, not clamp). Placed at 0xC03B: 0xC038-0xC03A is IP-1070's
+# MOTIF_STEP_PA/PB/WV; 0xC03B-0xC04F remains genuine unused headroom before JOY_PREV at 0xC050.
+DUTY_BIAS = 0xC03B
+
 # IP-0004 thresholds (GDS-03 SS4, R204 SS5) — first-guess placeholders, per BL-0005's own
 # deferred-tuning convention; the dissonance weight table itself is literature-grounded (R204),
 # these threshold *numbers* are not yet tuned by ear.
@@ -214,6 +220,34 @@ CHMIX_MASKS = [
     0b1011,  # 7: pulse A + pulse B + noise (no wave)
 ]
 
+# IP-1080: Genre-aware style presets (roadmap R5, ADS-101/FS-108) — a second table, independent
+# of CHMIX_MASKS above (ADS-101 SS2's "two tables stay independent" design), keyed by the same
+# CHMIX_IDX index. Each row: (tempo_idx, density_idx, scale_idx, duty_bias). Applied immediately
+# (not gated to next onset, unlike CHMIX_MASKS's channel-mix/scheme half — FR-1240) by
+# _emit_apply_style, called right after CHMIX_IDX is stepped on a Start press.
+# Index 0 MUST match the shipped default preset exactly (PRESET_TEMPO_IDX/PRESET_SCALE_IDX/
+# PRESET_DENSITY_IDX, duty_bias=0) — FR-1260, no regression to current boot/reset behavior.
+# Indices 1-3 carry the three named v1 styles (FR-1250, ADS-101 SS3, first-guess placeholder
+# values per this project's standing untuned-preset convention, BL-0005):
+#   1: Techno/Chiptune-Driving — fast tempo, dense Euclidean percussion, dorian mode, bright duty.
+#   2: Ambient/Lo-Fi — slow tempo, sparse density, pentatonic mode, soft duty (the "anchor" style,
+#      deliberately closest to the shipped default's overall character).
+#   3: Holiday — moderate tempo, moderate-steady density, major mode, bright duty (R219 SS8's
+#      "cheapest genre-style addition" finding: major/moderate-tempo/steady-density/bright-timbre
+#      all map directly onto these four fields).
+# Indices 4-7 default to index 0's row until a future content-authoring pass assigns a 4th+ style
+# (BL-0039) — every index has a defined, non-arbitrary row, not an unreviewed combination.
+STYLE_TABLE = [
+    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 0: default
+    (6, 6, 2, 0x01),                                                 # 1: Techno/Chiptune-Driving
+    (1, 0, 3, 0xFF),                                                 # 2: Ambient/Lo-Fi
+    (3, 3, 0, 0x01),                                                 # 3: Holiday
+    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 4: default (unassigned)
+    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 5: default (unassigned)
+    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 6: default (unassigned)
+    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 7: default (unassigned)
+]
+
 # IP-1060: arpeggio-as-polyphony (R216) — a period-4 up/down offset pattern (root, third, fifth,
 # third, within the active scale's 8-degree table) avoids needing a mod-3 counter (SM83 has no
 # division; a period-4 cycle wraps with a plain AND, R302). First-guess placeholder rate/shape,
@@ -290,6 +324,23 @@ def _ld_hl_label(rom, label):
     16-bit fixup, the same mechanism ROM._abs() uses for CALL/JP targets."""
     rom.emit(0x21, 0, 0)
     rom.fixups.append((rom.pos - 2, label, 'abs16'))
+
+
+def _emit_apply_style(rom):
+    """IP-1080 (roadmap R5, ADS-101/FS-108): reads STYLE_TABLE[CHMIX_IDX]'s 4-byte row
+    (tempo_idx, density_idx, scale_idx, duty_bias) and writes each value into
+    TEMPO_IDX/DENSITY_IDX/SCALE_IDX/DUTY_BIAS — called from input_map.py's Start-press handler
+    immediately after CHMIX_IDX is stepped, so a style change applies the same frame as the press
+    (FR-1240), unlike CHMIX_MASKS's channel-mix/scheme half (next onset, FR-1190)."""
+    rom.LD_A_nn(CHMIX_IDX)
+    rom.ADD_A_A(); rom.ADD_A_A()   # *4 (row width)
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'style_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HLI(); rom.LD_nn_A(TEMPO_IDX)
+    rom.LD_A_HLI(); rom.LD_nn_A(DENSITY_IDX)
+    rom.LD_A_HLI(); rom.LD_nn_A(SCALE_IDX)
+    rom.LD_A_HL();  rom.LD_nn_A(DUTY_BIAS)
 
 
 def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_lo, nr_freq_hi,
@@ -537,8 +588,16 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
     # channel, which has no duty concept). Re-reads cur_degree fresh rather than reusing the
     # value already consumed above, since it was not preserved in a register across the
     # intervening table-lookup arithmetic.
+    # IP-1080 (roadmap R5): the style-driven DUTY_BIAS is added to the degree-derived index
+    # before the table lookup, then re-masked with the same AND 0x03 wrap the index already
+    # used — DUTY_BIAS is 0 for the default style/preset 0, so this is a no-op until a
+    # non-default style is selected (FR-1260's non-regression, satisfied by construction).
     if duty_reg is not None:
         rom.LD_A_nn(cur_degree)
+        rom.AND_n(0x03)
+        rom.LD_B_A()
+        rom.LD_A_nn(DUTY_BIAS)
+        rom.ADD_A_B()
         rom.AND_n(0x03)
         rom.LD_C_A(); rom.LD_B_n(0)
         _ld_hl_label(rom, 'duty_table')
@@ -924,6 +983,10 @@ def build_engine_asm(rom: ROM) -> dict:
     rom.LD_A_n(PRESET_SCALE_IDX); rom.LD_nn_A(SCALE_IDX)
     rom.LD_A_n(PRESET_DENSITY_IDX); rom.LD_nn_A(DENSITY_IDX)
     rom.LD_A_n(PRESET_CHMIX_IDX); rom.LD_nn_A(CHMIX_IDX)
+    # IP-1080: DUTY_BIAS resets to 0 (STYLE_TABLE[0]'s own value, FR-1260) — TEMPO_IDX/
+    # DENSITY_IDX/SCALE_IDX are already set to STYLE_TABLE[0]'s exact values by the three
+    # PRESET_* writes just above, so no separate _emit_apply_style call is needed here.
+    rom.XOR_A(); rom.LD_nn_A(DUTY_BIAS)
     for (suffix, note_timer, cur_degree, lfsr_state, lfsr_seed, *_rest, duty_reg,
          arp_state, _dac_reg, _dac_on, _bit_index, _scheme_bit, scheme_state) in CHANNELS:
         rom.XOR_A(); rom.LD_nn_A(cur_degree)
@@ -1030,6 +1093,10 @@ def build_engine_asm(rom: ROM) -> dict:
 
     rom.label('motif_table')
     rom.emit(*MOTIF_TABLE)
+
+    rom.label('style_table')
+    for row in STYLE_TABLE:
+        rom.emit(*row)
 
     note_table_labels = []
     for si, scale_name in enumerate(SCALES):

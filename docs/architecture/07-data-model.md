@@ -59,6 +59,7 @@ project's own convention.
 | `0xC038` | `MOTIF_STEP_PA` | **Added `IP-1070` (2026-07-25, `BL-0020`)** — pulse A's packed Scheme-E state: bits0-3 this channel's own Euclidean-pattern step (0-15, independent of the noise channel's `NOISE_STEP_IDX`), bits4-6 its current motif step (0-7); bit7 unused. Only advances when this channel's `CHMIX_MASKS` scheme-select bit (bit4) is set; stays at 0 while running Scheme W. |
 | `0xC039` | `MOTIF_STEP_PB` | **Added `IP-1070`** — same packing/role as `MOTIF_STEP_PA`, pulse B's scheme-select bit is bit5 |
 | `0xC03A` | `MOTIF_STEP_WV` | **Added `IP-1070`** — same packing/role, wave channel's scheme-select bit is bit6 |
+| `0xC03B` | `DUTY_BIAS` | **Added `IP-1080` (2026-07-26, roadmap R5)** — a per-style duty-cycle timbre offset (`ADS-101`), added to the existing degree-derived duty-table index (`cur_degree & 0x03`) at `_emit_channel_gen`'s duty-write site, then re-masked (`AND 0x03`, wrap not clamp) — reuses the same masking idiom the index already used. Independent of `STYLE_TABLE`'s other 3 fields, which write directly to the already-existing `TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX` addresses rather than a new one. 0 for the default style/preset 0 (`FR-1260`'s non-regression). |
 
 ## §4 Repetition-detection history buffers (§4b's "last 8 notes")
 

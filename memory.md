@@ -45,6 +45,7 @@ no hangs, bad-zone entry and self-recovery both observed.
 | `0xC01D`/`0xC01E` | `ARP_STATE_PA`/`PB` (`IP-1060`) — packed: bits0-3 sub-tick countdown, bits4-5 step index (0-3) |
 | `0xC01F` | `ARP_DEGREE_SCRATCH` (`IP-1060`, shared pa/pb working storage, not persisted across frames) |
 | `0xC038`-`0xC03A` | `MOTIF_STEP_PA`/`PB`/`WV` (`IP-1070`) — packed: bits0-3 Euclidean-pattern step (0-15), bits4-6 motif step (0-7); only advances under Scheme E |
+| `0xC03B` | `DUTY_BIAS` (`IP-1080`, roadmap R5) — per-style duty-cycle timbre offset, added to the degree-derived duty-table index before lookup (wrap via `AND 0x03`); 0 for the default style/preset 0 |
 | `0xC050`-`0xC052` | `JOY_PREV`/`JOY_CUR`/`JOY_NEW` |
 | `0xC060` | `VBLANK_FLAG` |
 

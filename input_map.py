@@ -8,7 +8,7 @@ surface (GDS-03 SS1).
 """
 
 from gbc_lib import ROM
-from music_engine import TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX_IDX
+from music_engine import TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX_IDX, _emit_apply_style
 
 # ── WRAM addresses (GDS-07 SS5) ───────────────────────────────────────
 JOY_PREV = 0xC050
@@ -58,7 +58,20 @@ def build_input_asm(rom: ROM) -> dict:
     _step_on_bit(rom, J_LEFT, OCTAVE_IDX, -1, 0x03, 'ai_left')
     _step_on_bit(rom, J_A, SCALE_IDX, +1, 0x03, 'ai_a')
     _step_on_bit(rom, J_B, DENSITY_IDX, +1, 0x07, 'ai_b')
-    _step_on_bit(rom, J_START, CHMIX_IDX, +1, 0x07, 'ai_start')
+
+    # Start: step CHMIX_IDX (FR-1060), then immediately apply the newly-selected preset's style
+    # (IP-1080, FR-1240 — tempo/density/scale/duty-bias applied the same frame, not gated to the
+    # next onset the way CHMIX_MASKS's channel-mix/scheme half is, FR-1190). Inlined rather than
+    # reusing _step_on_bit so the style-apply only runs on the actual edge, not every frame.
+    rom.LD_A_nn(JOY_NEW)
+    rom.BIT_b_A(J_START)
+    rom.JR_Z('ai_start')
+    rom.LD_A_nn(CHMIX_IDX)
+    rom.INC_A()
+    rom.AND_n(0x07)
+    rom.LD_nn_A(CHMIX_IDX)
+    _emit_apply_style(rom)
+    rom.label('ai_start')
 
     # Select: unconditional reset to the known-good preset (FR-1070), regardless of bad-zone
     # state — init_engine (music_engine.py) is both the boot-init and the reset target.

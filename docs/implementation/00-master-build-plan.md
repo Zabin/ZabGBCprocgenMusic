@@ -81,6 +81,19 @@ in a committed and pushed ROM" — is explicit, direct authorization to build an
 specific, scoped feature. Recorded here as the basis, distinct from and not extending to
 `IP-9010`/`IP-9020`, which remain separately unauthorized (see below).
 
+## Technical Work Breakdown (TWBS) — Genre-Aware Style Presets (`FS-108`, roadmap R5)
+
+| IP | Package | Requirements | Status |
+|---|---|---|---|
+| IP-1080 | Genre-aware style presets — parallel `STYLE_TABLE` keyed by `CHMIX_IDX`, applied immediately on Start press | FR-1230...FR-1260, NFR-1080, NFR-1090 | **NOT STARTED** — [package](packages/IP-1080-genre-aware-style-presets.md) fully specified; dependencies (`IP-0001`-`IP-0003`, `IP-1060`) all `VERIFIED`, so this package is `READY` in the stage-07 sense (dependencies satisfied) but **not authorized** (see below) — G3 is the only blocker. |
+
+**G3 authorization for `IP-1080`**: **not yet granted.** R5 originates from the roadmap's own
+release sequence (`docs/roadmap/04-release-roadmap.md`), the same class of authorization basis
+`BL-0020`/`IP-1070` had before the user's explicit go-ahead (a named backlog/roadmap item, no
+"build and ship this" language attached) — distinct from `BL-0024`'s explicit build-and-ship
+filing, which does not extend to this package. The user's explicit per-package go-ahead is needed
+before `08-code-implementation` may build `IP-1080`.
+
 ## G5 gate (every stage-08 run)
 
 The ROM must build (`python3 build_rom.py <path>` -> fixed size, valid header) and the full

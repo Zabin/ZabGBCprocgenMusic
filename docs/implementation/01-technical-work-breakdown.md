@@ -151,3 +151,56 @@ carried) — `03`/`04`/`05`/`06`'s design/requirements/planning work has proceed
 authoring a package is not itself authorization to code it (per this skill's own standing rule,
 no bootstrap carve-out). `IP-1070` is recorded **NOT authorized** below; the user's explicit
 per-package go-ahead is needed before `08-code-implementation` may build it.
+
+## Technical Work Breakdown — Genre-Aware Style Presets (`FS-108`, roadmap R5)
+
+**Verb inventory.** This feature's runtime concerns: *apply* (writing a style row's 4 target
+values into `TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX`/`DUTY_BIAS` on a `CHMIX_IDX` change — the one
+piece of new logic) — no *generate* verb of its own (this feature invents no new note-selection
+strategy; `_emit_channel_gen`/`_emit_noise_gen` are consumers of the values it writes, unmodified).
+No *render* verb (no visualizer change — `FS-108`'s own Open Question 3 confirms this is
+deliberate). No *persist* verb (no save data anywhere in this project). *Review* is
+`09-content-review`'s eventual job (`FS-108`'s own Risks section names the audible-distinctness
+and genre-fidelity judgment calls) — not this package's job to resolve, only to make reviewable.
+Every verb this capability needs has an owner; nothing silently deferred.
+
+**Supersession sweep.** This feature does **not** retire or generalize an existing model —
+`TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX` are written by this feature exactly the way `input_map.py`'s
+D-pad/A/B handlers already write them (a plain `LD_nn_A` to the same WRAM address), so there is no
+old fixed-shape assumption to break. Grepped every read site of these three addresses across
+`music_engine.py`/`input_map.py` to confirm none assumes they only ever change via a D-pad/A/B
+press (e.g. a stale cached copy taken once at boot) — confirmed clean: every generation routine
+(`_emit_channel_gen`, `_emit_noise_gen`, the tempo/density/scale table lookups) re-reads these
+WRAM addresses fresh every tick, so a style-driven write is indistinguishable, from the reading
+code's own perspective, from a manual D-pad/A/B write.
+
+**Concrete data decisions** (`FS-108` Open Questions 1/2, resolved here per this stage's own
+"shape, not values — but implementation planning fixes the values" convention):
+
+- **`CHMIX_IDX`-to-style assignment**: index 0 → Default (must equal the shipped preset exactly,
+  `FR-1260` — not itself styled as a named genre); index 1 → Techno/Chiptune-Driving; index 2 →
+  Ambient/Lo-Fi; index 3 → Holiday; indices 4-7 → same row as index 0 (default) until a future
+  content-authoring pass assigns them a 4th+ style (`BL-0039`) — every index has a defined,
+  non-arbitrary row, satisfying `FR-1230`'s "each preset maps to a row" without inventing
+  unreviewed character for indices nothing has designed yet.
+- **`DUTY_BIAS` combination rule**: `DUTY_BIAS` is a small signed value added to the existing
+  `(cur_degree & 0x03)` duty-table index (`music_engine.py:541-542`) **before** the table lookup,
+  then re-masked with `AND 0x03` (wrap, not clamp) — reusing the exact same masking idiom the
+  duty-selection code already uses for its own per-note cycling, rather than introducing new
+  comparison/clamp logic. Resolves `BL-0038`.
+
+**Split rationale:** one package, not split. The `STYLE_TABLE` data table, its read-and-apply
+routine, and the 3 v1 style rows are one cohesive unit with no natural split point — `FS-108`'s
+own Feature Review already confirmed this (unlike `FS-106`'s two-package arpeggio/vibrato split,
+nothing here is independently useful or independently testable on its own).
+
+**Package:** [`IP-1080`](packages/IP-1080-genre-aware-style-presets.md) (parallel `STYLE_TABLE`
++ apply-on-Start routine) → `08-code-implementation`.
+
+**Authorization basis:** none yet. R5 originates from the roadmap's own release sequence
+(`docs/roadmap/04-release-roadmap.md`, authored under the user's earlier "build a comprehensive
+product roadmap" directive) — the same kind of authorization basis `BL-0020`/`IP-1070` had
+(a roadmap/backlog entry naming the feature, with no explicit "build and ship this" language
+attached), not the `BL-0024`-style explicit build-and-ship filing. `IP-1080` is recorded **NOT
+authorized** below; the user's explicit per-package go-ahead is needed before
+`08-code-implementation` may build it.

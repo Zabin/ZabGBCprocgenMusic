@@ -23,7 +23,7 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers)
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 93 checks across T1-T15
+                    sound registers + WRAM engine state) — 102 checks across T1-T16
 ```
 
 ### Data layout, WRAM map
@@ -161,7 +161,16 @@ shipped default, `FR-1260`). Applying a style is `_emit_apply_style` (`music_eng
 from `input_map.py`'s Start-press handler immediately after `CHMIX_IDX` steps — unlike
 `CHMIX_MASKS`'s channel-mix/scheme half, style values apply the same frame, not at next onset.
 
-## Known Good Behavior (v1.2 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation + Genre-Aware Style Presets, GO 2026-07-26)
+### Change motif variants
+`MOTIF_TABLE` in `music_engine.py` (now `N_VARIANTS=4` rows of 8 bytes each — variant 0 must stay
+byte-identical to the original shipped sequence, `FR-1300`) and `MOTIF_VARIANT_SELECTOR` (4
+signed-delta entries, LFSR-indexed, shaped like `DELTA_TABLE`, first-guess retention-biased
+weighting, not tuned by ear — `BL-0042`). Variant selection happens only at a motif-cycle
+boundary (motif step wraps 7→0) inside `_emit_channel_gen`'s Scheme-E branch (`IP-1090`/`BL-0010`)
+— never mid-cycle, and never for a channel running Scheme W. The selection draw reuses that
+channel's own LFSR (otherwise idle while running Scheme E), introducing no new randomness source.
+
+## Known Good Behavior (v1.3 — v1.2's shipped baseline (GO 2026-07-26) + Motif Recurrence via Weighted Variant Selection, `IP-1090` `COMPLETE` 2026-07-26, not yet independently verified/GO'd)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
 - Boots within ~90 frames (GBC boot-ROM logo animation time) to: all 3 pitched channels (pulse
@@ -208,8 +217,13 @@ from `input_map.py`'s Start-press handler immediately after `CHMIX_IDX` steps �
   channel-mix/scheme change — 3 named v1 styles (Techno/Chiptune-Driving, Ambient/Lo-Fi, Holiday)
   plus the shipped default at preset 0. Bad-zone state (`DISSONANCE_SCORE`/`BAD_ZONE_FLAGS`/
   `STALE_COUNT_*`/`ONSET_WINDOW_COUNT`) is untouched by a style change.
+- Motif recurrence via weighted variant selection (`IP-1090`, `BL-0010`/`ADS-102`, **`COMPLETE`,
+  not yet independently verified**): a Scheme-E channel's motif data is now 4 pre-composed
+  variants (variant 0 identical to the original shipped sequence); at each motif-cycle boundary
+  the engine autonomously draws which variant plays next via a retention-biased weighted lookup,
+  no input required. Bad-zone detection/recovery and every other mechanism are unaffected.
 
-**93/93 `test_rom.py` checks pass** (T1-T15). An 8000+ frame stress run with continuous input
+**102/102 `test_rom.py` checks pass** (T1-T16). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

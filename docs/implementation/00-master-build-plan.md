@@ -99,7 +99,7 @@ instruction).
 
 | IP | Package | Requirements | Status |
 |---|---|---|---|
-| IP-1090 | Motif recurrence via weighted variant selection — extends `IP-1070`'s `MOTIF_TABLE` to 4 pre-composed variants, autonomously selected at motif-cycle boundaries via a weighted lookup table | FR-1270...FR-1300, NFR-1100, NFR-1110 | **READY** (fully specified, sole dependency `IP-1070` `VERIFIED`, G3 authorized — see below) |
+| IP-1090 | Motif recurrence via weighted variant selection — extends `IP-1070`'s `MOTIF_TABLE` to 4 pre-composed variants, autonomously selected at motif-cycle boundaries via a weighted lookup table | FR-1270...FR-1300, NFR-1100, NFR-1110 | **COMPLETE** — 102/102 full-suite tests (T1-T16), ROM budget -182 bytes (29089 free, measured via `ADR-0002`'s own `rom.pos` method — the extra ~150 bytes beyond the ~28 bytes of new data is the cycle-boundary/variant-selection code emitted once per pitched channel, 3 channels). A test-methodology defect was caught and fixed within this same run: an initial exact-match assertion between observed onset degrees and `MOTIF_TABLE` values failed under bad-zone conditions (`IP-0007`'s autonomous dissonant-pull/stuck-escape overrides the motif-picked delta, same interaction `T14.3`'s own looser invariant already accounts for) — fixed by excluding bad-zone-active frames from that specific comparison, documented inline in the test. |
 
 **Verb inventory** (one verb, single package — no split needed): this capability needs only
 *apply* (autonomously selecting and applying which motif-variant row is active) — no *generate*

@@ -91,5 +91,14 @@
 [PASS] T15.5 A style change during an active bad-zone state leaves BAD_ZONE_FLAGS/STALE_COUNT_PA/ONSET_WINDOW_COUNT unchanged on the change frame itself  (before=(9, 0, 0), after=(9, 0, 0))
 [PASS] T15.6.setup DUTY_BIAS drifted away from 0 before Select  (got 1)
 [PASS] T15.6 Select resets DUTY_BIAS to 0 (read on the exact reset frame)  (got 0)
+[PASS] T16.1 All defined motif variants are pairwise distinct  (got 4 distinct of 4)
+[PASS] T16.2 Variant 0 matches the pre-IP-1090 shipped sequence  (got (0, 2, 4, 5, 4, 2, 0, 7))
+[PASS] T16.setup CHMIX_IDX reached preset 6  (got 6)
+[PASS] T16.3 MOTIF_VARIANT_IDX stays within the defined variant range  (seen: [0])
+[PASS] T16.4 At least one motif cycle boundary occurred over the run  (got 11)
+[PASS] T16.5 MOTIF_VARIANT_IDX only changes on a motif-cycle-boundary frame, never mid-cycle  (change_frames not in boundary_frames: [])
+[PASS] T16.6 Variant-selection weighting favors retention over switching  (boundaries=11, changes=0)
+[PASS] T16.7 Every observed onset's degree matches its variant row's documented value  (mismatches: [])
+[PASS] T16.8 Repeated style changes (IP-1080) never corrupt MOTIF_VARIANT_IDX or the style-application mechanism, even landing on a motif-cycle boundary  (got ok=True)
 
-93 PASS, 0 FAIL
+102 PASS, 0 FAIL

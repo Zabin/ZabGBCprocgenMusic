@@ -46,6 +46,7 @@ no hangs, bad-zone entry and self-recovery both observed.
 | `0xC01F` | `ARP_DEGREE_SCRATCH` (`IP-1060`, shared pa/pb working storage, not persisted across frames) |
 | `0xC038`-`0xC03A` | `MOTIF_STEP_PA`/`PB`/`WV` (`IP-1070`) — packed: bits0-3 Euclidean-pattern step (0-15), bits4-6 motif step (0-7); only advances under Scheme E |
 | `0xC03B` | `DUTY_BIAS` (`IP-1080`, roadmap R5) — per-style duty-cycle timbre offset, added to the degree-derived duty-table index before lookup (wrap via `AND 0x03`); 0 for the default style/preset 0 |
+| `0xC03C` | `MOTIF_VARIANT_IDX` (`IP-1090`, `BL-0010`) — which row of the now-multi-variant `MOTIF_TABLE` is active for Scheme E's motif lookup; single shared byte (v1 scope); drawn via a weighted lookup only at a motif-cycle boundary; 0 (variant 0, the original shipped sequence) on boot/Select-reset |
 | `0xC050`-`0xC052` | `JOY_PREV`/`JOY_CUR`/`JOY_NEW` |
 | `0xC060` | `VBLANK_FLAG` |
 

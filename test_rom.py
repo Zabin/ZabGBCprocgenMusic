@@ -28,6 +28,11 @@ Suites:
   T14 Combinable generation schemes (IP-1070, BL-0020): a channel assigned Scheme E cycles
       through a fixed motif on a Euclidean-pattern-gated onset schedule, a channel left on
       Scheme W is unaffected, and bad-zone detection/recovery still applies
+  T15 Genre-aware style presets (IP-1080, roadmap R5): each CHMIX_IDX preset maps to a
+      STYLE_TABLE row, applied immediately on a Start press
+  T16 Motif recurrence via weighted variant selection (IP-1090, BL-0010): Scheme E's
+      MOTIF_TABLE now has N_VARIANTS rows, autonomously selected at motif-cycle boundaries
+      via a weighted lookup, retention-biased, with no regression when variant 0 is active
 
 Run from the repo root: python3 test_rom.py
 Requires: pyboy (pinned 2.7.0, matching the reference project), numpy.
@@ -52,6 +57,7 @@ BAD_ZONE_FLAGS = 0xC005; DISSONANCE_SCORE = 0xC006
 STALE_COUNT_PA = 0xC007; ONSET_WINDOW_COUNT = 0xC00A
 ARP_STATE_PA = 0xC01D; ARP_STATE_PB = 0xC01E
 MOTIF_STEP_PA = 0xC038; MOTIF_STEP_PB = 0xC039; MOTIF_STEP_WV = 0xC03A
+MOTIF_VARIANT_IDX = 0xC03C
 LCDC = 0xFF40
 CHANNEL_CELLS = [0x9800, 0x9801, 0x9802, 0x9803]
 BCPD = 0xFF69
@@ -61,6 +67,7 @@ NR11 = 0xFF11; NR13 = 0xFF13; NR14 = 0xFF14; NR52 = 0xFF26
 
 from music_engine import PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX, PRESET_SCALE_IDX
 from music_engine import STYLE_TABLE, DUTY_BIAS
+from music_engine import MOTIF_TABLE, N_VARIANTS
 
 results = []
 PASS = 0
@@ -697,6 +704,93 @@ def t15_genre_aware_style_presets():
     pb4.stop(save=False)
 
 
+def t16_motif_recurrence_via_weighted_variant_selection():
+    """IP-1090 (BL-0010, ADS-102): Scheme E's MOTIF_TABLE now has N_VARIANTS rows; at each
+    motif-cycle boundary (motif step wraps 7->0) the engine autonomously draws a new
+    MOTIF_VARIANT_IDX via a weighted lookup (MOTIF_VARIANT_SELECTOR), retention-biased. Variant 0
+    is byte-identical to the pre-IP-1090 shipped sequence (FR-1300, no regression)."""
+
+    # (a) Sanity check on the authored data itself: the 4 variant rows are pairwise distinct.
+    rows = [tuple(MOTIF_TABLE[i * 8:(i + 1) * 8]) for i in range(N_VARIANTS)]
+    check("T16.1 All defined motif variants are pairwise distinct", len(set(rows)) == N_VARIANTS,
+          f"got {len(set(rows))} distinct of {N_VARIANTS}")
+    check("T16.2 Variant 0 matches the pre-IP-1090 shipped sequence",
+          rows[0] == (0, 2, 4, 5, 4, 2, 0, 7), f"got {rows[0]}")
+
+    pb = fresh_boot()
+    for _ in range(6):
+        tap(pb, 'start')  # CHMIX_IDX preset 6: Scheme E on the wave channel
+    check("T16.setup CHMIX_IDX reached preset 6", pb.memory[CHMIX_IDX] == 6,
+          f"got {pb.memory[CHMIX_IDX]}")
+
+    seen_variants = set()
+    boundary_frames = []      # frames where the motif step wrapped 7->0
+    change_frames = []        # frames where MOTIF_VARIANT_IDX itself changed
+    lookup_checks = []        # (variant, step, degree) sampled at each onset
+    prev_variant = pb.memory[MOTIF_VARIANT_IDX]
+    prev_step = (pb.memory[MOTIF_STEP_WV] >> 4) & 0x07
+    N = 6000
+    for frame in range(N):
+        pb.tick()
+        variant = pb.memory[MOTIF_VARIANT_IDX]
+        step = (pb.memory[MOTIF_STEP_WV] >> 4) & 0x07
+        seen_variants.add(variant)
+        if prev_step == 7 and step == 0:
+            boundary_frames.append(frame)
+        if variant != prev_variant:
+            change_frames.append(frame)
+        if step != prev_step:
+            # IP-0007's autonomous bad-zone avoidance can override the motif-picked delta
+            # (dissonant-pull or stuck-escape, per FR-1220 -- applies identically regardless of
+            # scheme), so only sample onsets where neither override was in effect this frame;
+            # same "plus bad-zone-override reachable degrees" caveat T14.3 already established
+            # for the pre-IP-1090 single-variant table.
+            if pb.memory[BAD_ZONE_FLAGS] & 0x03 == 0:
+                lookup_checks.append((variant, step, pb.memory[CUR_DEGREE_WV]))
+        prev_variant = variant
+        prev_step = step
+    pb.stop(save=False)
+
+    check("T16.3 MOTIF_VARIANT_IDX stays within the defined variant range",
+          seen_variants.issubset(set(range(N_VARIANTS))), f"seen: {sorted(seen_variants)}")
+    check("T16.4 At least one motif cycle boundary occurred over the run",
+          len(boundary_frames) > 0, f"got {len(boundary_frames)}")
+    check("T16.5 MOTIF_VARIANT_IDX only changes on a motif-cycle-boundary frame, never mid-cycle",
+          set(change_frames).issubset(set(boundary_frames)),
+          f"change_frames not in boundary_frames: {sorted(set(change_frames) - set(boundary_frames))}")
+    check("T16.6 Variant-selection weighting favors retention over switching",
+          len(change_frames) < len(boundary_frames),
+          f"boundaries={len(boundary_frames)}, changes={len(change_frames)}")
+    mismatches = [(v, s, d) for (v, s, d) in lookup_checks if d != MOTIF_TABLE[v * 8 + s]]
+    check("T16.7 Every observed onset's degree matches its variant row's documented value",
+          not mismatches, f"mismatches: {mismatches[:5]}")
+
+    # (e) IP-1080 interaction: repeatedly press Start (style + channel-mix/scheme changes) while
+    # a Scheme-E channel is active, confirming neither mechanism's state is corrupted by the other
+    # landing on the same frame as a motif-cycle boundary (same randomized-stress methodology
+    # VR-1080's own interaction test used).
+    pb2 = fresh_boot()
+    for _ in range(6):
+        tap(pb2, 'start')
+    ok = True
+    for i in range(4000):
+        pb2.tick()
+        if i % 47 == 0:  # irregular interval, deliberately not synced to any engine cadence
+            pb2.button_press('start')
+            pb2.tick()
+            pb2.button_release('start')
+            expected = STYLE_TABLE[pb2.memory[CHMIX_IDX]]
+            got = (pb2.memory[TEMPO_IDX], pb2.memory[DENSITY_IDX], pb2.memory[SCALE_IDX],
+                   pb2.memory[DUTY_BIAS])
+            if got != expected:
+                ok = False
+            if pb2.memory[MOTIF_VARIANT_IDX] not in range(N_VARIANTS):
+                ok = False
+    check("T16.8 Repeated style changes (IP-1080) never corrupt MOTIF_VARIANT_IDX or the "
+          "style-application mechanism, even landing on a motif-cycle boundary", ok, f"got ok={ok}")
+    pb2.stop(save=False)
+
+
 def main():
     t1_header()
     t2_boot()
@@ -713,6 +807,7 @@ def main():
     t13_overload_recalibration()
     t14_combinable_generation_schemes()
     t15_genre_aware_style_presets()
+    t16_motif_recurrence_via_weighted_variant_selection()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

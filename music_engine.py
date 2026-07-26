@@ -71,6 +71,13 @@ MOTIF_STEP_WV = 0xC03A
 # MOTIF_STEP_PA/PB/WV; 0xC03B-0xC04F remains genuine unused headroom before JOY_PREV at 0xC050.
 DUTY_BIAS = 0xC03B
 
+# IP-1090 (BL-0010, ADS-102): which row of the now-multi-variant MOTIF_TABLE is currently active
+# for Scheme E's motif lookup — a single shared byte (v1 scope: today's only shipped Scheme-E-
+# assigning preset activates the scheme on exactly one channel at a time, ADS-102 SS9). Placed at
+# 0xC03C: 0xC03B is IP-1080's DUTY_BIAS; 0xC03C-0xC04F remains genuine unused headroom before
+# JOY_PREV at 0xC050.
+MOTIF_VARIANT_IDX = 0xC03C
+
 # IP-0004 thresholds (GDS-03 SS4, R204 SS5) — first-guess placeholders, per BL-0005's own
 # deferred-tuning convention; the dissonance weight table itself is literature-grounded (R204),
 # these threshold *numbers* are not yet tuned by ear.
@@ -267,7 +274,29 @@ DUTY_BY_DEGREE = [0x00, 0x40, 0x80, 0xC0]  # 12.5% / 25% / 50% / 75%
 # table for all 3 pitched channels (not per-channel/per-scale-degree-set) — FR-1210 requires only
 # "a fixed... motif," not multiple selectable ones; a right-sized first version, not a ceiling.
 # First-guess placeholder shape, not tuned by ear (BL-0005's existing disposition covers this).
-MOTIF_TABLE = [0, 2, 4, 5, 4, 2, 0, 7]
+#
+# IP-1090 (BL-0010, ADS-102): extended from a single 8-entry row into N_VARIANTS=4 rows of 8
+# bytes each (variant index * 8 + motif_step). Row 0 is byte-identical to the original shipped
+# sequence (FR-1300's no-regression requirement); rows 1-3 are new hand-composed variants sharing
+# row 0's start/end degree (0...7) with differing middle contour, so a variant switch reads as
+# development of the same phrase rather than an unrelated new one (IP-1090's own Risks section) —
+# first-guess placeholder shapes, not tuned by ear, same BL-0005 disposition as row 0.
+MOTIF_TABLE = [
+    0, 2, 4, 5, 4, 2, 0, 7,   # variant 0: original shipped sequence (unchanged)
+    0, 2, 4, 5, 4, 3, 0, 7,   # variant 1: softer descent (5->3 instead of 5->2 at step 5)
+    0, 2, 5, 5, 4, 2, 0, 7,   # variant 2: reaches the 5th one step earlier (step 2, not 3)
+    0, 3, 4, 5, 4, 2, 0, 7,   # variant 3: steps to the 4th via the 3rd instead of direct 2->4
+]
+N_VARIANTS = 4
+
+# IP-1090 (BL-0010, ADS-102, R211 SS8): weighted selection of the next motif variant, drawn only
+# at motif-cycle-boundary frames (the motif-step counter wrapping 7->0). Shaped exactly like
+# DELTA_TABLE — signed deltas *relative to the current variant index*, indexed by 2 LFSR-derived
+# bits, most entries 0 (retain the current variant) with one entry +1 (advance to the next
+# variant, wrapped mod N_VARIANTS) — directly implementing R214 SS8's "short but interesting,
+# recurrence dominates, switches are occasional" constraint. First-guess placeholder weighting
+# (3-in-4 retain), not tuned by ear (BL-0042, same BL-0005-style disposition).
+MOTIF_VARIANT_SELECTOR = [0x00, 0x00, 0x00, 0x01]
 
 # ── Noise/density (IP-0003, R202/R115) ───────────────────────────────
 # 8 density steps: k onsets distributed across a fixed n=16-step grid (a 16th-note bar at the
@@ -416,7 +445,9 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
     rom.LD_B_A()                       # B = signed delta
 
     if scheme_bit is not None:
-        rom.JR(f'gt_delta_ready_{suffix}')
+        # IP-1090: JP not JR — the Scheme-E block below (extended with variant-selection logic)
+        # is now too long for JR's signed 8-bit relative range.
+        rom.JP(f'gt_delta_ready_{suffix}')
 
         # IP-1070: Scheme E — advance this channel's own Euclidean-pattern step (bits0-3 of
         # scheme_state), independent of the noise channel's own NOISE_STEP_IDX (each Scheme-E
@@ -459,9 +490,52 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
         rom.OR_B()
         rom.LD_nn_A(scheme_state)      # write back: motif step advanced too
 
+        # IP-1090 (BL-0010, ADS-102): cycle-boundary check — B still holds the new motif-step
+        # bits, shifted into position (0x00, 0x10, ..., 0x70); zero means the step just wrapped
+        # from 7 back to 0, a full motif cycle just completed. Only on that exact frame, draw a
+        # new MOTIF_VARIANT_IDX; every other frame this block is a no-op (FR-1280).
+        rom.PUSH_BC()
+        rom.LD_A_B()
+        rom.OR_A()
+        rom.JR_NZ(f'gt_e_novariant_{suffix}')
+
+        # Cycle boundary: step this channel's own LFSR once (otherwise idle while running
+        # Scheme E — the LFSR-step code above is skipped entirely via this branch's own
+        # JR_NZ to gt_schemee_{suffix}), so this introduces no new randomness source, only a
+        # new use of the existing one (NFR-1110). 2 bits index MOTIF_VARIANT_SELECTOR; the
+        # resulting signed delta is added to MOTIF_VARIANT_IDX and wrapped mod N_VARIANTS via
+        # AND 0x03 — the same signed-delta/wrap idiom DELTA_TABLE's own consumer already uses.
+        rom.LD_A_nn(lfsr_state)
+        rom.SRL_A()
+        rom.JR_NC(f'gt_e_novariant_noxor_{suffix}')
+        rom.XOR_n(LFSR_POLY)
+        rom.label(f'gt_e_novariant_noxor_{suffix}')
+        rom.LD_nn_A(lfsr_state)
+        rom.AND_n(0x03)
+        rom.LD_C_A(); rom.LD_B_n(0)
+        _ld_hl_label(rom, 'motif_variant_selector')
+        rom.ADD_HL_BC()
+        rom.LD_A_HL()                  # A = signed variant delta (0x00 retain, 0x01 advance)
+        rom.LD_C_A()
+        rom.LD_A_nn(MOTIF_VARIANT_IDX)
+        rom.ADD_A_C()
+        rom.AND_n(0x03)                # wrap mod N_VARIANTS=4
+        rom.LD_nn_A(MOTIF_VARIANT_IDX)
+
+        rom.label(f'gt_e_novariant_{suffix}')
+        rom.POP_BC()                   # restore B = new motif-step bits, shifted (unclobbered)
+
         rom.LD_A_B()
         rom.SRL_A(); rom.SRL_A(); rom.SRL_A(); rom.SRL_A()   # A = motif_step (0-7)
         rom.LD_C_A(); rom.LD_B_n(0)
+        # IP-1090: variant-relative offset — motif_table_base + MOTIF_VARIANT_IDX*8 + motif_step,
+        # replacing the old fixed-base lookup (variant 0 == the pre-IP-1090 base, so this reduces
+        # to the original lookup exactly when MOTIF_VARIANT_IDX is 0 — FR-1300's no-regression
+        # guarantee).
+        rom.LD_A_nn(MOTIF_VARIANT_IDX)
+        rom.SLA_A(); rom.SLA_A(); rom.SLA_A()   # *8 (row width)
+        rom.ADD_A_C()
+        rom.LD_C_A()
         _ld_hl_label(rom, 'motif_table')
         rom.ADD_HL_BC()
         rom.LD_A_HL()                  # A = target absolute degree (0-7)
@@ -987,6 +1061,11 @@ def build_engine_asm(rom: ROM) -> dict:
     # DENSITY_IDX/SCALE_IDX are already set to STYLE_TABLE[0]'s exact values by the three
     # PRESET_* writes just above, so no separate _emit_apply_style call is needed here.
     rom.XOR_A(); rom.LD_nn_A(DUTY_BIAS)
+    # IP-1090 (BL-0010, ADS-102): MOTIF_VARIANT_IDX resets to 0 (variant 0, the pre-IP-1090
+    # shipped sequence) on both boot and Select-reset — the same reset trigger that already
+    # zeroes each channel's scheme_state below (which resets the motif-step counter to 0 too),
+    # keeping a reset fully deterministic: variant 0, step 0 (FS-109's own Open Question 4).
+    rom.XOR_A(); rom.LD_nn_A(MOTIF_VARIANT_IDX)
     for (suffix, note_timer, cur_degree, lfsr_state, lfsr_seed, *_rest, duty_reg,
          arp_state, _dac_reg, _dac_on, _bit_index, _scheme_bit, scheme_state) in CHANNELS:
         rom.XOR_A(); rom.LD_nn_A(cur_degree)
@@ -1093,6 +1172,9 @@ def build_engine_asm(rom: ROM) -> dict:
 
     rom.label('motif_table')
     rom.emit(*MOTIF_TABLE)
+
+    rom.label('motif_variant_selector')
+    rom.emit(*MOTIF_VARIANT_SELECTOR)
 
     rom.label('style_table')
     for row in STYLE_TABLE:

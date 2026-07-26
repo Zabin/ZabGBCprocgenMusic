@@ -87,12 +87,13 @@ specific, scoped feature. Recorded here as the basis, distinct from and not exte
 |---|---|---|---|
 | IP-1080 | Genre-aware style presets — parallel `STYLE_TABLE` keyed by `CHMIX_IDX`, applied immediately on Start press | FR-1230...FR-1260, NFR-1080, NFR-1090 | **NOT STARTED** — [package](packages/IP-1080-genre-aware-style-presets.md) fully specified; dependencies (`IP-0001`-`IP-0003`, `IP-1060`) all `VERIFIED`, so this package is `READY` in the stage-07 sense (dependencies satisfied) but **not authorized** (see below) — G3 is the only blocker. |
 
-**G3 authorization for `IP-1080`**: **not yet granted.** R5 originates from the roadmap's own
-release sequence (`docs/roadmap/04-release-roadmap.md`), the same class of authorization basis
-`BL-0020`/`IP-1070` had before the user's explicit go-ahead (a named backlog/roadmap item, no
-"build and ship this" language attached) — distinct from `BL-0024`'s explicit build-and-ship
-filing, which does not extend to this package. The user's explicit per-package go-ahead is needed
-before `08-code-implementation` may build `IP-1080`.
+**G3 authorization for `IP-1080`**: **granted explicitly by the user, 2026-07-26** — asked
+directly (chat) whether `IP-1080` was authorized; the user replied "All work is pre authorized
+(generate new sessions for verification work and continue)." Recorded here as the basis, and as a
+standing forward authorization for this pipeline's future packages in this same increment (not a
+retroactive waiver of the independent-verification rule — `09-package-verification` still runs in
+a genuinely fresh session/dispatched agent for every package, per the user's own explicit
+instruction).
 
 ## G5 gate (every stage-08 run)
 

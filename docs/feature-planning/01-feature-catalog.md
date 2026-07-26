@@ -12,8 +12,9 @@
   [`docs/reviews/release-assessment-r1-r2-r3.md`](../reviews/release-assessment-r1-r2-r3.md)
   (R4 addition confirmed via that document's second re-assessment section; R5 addition confirmed
   via its third; `IP-1090`/`BL-0010` addition confirmed via its fourth). **`FEAT-1100` (added
-  2026-07-26, roadmap R6/`ADS-103`) is not yet built** — planning-grain only at this stage, not
-  part of the shipped baseline above.
+  2026-07-26, roadmap R6/`ADS-103`) is `VERIFIED` (`IP-1100`/`VR-1100`) but not yet part of the
+  shipped baseline** — awaits its own `11-release-readiness` G4 GO. **`FEAT-1110` (added
+  2026-07-26, `BL-0051`/`ADS-104`) is not yet built** — planning-grain only at this stage.
 
 | ID | Feature | Summary | FR/NFR traced |
 |---|---|---|---|
@@ -28,6 +29,7 @@
 | FEAT-1080 | Genre-aware style presets | A new, parallel `STYLE_TABLE` keyed by the existing `CHMIX_IDX` preset index (Start), each row a coordinated target combination (tempo/density/scale/duty-cycle bias) applied immediately on preset change — 3 concrete v1 styles (Techno/Chiptune-Driving, Ambient/Lo-Fi, Holiday). No new input control; no new generation mechanism (`_emit_channel_gen`/`_emit_noise_gen`/`_emit_badzone_tick` all unmodified — only which values `TEMPO_IDX` etc. hold changes). First feature of `docs/roadmap/04-release-roadmap.md`'s **R5 — Genre-Aware Style Presets** | FR-1230...FR-1260, NFR-1080, NFR-1090 |
 | FEAT-1090 | Motif recurrence via weighted variant selection | Extends `FEAT-1070`'s Scheme-E `MOTIF_TABLE` from a single fixed 8-step sequence to a small fixed set of pre-composed motif variants; at each motif-cycle boundary (step wraps 7→0), a weighted lookup table (retention-biased, reusing the `DELTA_TABLE`-style weighting idiom) autonomously selects the variant for the next cycle. No new input control, no L-system derivation engine — closes `BL-0010`'s motif-recurrence half. Spec: [`FS-109`](../features/fs-109-motif-recurrence-via-weighted-variant-selection.md) (authored 2026-07-26). | FR-1270...FR-1300, NFR-1100, NFR-1110 |
 | FEAT-1100 | Song-form via autonomous phase cycling | A new, independent state machine (`SONG_STATE`/`SONG_STATE_TIMER`) autonomously cycling 4 named phases (intro/build/peak/breakdown, looping); each phase transition overwrites `TEMPO_IDX`/`DENSITY_IDX` to that phase's target values, same tick. No new input control; bad-zone detection/recovery and Scheme-E motif-variant selection are unaffected (disjoint WRAM fields, `ADS-103` §2). Closes roadmap R6/`BL-0010`'s song-form half. Spec: [`FS-110`](../features/fs-110-song-form-via-autonomous-phase-cycling.md) (authored 2026-07-26). | FR-1310...FR-1340, NFR-1120, NFR-1130 |
+| FEAT-1110 | Settings & control visibility | Extends `FEAT-1040`'s minimal visualizer with 5 new bar-height indicator tiles, one per base control (`TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX`), each a filled-bar-height glyph (0-7 rows) proportional to that parameter's current index, updated the same frame the parameter changes. Reuses the existing BG palette — no new palette, no font/text rendering. Purely additive: existing channel-activity tiles and calm/bad-zone palette swap are unchanged. Read-only (`visuals.py` still never writes engine state, GDS-03 §1). Closes the base-control half of `BL-0051`'s visualizer request; the newer per-feature reactive signals (scheme/style/motif-variant/song-form-phase) are explicitly out of scope, deferred to a v1.1+ using the same reusable bar-tile mechanism (`ADS-104` §9). | FR-1350...FR-1380, NFR-1140...NFR-1160 |
 
 ## Dependency graph (Foundation bucket, `FEAT-1000`...`FEAT-1050`)
 
@@ -78,6 +80,20 @@ flags the *interaction* (a style change landing mid-cycle relative to a motif-va
 a risk to verify, not a code dependency — sequencing relative to `FEAT-1080` is unconstrained, but
 `09-package-verification`/`10-integration-review` should exercise the combination once both are
 implemented, per that flagged risk.
+
+`FEAT-1110` (added 2026-07-26, `BL-0051`/`ADS-104`) depends on `FEAT-1040` (it extends the
+existing minimal visualizer's `update_visuals` call site, adding a new tilemap-write routine
+alongside its existing channel-activity/bad-zone-palette writes) and reads `FEAT-1000`/`FEAT-1010`
+(`TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`)/`FEAT-1070` (`CHMIX_IDX`) state read-only —
+the same "visualizer never writes engine state" pattern `FEAT-1040` itself already established
+(GDS-03 §1, unchanged). **No dependency on `FEAT-1080`/`FEAT-1090`/`FEAT-1100`** despite `ADS-104`
+naming their reactive signals (style identity, motif-variant, song-form phase) as deferred v1.1+
+follow-on indicators using the same bar-tile mechanism — this feature's v1 scope covers only the
+5 base-control parameters (`TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX`), all
+already owned by `FEAT-1000`/`FEAT-1010`/`FEAT-1070`; no code path this feature touches reads
+`STYLE_TABLE`'s implicit style identity, `MOTIF_VARIANT_IDX`, or `SONG_STATE`. Must not regress
+`FEAT-1050` (new headless coverage required for `FR-1380`'s live-reflects-a-button-press
+acceptance criterion, same convention as every prior feature).
 
 `FEAT-1100` (added 2026-07-26, roadmap R6/`ADS-103`) depends on `FEAT-1000` (reads/overwrites
 `TEMPO_IDX`/`DENSITY_IDX`, the same `FEAT-1000`-owned state `FEAT-1080` also overwrites). Must not
@@ -157,3 +173,16 @@ established a discipline for: `FEAT-1100` and `FEAT-1080` both write `TEMPO_IDX`
 independent triggers, correctly not treated as a conflict (same "last write wins" contract), but
 flagged for `09`/`10` verification per `ADS-103` §8, mirroring exactly how `FEAT-1090`'s own
 `FEAT-1080` interaction was handled — consistent precedent, not a new judgment call.
+
+**2026-07-26 update:** `FEAT-1110` reviewed against the existing catalog — no conflict, no
+requirement double-assigned (`FR-1350`-`FR-1380`/`NFR-1140`-`NFR-1160` traced to exactly this one
+feature, confirmed against the full FR/NFR inventory). Right-sized for a single implementation
+package (a new tile-pattern set + one new per-frame tilemap-update routine is one cohesive unit —
+no natural split point). No architectural inconsistency: `ADS-104` was synthesized directly
+against `FEAT-1040`'s shipped `update_visuals` call site and GDS-03 §1's read-only invariant,
+extending neither by writing engine state. Checked explicitly for a dependency-graph conflict
+against `FEAT-1080`/`FEAT-1090`/`FEAT-1100` (all three add state this feature's parent `ADS-104`
+names as future reactive-signal candidates) — confirmed no dependency exists in v1's actual scope
+(only the 5 pre-existing base-control fields are read), consistent with `ADS-104` §4/§7's own
+explicit v1-scope boundary; the four-way unification is a documented future extension (`ADS-104`
+§9), not a hidden dependency incurred now.

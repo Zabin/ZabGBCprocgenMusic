@@ -278,3 +278,96 @@ alongside R1+R2+R3.** Baseline records updated: `ROADMAP.md` (stage 11 row, now 
 (Milestone B status → R3+R4 shipped, CAP-09 delivered), `docs/roadmap/02-capability-map.md`
 (CAP-09 row → shipped). See each file's own diff for the exact wording; this assessment is the
 authoritative record of the decision itself.
+
+---
+
+## Re-assessment — 2026-07-26 (adding R5 scope, +`IP-1080`)
+
+- **Commit assessed:** `455c233`
+- **Trigger:** per the standing "iterate pipeline skill... only stop when all open tasks are
+  blocked" instruction. Since the R4 addition GO above, roadmap release **R5 — Genre-Aware Style
+  Presets** ran the full `03`→`04`→`05`→`06`→`07`→`08`→`09`→`10` chain: `ADS-101` (architecture),
+  `FR-1230`-`FR-1260`/`NFR-1080`/`1090` (requirements), `FEAT-1080` (feature catalog), `FS-108`
+  (spec), `IP-1080` (package, G3-authorized by the user — "All work is pre authorized" — built,
+  independently `VERIFIED` via a fresh-session `Agent`), and just passed a 13-package
+  `10-integration-review` re-run with one new Low, non-blocking finding (`BL-0041`). R5 has never
+  had its own release assessment — this run evaluates whether adding it to the already-shipped
+  R1+R2+R3+R4 baseline is release-worthy.
+
+### Scope audit (R5 addition)
+
+`docs/roadmap/04-release-roadmap.md`'s R5 completion criteria: "at least 3 high-confidence styles
+implemented and independently verified." R5 introduces exactly one feature per the Feature
+Catalog:
+
+| Feature/Fix | FS/Spec | Package(s) | VR(s) | Integration coverage | Delivered? |
+|---|---|---|---|---|---|
+| `FEAT-1080` (genre-aware style presets) | [`FS-108`](../features/fs-108-genre-aware-style-presets.md) (full 20-field spec) | `IP-1080` | [VR-1080](../implementation/verification/VR-1080-genre-aware-style-presets.md) | ✅ [13-package re-review](integration-review-foundation-bucket.md#re-review--2026-07-26-13-package-scope-ip-1080) | Yes |
+
+Every `FEAT-1000`-`FEAT-1070` row from the prior scope audits is unchanged and still holds
+(already-shipped, not re-litigated here). R5's own "3 styles" completion criterion is satisfied:
+Techno/Chiptune-Driving, Ambient/Lo-Fi, and Holiday are all implemented and independently
+confirmed distinct by `VR-1080`'s own live drive.
+
+### Evidence (R5 addition)
+
+- **ROM build:** `python3 build_rom.py Driftune.gbc` → 32768 bytes, valid header — re-confirmed
+  against commit `455c233`.
+- **Full test suite:** **93 PASS, 0 FAIL out of 93** (T1-T15) — re-confirmed.
+- **VR inventory relied on:** all of R1-R4's original 12, plus `VR-1080` — **13/13 packages
+  independently `VERIFIED`**, zero package still `COMPLETE`-only.
+- **Integration coverage relied on:** the
+  [13-package re-review](integration-review-foundation-bucket.md#re-review--2026-07-26-13-package-scope-ip-1080)
+  — supersedes the prior 12-package review for this consolidated release's purposes; exercised
+  the two new seams (style+channel-mix-mute, style+Scheme-E) live and confirmed both correct. No
+  Critical/High finding anywhere.
+
+### Deviations
+
+- `FEAT-1080`/`IP-1080` followed the full, non-abbreviated planning path, same rigor as
+  `FEAT-1060`/`FEAT-1070` — not a deviation, this project's now-standard practice.
+- `IP-1080` required an explicit G3 stop-and-ask (R5 came from the roadmap's own sequence, not an
+  explicit build-and-ship filing) — not a deviation, the gate rule working as designed. The user
+  granted a broad, explicit authorization ("All work is pre authorized (generate new sessions for
+  verification work and continue)") — recorded on the Master Build Plan and honored exactly as
+  stated: `IP-1080` was built, then independently verified in a genuinely fresh, dispatched
+  session, per the same clause.
+- No feature in R5's scope was deferred, descoped, or split without a recorded authorization
+  trail. Two related, deliberately-scoped-out follow-ons are tracked, not silently dropped:
+  Celtic (a 4th style, needs new scale-table content) and Holiday's stepwise-motion-bias
+  refinement (`BL-0039`).
+
+### Residual risks (accepted if GO is given, per each item's own disposition)
+
+All residual risks from the prior R1-R4 assessment still apply unchanged (see above; none newly
+resolved or newly invalidated by R5). New items surfaced by R5:
+
+| Item | Severity | Disposition |
+|---|---|---|
+| `BL-0040` — `FS-108`'s acceptance criterion (4) states the bad-zone-independence invariant in absolute terms; `VR-1080`'s own broader stress sweep found a real, intentional, ≈16% same-frame-collision rate from unrelated channel activity (not a code defect) | Medium | `SCHEDULED`, non-blocking — a requirements-wording precision gap, not a functional risk; the underlying engine behavior is correct and intentional |
+| `BL-0041` — no shipped preset combines a named style with Scheme E; both mechanisms independently confirmed correct, only the combination itself is untested | Low | `SCHEDULED`, non-blocking — same pattern as `BL-0032`/`BL-0033`, folds into the same future preset-data follow-up |
+| `BL-0039` — Celtic (4th style) and Holiday's motion-bias refinement deliberately deferred past v1 | Low-Medium | `DEFERRED`, non-blocking — named, grounded follow-on scope, not a gap in what R5 promised |
+
+### Assessment
+
+**GO** — recommended, advisory, for adding R5 (`FEAT-1080`/`IP-1080`) to the shipped baseline
+alongside R1+R2+R3+R4:
+
+- `FEAT-1080` traces to a `VERIFIED` package with a real VR (`VR-1080`), same evidentiary bar as
+  every other shipped feature.
+- That package is now covered by a clean `10-integration-review` pass (the 13-package re-review),
+  with zero Critical/High findings anywhere in the tree — the two new findings (`BL-0040` Medium,
+  `BL-0041` Low) are both explicitly non-blocking.
+- Every deviation has a recorded authorization trail (including the G3 gate this package
+  correctly stopped at, and the user's own broad authorization language honored exactly as
+  stated); none is unauthorized drift.
+- Every residual risk — old and new — carries an explicit, honest disposition; none is a
+  silently-accepted Critical/High item.
+- R5's own completion criteria ("at least 3 high-confidence styles... independently verified")
+  is met exactly: 3 styles, independently verified, confirmed distinct.
+
+**No baseline record has been touched by this run.** Per the user's own standing instruction, this
+GO recommendation is not itself authorization to flip `ROADMAP.md`, the Feature Catalog,
+`Claude.md`'s status line, or any other tracker to reflect R5 as shipped — that flip happens only
+after the user's separate, explicit confirmation of this GO decision (G4). This assessment's job
+ends at the recommendation.

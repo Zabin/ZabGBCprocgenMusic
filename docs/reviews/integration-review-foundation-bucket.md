@@ -1,10 +1,10 @@
 # Integration Review — Foundation Release Bucket
 
-**This document now covers five reviews: the original 7-package review (2026-07-21, preserved
+**This document now covers seven reviews: the original 7-package review (2026-07-21, preserved
 below in full), a 2026-07-25 re-review at 9-package scope, an 11-package scope, a 12-package
-scope, and a 2026-07-26 re-review at full 13-package scope. See "Re-review — 2026-07-26
-(13-package scope, +IP-1080)" for the current state — earlier sections are kept verbatim as the
-historical record, not rewritten.**
+scope, a 13-package scope, a 14-package scope, and a 2026-07-26 re-review at full 15-package
+scope. See "Re-review — 2026-07-26 (15-package scope, +IP-1100)" for the current state — earlier
+sections are kept verbatim as the historical record, not rewritten.**
 
 ## Original review — 2026-07-21
 
@@ -667,3 +667,109 @@ documentation-staleness findings and one new Low data-coverage finding (extendin
 verification passes remain non-blocking. **No Critical/High finding anywhere. Recommend: this
 review does not block a future `11-release-readiness` call adding `IP-1090`/`BL-0010`'s
 motif-recurrence work to the shipped baseline.**
+
+## Re-review — 2026-07-26 (15-package scope, +`IP-1100`)
+
+**Scope:** the same 14-package set above, plus `IP-1100` (song-form via autonomous phase cycling,
+roadmap R6/`ADS-103`), now `VERIFIED` via
+[VR-1100](../implementation/verification/VR-1100-song-form-via-autonomous-phase-cycling.md). All
+15 packages confirmed `VERIFIED` on the Master Build Plan/`packages/INDEX.md` before starting.
+**`IP-1110` (Settings & Control Visibility) is explicitly out of scope** — it is `COMPLETE`, not
+yet `VERIFIED` (its independent fresh-session verification is running concurrently with this
+review, in a separate worktree); this review does not evaluate its correctness and touched no
+file its verification is also touching.
+
+Reviewed commit: `91ec1b8` (working tree at the start of this review — includes `IP-1110`'s
+already-committed code, since it landed on this branch before this review began, but `IP-1110`
+itself remains excluded from this review's own scope/verdict per the note above). Full suite
+re-run against this commit: **122/122 (T1-T18)** — the 15-package scope's own checks are `T1`-
+`T17` (112 checks, all passing); `T18` (10 checks, `IP-1110`'s own suite) is present in the tree
+and also passing, but is not this review's concern.
+
+### Dimension 1 — Interface consistency
+
+`grep`-confirmed every reference to `SONG_STATE`/`SONG_TABLE`/`song_tick` lives entirely inside
+`music_engine.py` — no `build_rom.py`, `input_map.py`, or `visuals.py` coupling was introduced.
+`_emit_song_tick` reads/writes only `SONG_STATE`/`SONG_STATE_TIMER_LO`/`SONG_STATE_TIMER_HI`/
+`TEMPO_IDX`/`DENSITY_IDX` — confirmed by direct inspection that it never touches
+`BAD_ZONE_FLAGS`/`DISSONANCE_SCORE`/`STALE_COUNT_*`/`ONSET_WINDOW_COUNT`/`CUR_DEGREE_*`/
+`MOTIF_VARIANT_IDX`/`scheme_state`, matching `IP-1100`'s own design claim exactly.
+
+### Dimension 2 — Invariant sweep
+
+ROM: 32768 bytes, valid header. `rom.pos` instrumentation (`ADR-0002`'s method) against the
+current tree (which includes `IP-1110`'s +449 bytes) measures 4240 used/28528 free; subtracting
+`IP-1110`'s own disclosed delta gives 3791 used/28977 free for the 15-package scope proper —
+matching `VR-1100`'s own independently-measured figure exactly. WRAM map: `SONG_STATE`
+(`0xC03D`)/`SONG_STATE_TIMER_LO`/`HI` (`0xC03E`-`0xC03F`) confirmed present in GDS-07 and
+`memory.md`, no collision with any other address (`MOTIF_VARIANT_IDX` at `0xC03C` immediately
+precedes the block; `0xC040`-`0xC04F` remains free headroom before `JOY_PREV` at `0xC050`).
+Module boundary: `music_engine.py` remains the sole owner of the song-form mechanism — no second
+module took on any part of this job.
+
+### Dimension 3 — Behavioral coherence — the actual new seam, exercised live
+
+Live-drove `CHMIX_IDX` to preset 6 (`IP-1070`'s only shipped Scheme-E-assigning preset) for 2000
+frames and sampled `SONG_STATE`/`MOTIF_VARIANT_IDX`/`BAD_ZONE_FLAGS` every frame: `SONG_STATE`
+correctly progressed `0` (INTRO) → `1` (BUILD) within the run (confirming the autonomous cycle
+advances normally alongside an active Scheme-E channel), `MOTIF_VARIANT_IDX` stayed at its initial
+value (statistically unsurprising over this few boundaries, consistent with `VR-1090`'s own
+much larger sample), and `BAD_ZONE_FLAGS`'s combined bit fired on a substantial fraction of frames
+(738/2000) with no hang, crash, or state corruption — bad-zone detection/recovery continued
+operating normally throughout a song-form phase transition. No interaction between any of the
+three mechanisms was observed beyond the shared, independently-confirmed-disjoint `TEMPO_IDX`/
+`DENSITY_IDX` write path already exercised adversarially by `VR-1100` itself.
+
+### Dimension 4 — Traceability coherence
+
+`ROADMAP.md` (stages 05-08), `docs/features/INDEX.md`, `docs/implementation/packages/INDEX.md`,
+`docs/implementation/verification/INDEX.md`, and the Master Build Plan all agree: 15/15 packages
+`VERIFIED`, `IP-1100` cross-linked to `FS-110`/`VR-1100` bidirectionally, and `IP-1110` correctly
+shown as `COMPLETE` (not `VERIFIED`) everywhere checked — no tracker prematurely calls it done.
+**One stale row found, not previously caught:** `docs/feature-planning/01-feature-catalog.md`'s
+release-bucket header (lines ~14-17) still reads "`FEAT-1100`... is not yet built" — inaccurate
+since `IP-1100` reached `VERIFIED` (this review's own scope confirms it); the same document's own
+per-feature body text and its most recent Feature Review entry (lines ~164 onward) already
+correctly describe `FEAT-1100` as reviewed/right-sized, so only the header's summary line is
+stale, the same class of drift the 14-package review already caught once for `FEAT-1090`'s own
+header wording.
+
+### Dimension 5 — Documentation coherence
+
+`memory.md` (`SONG_STATE`/`SONG_STATE_TIMER_LO`/`HI` rows) and GDS-07 (`§`3's `SONG_STATE` rows,
+plus the new `§9` visualizer VRAM/tile layout section `IP-1110` added) both confirmed accurate
+against the shipped code. `Claude.md`'s "Known Good Behavior" heading correctly reads `IP-1100`
+`VERIFIED` via `VR-1100`, not yet part of the shipped baseline — the staleness the 14-package
+review caught for `IP-1090`'s own heading text was already fixed by the time `IP-1100` landed,
+and no new staleness was introduced for `IP-1100`'s own heading text.
+
+## Findings (15-package re-review)
+
+| Finding | Packages/artifacts involved | Description | Severity | Recommended owner |
+|---|---|---|---|---|
+| (new) | `docs/feature-planning/01-feature-catalog.md` | The release-bucket header's `FEAT-1100` note still says "not yet built" — stale since `IP-1100` reached `VERIFIED`; the separate "not part of the shipped baseline" claim (pending `11-release-readiness` GO) remains accurate. Same class of drift the 14-package review already caught once for `FEAT-1090`'s own header wording. | Low (doc-coherence only, no functional impact) | 05-feature-decomposition (a one-line header edit the next time it touches this file) |
+| (carried forward, non-blocking) | `IP-1090`, `IP-1070`, `IP-1080` | `BL-0048` — no shipped `CHMIX_IDX` preset exercises `IP-1090`'s motif-variant selection together with a muted Scheme-E channel or a named (non-default) style. Already filed, extends the `BL-0032`/`BL-0033`/`BL-0041` family. | Low (data/test-coverage gap, not a functional defect) | 05/07 (already `SCHEDULED`, listed here for this scope's own completeness) |
+| (carried forward, non-blocking) | `IP-1100` | `BL-0052` — `T17.6` only forces the first (INTRO→BUILD) Start-press/phase-transition collision, not all three boundaries (though `VR-1100` independently confirmed all three by non-collision derivation, and the underlying mechanism is boundary-agnostic by construction). Already filed. | Low-Medium (test-coverage precision only; no functional risk) | 08-code-implementation (already `DEFERRED`, listed here for this scope's own completeness) |
+| (carried forward, non-blocking) | `IP-1100` | `BL-0053` — descriptive `OVERLOAD`-frequency data across song-form phases (BUILD 0.000%, PEAK 21.0%) for a future `SONG_TABLE` content-tuning pass. Already filed. | Low (descriptive data, no violation) | 09-content-review (already `DEFERRED`, listed here for this scope's own completeness) |
+| (carried forward, non-blocking) | `IP-1080` | `BL-0040` — `FS-108`'s acceptance criterion (4) states the bad-zone-independence invariant in absolute terms; a real but narrower guarantee holds. Already filed, routed to `04-requirements-engineering`. | Medium (requirements-wording precision only; no functional risk) | 04 (already `SCHEDULED`, listed here for this scope's own completeness) |
+| (carried forward, non-blocking) | `IP-1090` | `BL-0044`/`BL-0045` — `VR-1090`'s own two test-strength findings on the shipped `T16.6`/`T16.8`. Already filed, routed to `08-code-implementation`. | Medium (test-coverage precision only; no functional risk) | 08 (already `SCHEDULED`, listed here for this scope's own completeness) |
+
+## Verdict (15-package re-review)
+
+The full 15-package tranche integrates cleanly. `IP-1100`'s new seam (the autonomous song-form
+state machine) was confirmed structurally independent of bad-zone detection/recovery and
+Scheme-E motif-variant selection by direct code inspection (disjoint WRAM fields, exactly as
+`ADS-103` §2 claims), and its one genuinely adversarial cross-package risk (a Start-triggered
+style change landing on the exact same frame as a phase transition) was already exercised to a
+guaranteed collision at all three cycle-internal boundaries by `VR-1100`, with no corruption
+found. A 2000-frame live drive combining an active Scheme-E channel, ongoing bad-zone
+detection/recovery, and a song-form phase transition in the same run produced no interaction
+beyond the already-confirmed-disjoint `TEMPO_IDX`/`DENSITY_IDX` write path. One new Low
+documentation-staleness finding was filed (the same recurring class of drift this review series
+keeps catching one release-bucket-header line at a time); five findings carried forward from
+prior verification/review passes remain non-blocking, none newly elevated. **No Critical/High
+finding anywhere. Recommend: this review does not block a future `11-release-readiness` call
+adding `IP-1100`/roadmap R6's song-form work to the shipped baseline.** `IP-1110` (Settings &
+Control Visibility) was intentionally excluded from this review's scope, pending its own
+independent verification currently in progress — a future re-review at 16-package scope is the
+natural next step once that verification lands.

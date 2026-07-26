@@ -197,7 +197,7 @@ self-heals the very next frame (`update_visuals` reruns unconditionally every fr
 `CHMIX_IDX` (8 possible values) rather than a separate narrower set — those two bars simply never
 exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
 
-## Known Good Behavior (v1.5 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation + Genre-Aware Style Presets + Motif Recurrence via Weighted Variant Selection + Song-Form via Autonomous Phase Cycling + Settings & Control Visibility, `IP-1110` `COMPLETE` 2026-07-26, not yet independently verified/GO'd)
+## Known Good Behavior (v1.5 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation + Genre-Aware Style Presets + Motif Recurrence via Weighted Variant Selection + Song-Form via Autonomous Phase Cycling + Settings & Control Visibility, `IP-1110` `VERIFIED` 2026-07-26 via `VR-1110`, not yet part of the shipped baseline pending `11-release-readiness` GO)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
 - Boots within ~90 frames (GBC boot-ROM logo animation time) to: all 3 pitched channels (pulse
@@ -253,13 +253,14 @@ exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
   phases (INTRO/BUILD/PEAK/BREAKDOWN, looping), overwriting `TEMPO_IDX`/`DENSITY_IDX` to that
   phase's target values on each transition, no input required, over a ~110-second full cycle.
   Entirely independent of bad-zone detection/recovery and Scheme-E motif-variant selection.
-- Settings & control visibility (`IP-1110`, `BL-0051`/`ADS-104`, **`COMPLETE`, not yet
-  independently verified**): the visualizer displays 5 bar-height indicator tiles, one per base
-  control (tempo/octave/scale/density/channel-mix), each reflecting that parameter's current
-  index, updated every frame — purely additive to the existing channel-activity tiles/palette,
-  no new palette, no font/text rendering. A disclosed, self-healing one-frame display lag exists
-  specifically on the frame a Select reset is pressed (see "Change settings-indicator tile
-  patterns" above).
+- Settings & control visibility (`IP-1110`, `BL-0051`/`ADS-104`, **`VERIFIED` via `VR-1110`, not
+  yet part of the shipped baseline**): the visualizer displays 5 bar-height indicator tiles, one
+  per base control (tempo/octave/scale/density/channel-mix), each reflecting that parameter's
+  current index, updated every frame — purely additive to the existing channel-activity
+  tiles/palette, no new palette, no font/text rendering. A disclosed, self-healing one-frame
+  display lag exists specifically on the frame a Select reset is pressed (independently
+  reproduced by `VR-1110` across 3 distinct pre-Select sequences; see "Change settings-indicator
+  tile patterns" above).
 
 **122/122 `test_rom.py` checks pass** (T1-T18). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.

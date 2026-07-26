@@ -31,6 +31,10 @@
 | FR-1200 | A pitched channel running Scheme E gates its note onsets through the same Euclidean-pattern mechanism the noise channel already uses for density-driven hits (reusing `DENSITY_IDX`'s existing k-value selection), rather than a fixed per-tempo timer reload — producing a patterned, not continuously-regular, onset rhythm. | ADS-100 §3 (Domain Model: "Scheme E," onset timing), R202 |
 | FR-1210 | A pitched channel running Scheme E selects its next scale-degree by stepping through a fixed, precomputed cyclic motif (a short sequence of scale-degree deltas), rather than an LFSR-picked random delta. | ADS-100 §3 (Domain Model: "Scheme E," pitch selection), R211, R216 |
 | FR-1220 | Bad-zone detection (`FR-1080`/`FR-1090`/`FR-1100`) and autonomous recovery (`IP-0007`'s dissonant/stuck/overload-driven overrides) apply identically to a pitched channel regardless of which generation scheme (Scheme W or Scheme E) it is currently running — no scheme-specific bad-zone logic exists. | ADS-100 §2 ("both schemes still write through the same `BAD_ZONE_FLAGS`-driven... overrides"), §5 (FR-candidate 4) |
+| FR-1230 | Each `CHMIX_IDX` preset value maps to a style data row specifying that style's target tempo index, density index, scale/mode index, and duty-cycle bias. | ADS-101 §2/§3/§5 (FR-candidate 1) |
+| FR-1240 | Changing `CHMIX_IDX` (Start) applies its mapped style row's target values to `TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX`/the duty-cycle-bias state immediately on the press that changes the preset — not gated to the next note-onset event, unlike `CHMIX_IDX`'s channel-activity/scheme-select half (`FR-1190`). | ADS-101 §2/§4/§5 (FR-candidate 2) |
+| FR-1250 | The style data defines at least 3 named styles, each producing a tempo/density/scale/duty-cycle-bias combination that is audibly distinguishable, by content review, from every other defined style and from the default (preset-0) combination. | ADS-101 §3/§5 (FR-candidate 3) |
+| FR-1260 | The style row mapped to `CHMIX_IDX` preset 0 (the boot/Select-reset preset) specifies exactly the tempo/density/scale/duty-cycle-bias combination already shipped as the default preset — selecting preset 0 introduces no change to current boot/reset behavior. | ADS-101 §5 (FR-candidate 4) |
 
 ## Non-Functional Requirements
 
@@ -44,6 +48,8 @@
 | NFR-1050 | Arpeggio/vibrato/portamento's added per-frame work (sub-tick cycling, phase-counter advance, glide-step computation) fits within the existing VBlank-tick budget (NFR-1010) — verified by the same extended-run headless stress-test method already used for the shipped engine, not by static cycle analysis (R101's own "no gap yet" conclusion still applies; see NFR-1010). | R101, R308, NFR-1010 |
 | NFR-1060 | Scheme E's motif table(s) (ROM-resident, fixed at build time) and any per-channel "current motif step" scratch state add bounded ROM/WRAM — the total addition stays within the current 32KB single-bank budget (GDS-07 §6's headroom) with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5). | ADS-100 §6, MSTR-001 §4, GDS-07 §6 |
 | NFR-1070 | Generation-scheme selection introduces no new WRAM control byte and no new input control — the scheme assignment for each pitched channel is derived from the existing `CHMIX_IDX`/`CHMIX_MASKS` mechanism (`FR-1000`/`FR-1010`, `IP-9010`) each tick, the same way other per-channel constants are already Python-level, not stored, state. | ADS-100 §6/§7, ADR-0001 |
+| NFR-1080 | The style data table (one row per `CHMIX_IDX` preset) and its one new WRAM byte (duty-cycle bias) add bounded ROM/WRAM — the total addition stays within the current 32KB single-bank budget (GDS-07 §6's headroom) with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5). | ADS-101 §6, MSTR-001 §4, GDS-07 §6 |
+| NFR-1090 | Style selection introduces no new input control — it is triggered by the existing `CHMIX_IDX`/Start mechanism (`FR-1060`) already in use for channel-activity/scheme-select, reusing the same preset index rather than requesting a distinct control. | ADS-101 §6/§7 |
 
 ## Open items carried to feature decomposition
 
@@ -59,6 +65,13 @@
   to which channel) are likewise data/preset decisions deferred to feature decomposition/spec/
   implementation — this pass fixes behavior shape (ADS-100's own "shape, not values" framing),
   same convention as every prior preset-table deferral.
+- FR-1230-FR-1260's exact parameters (which 3+ styles map to which `CHMIX_IDX` presets, the exact
+  tempo/density/scale/duty-bias values each style targets, the `DUTY_BIAS`-combination rule
+  `BL-0038` flagged) are likewise data/implementation decisions deferred to feature decomposition/
+  spec/implementation — `ADS-101` §3 already names 3 concrete candidate styles (Techno/Chiptune-
+  Driving, Ambient/Lo-Fi, Holiday) as the recommended starting data, not yet baselined as
+  requirement text since specific preset-table values are this project's established deferral
+  point, same convention as every prior preset-table addition.
 
 ## Changelog
 
@@ -66,6 +79,7 @@
 |---|---|---|
 | 2026-07-22 | Added FR-1130 (arpeggio), FR-1140 (vibrato), FR-1150 (portamento), FR-1160 (duty-cycle variation), FR-1170 (percussion-synthesis trace, no new behavior), NFR-1040 (ROM/WRAM budget), NFR-1050 (per-frame timing budget). Delta update per `BL-0024` (user-directed R216 sound-design-techniques implementation). No existing FR/NFR changed. | `BL-0024`, grounded in `R216`. |
 | 2026-07-25 | Added FR-1180 (scheme-select determines note-selection strategy), FR-1190 (scheme switch takes effect at next onset, mirroring `IP-9010`'s activity-mask behavior), FR-1200 (Scheme E onset timing reuses the Euclidean-pattern mechanism), FR-1210 (Scheme E pitch selection via a fixed motif), FR-1220 (bad-zone detection/recovery is scheme-agnostic), NFR-1060 (ROM/WRAM budget), NFR-1070 (no new WRAM control byte/input control). Delta update formalizing `ADS-100` §5's candidate FRs per `BL-0020`, now that `IP-9010` has shipped with the bit layout `ADR-0001`'s contingency assumed (bits 0-3 channel-active, confirmed against the actual shipped `CHMIX_MASKS` — no re-check needed). No existing FR/NFR changed. | `BL-0020`, grounded in `ADS-100`/`ADR-0001`. |
+| 2026-07-26 | Added FR-1230 (`CHMIX_IDX` preset maps to a style data row), FR-1240 (style values applied immediately, not gated to next onset — the one behavioral contrast with `FR-1190`'s scheme-select timing), FR-1250 (at least 3 audibly-distinct styles), FR-1260 (preset-0 style matches shipped default, no regression), NFR-1080 (ROM/WRAM budget), NFR-1090 (no new input control). Delta update formalizing `ADS-101` §5/§6's candidate FRs/NFRs for R5 (Genre-Aware Style Presets). No existing FR/NFR changed. | Roadmap R5, grounded in `ADS-101`. |
 
 ## Delta Review — 2026-07-25 (`FR-1180`-`FR-1220`, `NFR-1060`/`1070`)
 
@@ -104,3 +118,33 @@ separate deliverables `04-requirements-engineering`'s own workflow specifies (a 
 `04-requirements-traceability-matrix.md` were never authored). This delta update follows the
 established single-file convention rather than unilaterally restructuring — the split is a
 `refactor`-type backlog candidate for a future pass, not addressed here.
+
+## Delta Review — 2026-07-26 (`FR-1230`-`FR-1260`, `NFR-1080`/`1090`)
+
+Reviewed this delta only, same "not a wholesale regeneration" convention as the prior delta pass:
+
+- **No duplicate or conflicting requirement.** `FR-1230`-`FR-1260` introduce a genuinely new
+  concept (style-driven coordinated parameter overwrite) orthogonal to every existing FR. The one
+  place a conflict could plausibly arise — `FR-1240`'s "applied immediately" vs. `FR-1190`'s
+  "takes effect at next onset" for the *same* `CHMIX_IDX` press — is not actually a conflict: the
+  two govern different state (`FR-1190` governs scheme/channel-activity, both read per-onset by
+  the generation routines already; `FR-1240` governs `TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX`/duty
+  bias, all read per-tick by existing code exactly like a manual D-pad/A/B change already is) —
+  the timing difference is a deliberate, cited design decision (`ADS-101`'s own Decision Log), not
+  an oversight, and is called out explicitly in `FR-1240`'s own text so a future reader isn't left
+  to infer it.
+- **No architecture violation.** Each FR/NFR traces directly to `ADS-101`; no ADR is directly
+  implicated (this feature didn't need a new ADR — `ADS-101`'s own Decision Log carries its
+  binding decisions).
+- **No missing requirement.** `ADS-101` §5/§6's four FR-candidates and (implicitly) two
+  NFR-candidates all became baseline requirements — none silently dropped. `ADS-101`'s Open
+  Questions (`DUTY_BIAS` combination rule, Celtic/Holiday-motion follow-ups) are correctly *not*
+  baselined here — they're implementation-level/future-scope decisions, not requirements gaps,
+  already tracked as `BL-0038`/`BL-0039`.
+- **Traceability:** every new ID's Source Documents column cites `ADS-101`'s specific section. No
+  candidate needed — every statement in `ADS-101` §5/§6 was traceable to the document itself.
+- **Forward traceability (Module/FS/IP/Test):** all `UNASSIGNED` — correctly honest, no `FS-xxx`/
+  package/test exists yet for R5.
+
+No Critical/High finding. This delta is ready for `05-feature-decomposition` to add a
+`FEAT-1080`-equivalent catalog row once picked up.

@@ -159,11 +159,25 @@ depend on this exact sequence:
    §1.2's last-write-wins contract **bottoms out precisely here**, and `VR-1100` confirmed it by
    forcing collisions at all three phase boundaries.
 
-GDS-06 §2.2's frame-budget finding also bottoms out here: the Select-frame VRAM-write drop happens
-because `apply_input`'s `init_engine` call inflates step 2, pushing step 4's writes past the safe
-window. **The call order is where timing, correctness, and the write-collision contract all
-meet** — which is why it deserves to be stated as an interface rather than left implicit in
-`build_rom.py`.
+`GDS-06` §2.2's frame-budget finding also bottoms out here — **corrected 2026-07-31 (`BL-0069`),
+because the original wording of this paragraph stated a claim that has since been falsified.**
+
+~~The Select-frame VRAM-write drop happens because `apply_input`'s `init_engine` call inflates
+step 2, pushing step 4's writes past the safe window.~~ There is no Select-frame write drop; no
+write is dropped on any frame, and the harness could never have shown otherwise (`GDS-06` §2.3,
+`R301` §3). What is true, and is *more* a fact about this call order than the withdrawn claim was:
+**steps 1-3 (`read_joypad` → `apply_input` → `engine_tick`) consume roughly 9 of VBlank's 10
+scanlines on every frame, so step 4 (`update_visuals`) runs against roughly one remaining
+scanline** — measured, `R101` §8.5. The ordering this section documents is therefore not merely a
+correctness contract (who writes last wins) but a **budget allocation**: three steps that touch no
+VRAM at all determine how much window the one step that does has left. No frame class is special —
+`Select` and `Start` are a few instructions further along an already-spent budget, not a distinct
+category.
+
+**The call order is where timing, correctness, and the write-collision contract all meet** — which
+is why it deserves to be stated as an interface rather than left implicit in `build_rom.py`. That
+conclusion stands, and the corrected finding strengthens it: a package adding work to *any* of
+steps 1-3 spends head-room that only step 4 needs, which is invisible at every call site.
 
 ## §6 Import direction — and the duplication it buys
 

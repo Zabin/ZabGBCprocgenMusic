@@ -94,11 +94,20 @@ own separate signal."
 
 1. **The presentation layer holds no state of its own.** Nothing to initialize beyond boot, nothing
    to keep consistent, no possibility of the display and the engine disagreeing about what changed.
-2. **It is self-healing.** This is not a nicety — it is the specific reason `IP-1110`'s disclosed
+2. **It is self-healing.** ~~This is not a nicety — it is the specific reason `IP-1110`'s disclosed
    Select-frame dropped write is a cosmetic one-frame artifact rather than a persistent
-   corruption. A dropped write under an event-driven design would leave the cell wrong until the
-   next event; under re-render-every-frame the very next frame repairs it unconditionally. The
-   architecture absorbed a real timing failure without anyone having designed for that case.
+   corruption.~~ **Corrected 2026-07-31 (`BL-0069`): the example was false, the property is not.**
+   `IP-1110`'s "dropped write" was a harness sampling artifact and no write was ever dropped
+   (`GDS-06` §2.2a) — so this contract was never actually called upon in the way this passage
+   claimed. What survives, and is worth stating more carefully than the original did: a dropped
+   write under an event-driven design would leave the cell wrong until the next event; under
+   re-render-every-frame the very next frame repairs it unconditionally. **That property is real
+   and is exactly the mitigation that matters for the exposure the project actually has** — `R102`
+   §3c records that on physical hardware, where mode 3 *is* enforced, this ROM's ~one-scanline
+   VBlank margin means a write genuinely could be discarded. This contract is why that would be a
+   one-frame cosmetic blemish rather than a persistent corruption. The architecture does absorb
+   that failure mode; it simply has not yet been observed doing so, because nothing here can
+   observe it (`GDS-06` §2.3).
 3. **The cost is a fixed per-frame floor.** Nine reads and nine writes happen every frame whether
    anything changed or not. At current scale that is trivially affordable — but it is *not* free,
    and GDS-06 §2.2 records that the frame budget is tighter than assumed on at least one frame

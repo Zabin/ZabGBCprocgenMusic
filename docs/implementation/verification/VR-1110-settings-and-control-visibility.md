@@ -146,3 +146,36 @@ corrected in place as part of this VR's ledger updates rather than left as a pur
   "not yet built" to reflect `VERIFIED` status (mirroring the existing `FEAT-1100` clause's own
   phrasing).
 - This VR added to `docs/implementation/verification/INDEX.md`.
+
+---
+
+## Correction notice — 2026-07-31 (`BL-0069`/`BL-0073`)
+
+**This report's independent reproduction of the "Select-frame dropped write" finding was itself
+wrong, and the report is retained unaltered above as the record of what the verification run
+concluded.** No finding in it is withdrawn as to `IP-1110`'s *behaviour* — the package's DoD was
+correctly verified and `IP-1110` remains `VERIFIED`. What is withdrawn is the **mechanism** the
+report attributed the observed one-frame display lag to.
+
+**What was actually happening.** `pb.tick(1)` advances exactly one ROM frame but returns at a
+point *inside* that frame's work — after `apply_input` has updated the WRAM indices and before
+`update_visuals` has re-rendered `SETTINGS_CELLS` from them. A frame-by-frame probe that reads
+WRAM and the derived tilemap cells after the same `tick()` is therefore comparing **two different
+moments of the ROM's frame**, and will report a one-frame lag whether or not anything is wrong.
+It does so uniformly — on plain index steps exactly as much as on Select, and on idle frames with
+no input at all. Full evidence: `R308` §8.5, `R101` §8.5, and `IP-9030`'s Blocking Report.
+
+**Why this matters beyond a correction.** This report did the right thing procedurally: it
+declined to reuse `T18`'s own button sequence, built its own probe (`select_frame_probe.py`), and
+reproduced the shape 3/3 across three distinct pre-Select sequences. That independence was real
+and is exactly what the convention asks for. **It nevertheless confirmed a false finding, because
+independence of *session and fixture* is not independence of *method* — the probe repeated the
+same sampling error the original experiment made.** `BL-0073` carries the open question of whether
+`09-package-verification`'s conventions should require method-independence when confirming a
+*finding*, as opposed to verifying a package's Definition of Done. `R305` §3 now carries the
+`tick()` sampling hazard as a standing test-design rule so the specific error is caught next time.
+
+**Rows affected:** the "Select resets the underlying WRAM fields... (disclosed exception)" row's
+*explanation* column. Its Pass verdict stands — the behaviour it verified (WRAM resets on the
+Select frame; the display agrees within one further frame) is real and correctly observed. Only
+the causal account is withdrawn.

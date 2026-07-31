@@ -31,12 +31,37 @@ frame/tick control.
 - **Window mode**: "dummy" and "headless" window types were merged into `'null'` in the 2.x line
   — `test_rom.py`'s `window='null'` is the current-correct headless mode, not a legacy alias
   [PyBoy Wiki — Migrating from v1.x.x to v2.0.0](https://github.com/Baekalfen/PyBoy/wiki/Migrating-from-v1.x.x-to-v2.0.0).
+- **⚠️ VRAM writes are accepted unconditionally — PyBoy models no PPU-mode gating.** On real
+  hardware the CPU cannot write VRAM during PPU mode 3; the write is discarded (`R102` §3). PyBoy
+  2.7.0 does not simulate this. `pyboy/core/mb.py`'s `setitem()` handles `0x8000 <= i < 0xA000` at
+  **lines 502-511** by writing `lcd.VRAM0`/`VRAM1` directly; the only branch is the CGB VRAM-bank
+  select (`lcd.vbk.active_bank`), and there is no `STAT`/mode check anywhere in the path. The read
+  path (`getitem`, lines 370-374) is likewise ungated. Verified by reading the installed package
+  source, 2026-07-31; version confirmed `2.7.0` via `pip show pyboy`. **Consequence: a dropped
+  VRAM write is not an observable event in this harness, and no PyBoy-based test can establish or
+  refute that one occurred.** This is not a bug in PyBoy — it is a deliberate accuracy/speed
+  trade-off common to non-cycle-accurate emulators — but it is a hard boundary on what this
+  project's entire test suite can prove. It has already produced one false finding that survived
+  independent verification: see `R308` §8.5.
+- **`LY` (`0xFF44`) *is* modelled and is readable by the ROM.** The scanline counter behaves
+  correctly and can be read from inside the ROM (`LDH A,(0x44)`) and stored to WRAM for the
+  harness to read back. This is the workaround for the limitation above: **timing questions the
+  harness cannot answer by observing VRAM effects, it can often answer by having the ROM report
+  its own position in the frame** — evidence that depends on no emulator behaviour beyond a plain
+  memory-mapped counter. `R308` §8.5's corrected measurement is built entirely on this technique.
 - **`sound_emulated`**: confirmed via direct `IP-0001` testing that `sound_emulated=True` is
   required (or at least sufficient) for `NR52`'s active-channel bits to reflect real state —
   the reference project ran with `sound_emulated=False` throughout (it never asserted on audio),
   so this project's own use is new-tested ground, not inherited.
 
 ### Sources
+- PyBoy 2.7.0 installed package source, `pyboy/core/mb.py` — `setitem()` lines 502-511 (VRAM write
+  path, no mode gating) and `getitem()` lines 370-374 (VRAM read path, no mode gating). Read
+  directly from the installed package 2026-07-31; version confirmed via `pip show pyboy`. Tier-A.
+- [`R308` §8.5](R308-performance-budgeting.md#85-self-correction--2026-07-31-the-dropped-write-mechanism-was-wrong-bl-0069)
+  and [`IP-9030`'s Blocking Report](../../implementation/packages/IP-9030-vram-write-integrity-detection.md#blocking-report--2026-07-31-08-code-implementation-run-102)
+  — the false finding this limitation produced, and the WRAM-mirror experiment that confirmed no
+  write is ever dropped.
 - [PyBoy API documentation (docs.pyboy.dk)](https://docs.pyboy.dk/)
 - [PyBoy GitHub — Baekalfen/PyBoy](https://github.com/Baekalfen/PyBoy)
 - [PyBoy Wiki — Migrating from v1.x.x to v2.0.0](https://github.com/Baekalfen/PyBoy/wiki/Migrating-from-v1.x.x-to-v2.0.0)
@@ -55,6 +80,21 @@ frame/tick control.
   `WindowEvent`, which would be a regression to the pre-2.0 API per the migration guide above.
 - Any future PyBoy version bump should be re-checked against the Migration wiki before assuming
   API stability — pin the version explicitly in project docs (this topic) whenever it changes.
+- **DO NOT write a `test_rom.py` check that asserts a VRAM write was dropped, or that one was
+  *not* dropped, on PPU-timing grounds.** Per §3, the harness accepts every VRAM write regardless
+  of PPU mode, so such a check asserts nothing about the property it names — it will pass on a ROM
+  that would fail on silicon, and it cannot be made to fail by any timing defect. Whatever it
+  appears to measure is something else.
+- **DO express VBlank-timing claims as `LY` budget assertions instead.** Have the ROM read `LY`
+  at the point of interest (e.g. entry to `update_visuals` in `visuals.py`) and store it to a WRAM
+  byte; assert in `test_rom.py` that the value stays within 144-153. This is falsifiable, depends
+  only on the scanline counter, and asserts the actual invariant the design relies on.
+- **DO check the emulator's own source before inferring a hardware mechanism from an emulator
+  observation.** One `grep` of `mb.py`'s memory-write path is the whole cost, and skipping it is
+  what produced `R308` §8's false finding. Generalised as a standing rule in `R305` §3.
+- **DO route any claim that genuinely requires mode-3 enforcement to physical hardware** — it is
+  unanswerable here by construction. `GDS-02` §7 / `BL-0058` track that Driftune has never run on
+  real hardware; this limitation is a concrete reason that matters.
 
 ## 6. Feature Mapping
 
@@ -65,7 +105,7 @@ All of `test_rom.py`, NFR-1020, `IP-0001`'s T1-T5 suites.
 
 *Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
 
-✅ **TRACED.** Grounds `test_rom.py`'s entire PyBoy usage — `fresh_boot()`, `pb.memory[]` register/WRAM reads, `button_press`/`button_release`, `tick()`, `set_emulation_speed(0)` — shipped and exercised by all 122 checks (`T1`-`T18`), and by every `VR-xxxx`'s independent live drive. Requirements: `NFR-1010`/`NFR-1020`.
+✅ **TRACED.** Grounds `test_rom.py`'s entire PyBoy usage — `fresh_boot()`, `pb.memory[]` register/WRAM reads, `button_press`/`button_release`, `tick()`, `set_emulation_speed(0)` — shipped and exercised by all 122 checks (`T1`-`T18`), and by every `VR-xxxx`'s independent live drive. Requirements: `NFR-1010`/`NFR-1020`. **Extended 2026-07-31 (`BL-0069`):** §3's VRAM-mode-gating limitation traces forward *negatively* but concretely — it is why `IP-9030`'s planned `T19` write-integrity suite is not buildable and why that package is `BLOCKED`, and it is the grounding for the `LY`-budget assertion that should replace it. A research finding that stopped a package from shipping an unfalsifiable test is a real forward trace, not an exception.
 
 ## 7. Related Topics
 

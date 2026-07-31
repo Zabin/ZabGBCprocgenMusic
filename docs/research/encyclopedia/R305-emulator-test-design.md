@@ -30,6 +30,31 @@ structure a button-driven behavioral test.
   the correct shape for edge-triggered input (R107) — reading state *during* the press (before
   release) risks catching a transient mid-transition value rather than the settled post-edge
   state.
+- **⚠️ `pb.tick()` returns at a point *inside* the ROM's frame, not between frames — so state read
+  after a `tick` is not internally consistent.** Measured 2026-07-31 (PyBoy 2.7.0): a ROM-side
+  frame counter confirms exactly one ROM frame elapses per `tick(1)`, but the sampling point falls
+  *after* `apply_input` has updated a steering index and *before* `update_visuals` has re-rendered
+  the indicator from it. **Therefore: a check that reads a WRAM field and its derived VRAM cell
+  after the same `tick()` and asserts they agree is comparing two different moments of the ROM's
+  frame, and will report a spurious one-frame lag.** This is not an occasional race — it is
+  deterministic, uniform across every frame class, and it occurs on idle frames with no input at
+  all. It is the error that produced `R308` §8's false "dropped writes" finding, which then
+  survived independent verification in `VR-1110` because the reproduction repeated the same
+  sampling mistake. Correct shapes: assert WRAM against WRAM, assert VRAM against VRAM, or drive
+  one extra `tick` and assert the derived cell has caught up (which is what `T18.10` already does,
+  correctly, though its comment attributes the lag to the wrong cause).
+- **⚠️ An emulator observation is only evidence about hardware for behaviour the emulator actually
+  models — check the source before inferring a mechanism.** PyBoy applies no PPU-mode gating to
+  VRAM writes (`R301` §3, `mb.py:502-511`), so no test here can observe a mode-3 discard. The
+  standing rule this generalises to: **before concluding that a hardware mechanism explains an
+  observed emulator behaviour, read the emulator's implementation of that mechanism.** If it isn't
+  implemented, the observation is evidence about the harness, not the hardware. The check costs one
+  `grep`; skipping it cost this project a finding that propagated into five documents and one
+  planned package before being caught. Corollary for test design: **prefer assertions whose
+  evidence chain runs through state the ROM itself computes and records** (a WRAM byte the ROM
+  wrote, an `LY` value the ROM read) **over assertions that infer ROM behaviour from an emulated
+  peripheral's side effects** — the former depends only on the CPU being correct, which is the one
+  thing every emulator gets right.
 
 ### Sources
 - Primary source is this project's own `IP-0001` implementation and its build-time debugging
@@ -70,7 +95,32 @@ parameter/reset checks) already implements every pattern above.
 - **Hardware compatibility testing** (real GBC hardware, or cross-checking against SameBoy/BGB —
   R309): not currently performed; MSTR-001 §4 names real-hardware certification a deliberate
   non-goal at this vision's date. Cross-emulator checking (R309) remains available as a cheaper
-  partial substitute for genuinely surprising findings, not a required step.
+  partial substitute for genuinely surprising findings, not a required step. **Updated 2026-07-31
+  (`BL-0069`):** this is no longer purely an aspiration — §3's PyBoy VRAM-gating limitation means
+  there is now a *named, specific* question (does Driftune's near-exhausted VBlank budget actually
+  drop visualizer writes on silicon?) that this harness cannot answer even in principle. Where
+  `R308` §8.5 measures the margin at a handful of instructions, cross-checking against a
+  mode-accurate emulator (SameBoy/BGB, R309) is the cheapest available next step and is a genuine
+  substitute for hardware on *this* question specifically.
+
+### What the harness can and cannot establish
+
+A blunt statement of the boundary, because it bounds every `test_rom.py` check and every `VR-xxxx`
+independent drive:
+
+| Claim class | Establishable here? | How |
+|---|---|---|
+| Engine state transitions, index arithmetic, reset/preset semantics | **Yes** | WRAM mirror reads (§3) |
+| Which channels are sounding | **Yes** | `NR52` (§3) |
+| Tile/tilemap/palette *content* the ROM intended to write | **Yes** | VRAM reads — but see the `tick()` sampling hazard |
+| Where in the frame a routine runs; VBlank budget head-room | **Yes** | ROM-side `LY` probe stored to WRAM (`R301` §5) |
+| Whether a VRAM write was *accepted* by the PPU | **No — by construction** | PyBoy accepts all writes (`R301` §3); needs silicon or a mode-accurate emulator |
+| Sub-scanline (mode 2 vs. mode 3) write placement | **No** | same |
+| Analog audio output quality | **No** | out of scope for register-level assertions (`MSTR-001` C9) |
+
+**Do not write a check whose name implies a claim from the bottom half of that table.** A test
+that cannot fail is worse than no test: it converts an open question into a false record of
+coverage, which is precisely what happened between `R308` §8 and `VR-1110`.
 
 ## 6. Feature Mapping
 
@@ -81,7 +131,7 @@ parameter/reset checks) already implements every pattern above.
 
 *Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
 
-✅ **TRACED.** Grounds the shipped harness's central design choice — assert on sound registers and the WRAM engine-state mirror rather than the framebuffer (`MSTR-001` C9) — realised across all 18 `test_rom.py` suites. Design: [GDS-02 §4](../../architecture/02-system-context.md).
+✅ **TRACED.** Grounds the shipped harness's central design choice — assert on sound registers and the WRAM engine-state mirror rather than the framebuffer (`MSTR-001` C9) — realised across all 18 `test_rom.py` suites. Design: [GDS-02 §4](../../architecture/02-system-context.md). **Extended 2026-07-31 (`BL-0069`):** §3's two new hazards (the `tick()` mid-frame sampling point, and inferring hardware mechanisms from unmodelled emulator behaviour) trace forward to `IP-9030`'s `BLOCKED` status and to the re-scoped `LY`-budget assertion that replaces its planned `T19`. The §5 can/cannot table is the standing constraint every future suite is written against.
 
 ## 7. Related Topics
 

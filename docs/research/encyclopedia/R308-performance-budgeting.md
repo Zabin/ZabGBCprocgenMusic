@@ -64,7 +64,7 @@ No current `IP-xxxx` — informational baseline for future headroom decisions.
 
 *Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
 
-⚠️ **TRACE STATUS CHANGED 2026-07-26 — see §8.** Originally an informational baseline whose §5 grounded a decision **not** to act (no compression, no cycle counting) — a legitimate `MSTR-001` C10 exception shape, though never recorded as one. **§8 reverses the cycle-counting half of that conclusion on new evidence**, so this topic now carries an *open, actionable* recommendation (a VRAM-write-integrity check, then cycle tallying) tracked as **`BL-0060`**/**`BL-0061`**. The ROM/RAM-budgeting half remains a correctly-traced confirmation (`ADR-0002`'s `rom.pos` convention descends from it).
+⚠️ **TRACE STATUS CHANGED 2026-07-26 — see §8; MECHANISM CORRECTED 2026-07-31 — see §8.5.** Originally an informational baseline whose §5 grounded a decision **not** to act (no compression, no cycle counting) — a legitimate `MSTR-001` C10 exception shape, though never recorded as one. **§8 reverses the cycle-counting half of that conclusion on new evidence**, so this topic now carries an *open, actionable* recommendation tracked as **`BL-0060`**/**`BL-0061`**/**`BL-0069`**. **§8.5 (2026-07-31) withdraws §8's dropped-write mechanism as falsified** and replaces the recommendation with a per-frame `LY` budget assertion; the budget-exceeded conclusion itself survives on stronger evidence. The ROM/RAM-budgeting half remains a correctly-traced confirmation (`ADR-0002`'s `rom.pos` convention descends from it).
 
 ## 7. Related Topics
 R110 (the cycle-budget discipline this topic's "no compression needed yet" call depends on),
@@ -94,6 +94,8 @@ a specific reproducible frame class rather than random drops under load.
 Run 2026-07-26 against the shipped ROM at commit `e4db8ef`, PyBoy 2.7.0. Method: drive one button,
 read the affected WRAM index and its corresponding settings-indicator tilemap cell on the press
 frame itself, and compare. Also read `CHANNEL_CELLS` against `NR52` on the same frame.
+
+> ⚠️ **THE TABLE BELOW AND §8.3'S MECHANISM WERE FALSIFIED ON 2026-07-31 — READ [§8.5](#85-self-correction--2026-07-31-the-dropped-write-mechanism-was-wrong-bl-0069) BEFORE CITING ANY OF IT.** No write is dropped; PyBoy cannot drop one. §8.1-§8.4 are retained verbatim as the methodological record of how the error was made and caught. **§8.4's headline conclusion — that the per-frame budget is being exceeded and cycle accounting is warranted — survives, and is now better evidenced**; only the mechanism and this table's interpretation are withdrawn.
 
 | Frame class | Extra work in that frame | Settings-row writes | Channel-activity writes |
 |---|---|---|---|
@@ -180,3 +182,117 @@ reliably achieve it.
   the original three-sequence reproduction of the Select-frame case.
 - [Pan Docs — Accessing VRAM and OAM](https://gbdev.io/pandocs/Accessing_VRAM_and_OAM.html) —
   mode-3 VRAM inaccessibility, already cited in `R102`.
+
+---
+
+### 8.5 Self-correction — 2026-07-31: the dropped-write mechanism was wrong (`BL-0069`)
+
+`IP-9030` was planned to *detect and quantify* the §8.2 finding. Stage 08 built the diagnostic the
+package specified, took the measurement, and the measurement falsified the finding. The package is
+`BLOCKED` and carries the full evidence in its own
+[Blocking Report](../../implementation/packages/IP-9030-vram-write-integrity-detection.md#blocking-report--2026-07-31-08-code-implementation-run-102).
+This subsection records the correction at the topic that made the claim.
+
+**The claim withdrawn:** that visualizer VRAM writes are silently *dropped* on Start-press,
+Select-press and song-form phase-transition frames, discarded by the PPU in mode 3, with plain
+index steps unaffected — and that the "partial drop" (cell 0 landed, cell 3 did not) was decisive
+evidence of a write sequence cut off mid-block.
+
+**Why it is wrong — two independent lines of evidence.**
+
+1. **PyBoy models no PPU-mode gating on VRAM access whatsoever.** In PyBoy 2.7.0
+   (`pip show pyboy`, installed version confirmed 2026-07-31), `pyboy/core/mb.py`'s `setitem()`
+   handles `0x8000 <= i < 0xA000` at lines 502-511 by writing `lcd.VRAM0`/`VRAM1` unconditionally
+   — the only branch is the CGB VRAM-bank select (`lcd.vbk.active_bank`); there is no `STAT`/mode
+   check anywhere in the path. The matching read path (`getitem`, lines 370-374) is likewise
+   ungated. **A dropped VRAM write is therefore not an observable event in this harness.** The
+   §8.2 experiment could not have confirmed one, and did not.
+
+2. **Direct measurement shows nothing is dropped.** An instrumented build mirrored each
+   settings-cell value into a WRAM byte at the same instant it wrote that value to VRAM. The
+   WRAM mirror and the VRAM byte are **identical on every frame of every class** — the write
+   always lands.
+
+**What was actually being observed — a harness observation-window artifact.** `pb.tick(1)`
+returns at a point *inside* the ROM's frame work: after `apply_input` has updated the steering
+index, but before `update_visuals` has re-rendered the indicator from it. A ROM-side frame counter
+incremented at the main-loop top confirms exactly one ROM frame elapses per `tick`, so this is not
+a dropped or doubled frame — it is a **sampling point that falls mid-frame**. Every observation
+therefore shows the indicator exactly one frame behind its source:
+
+| Frame class | `TEMPO_IDX` after `tick` | value the ROM wrote that frame | VRAM cell | reading |
+|---|---|---|---|---|
+| `Up` (plain index step) | 5 | 6 (the *old* index) | 6 | **one-frame lag** |
+| `Start` (style apply) | 6 | 6 | 6 | **one-frame lag** |
+| `Select` (`init_engine` reset) | 4 (= preset) | 6 | 6 | no value change to lag |
+
+**The asymmetry that made §8.2 look decisive does not exist.** Plain index steps lag identically
+to Start and Select; the "`Up`/`B` land" row was a measurement error, not a contrast. And the
+"partial drop" is a partial *observation* — settings cells 0-2 complete before the `tick`
+sampling point and cells 3-4 after it — which occurs on **idle, no-input frames too**. No drop
+hypothesis predicts that; a mid-frame sampling point predicts it exactly.
+
+**What survives, and is now on far better evidence.** §8.4's headline — the per-frame budget is
+being exceeded and `NFR-1010`'s stress-run proxy is insufficient — **stands**. The replacement
+evidence is the live `LY` register (`0xFF44`) read *from inside the ROM* at five points per frame.
+That is Tier-A and, critically, **depends on no emulator behaviour PyBoy may or may not model**:
+`LY` is a plain memory-mapped counter the ROM reads for itself, unlike VRAM write acceptance,
+which is precisely the thing PyBoy does not simulate.
+
+| Probe point (live `LY`, read by the ROM) | Observed |
+|---|---|
+| main-loop top, just after `HALT` wakes | **144**, every frame, every class |
+| entering `update_visuals` (after `read_joypad`+`apply_input`+`engine_tick`) | **152-153** |
+| entering the settings-row block | **153** |
+| after `update_visuals` returns *(instrumented build)* | **0** idle/`Up`, **1** `Start`, **9** `Select` |
+| per settings cell *(instrumented build)* | cells 0-2 at `LY` 153; **cells 3-4 at `LY` ≥ 0 on every frame, idle included** |
+| end of `update_visuals` *(clean build, `VIS_END_LY`)* | **153** on every frame class — just inside VBlank |
+
+Read honestly, with the instrumented/clean distinction kept straight: **the clean ROM finishes
+inside VBlank, but only just — at `LY` 153, the last line of the window.** `HALT` wakes exactly at
+VBlank start, so the gating *mechanism* is sound; what is nearly exhausted is the *budget*.
+`read_joypad`+`apply_input`+`engine_tick` alone consume roughly **9 of VBlank's 10 scanlines**,
+leaving `update_visuals` to run against what is left. Adding ~7 diagnostic stores per frame — a
+few dozen M-cycles — was enough to push the visualizer's writes past the boundary entirely. The
+margin is on the order of a handful of instructions.
+
+This is a **stronger** result than the one it replaces. §8.2 claimed three heavy frame classes
+misbehave; the corrected measurement says the window is ~exhausted on *every* frame, including
+idle ones, and that the difference between "inside VBlank" and "outside" is a handful of
+instructions of head-room that nothing in the build guards.
+
+**The real, still-untested risk is on physical hardware.** Real CGB silicon *does* enforce mode-3
+VRAM inaccessibility (`R102` §3). A margin this thin is a genuine hazard there — and it is a
+hazard **no headless test on this project can ever rule out**, for exactly the reason in point (1)
+above. `GDS-02` §7 records that Driftune has never run on real hardware (`BL-0058`); this
+elevates that from an aspiration to the only way this specific question gets answered.
+
+**Revised recommendation, superseding §8.4's priority list:**
+
+1. **A per-frame `LY` budget assertion, not a write-integrity assertion.** §8.4 item 1 recommended
+   asserting that every visualizer cell matches its source on the press frame. That test is not
+   buildable honestly — it would assert a property the harness cannot falsify, and the naive form
+   of it (read WRAM and VRAM after `tick()` and compare) is *exactly the error that produced this
+   false finding*. What is buildable and valuable: have the ROM record `LY` at entry to
+   `update_visuals` and assert it stays within 144-153 — a real, falsifiable budget check against
+   the measurement above. See `R305` §3 for the test-design rule this generalises to.
+2. **Cycle-cost tallying (unchanged in substance, strengthened in justification).** Still `R101`'s
+   topic; still the right diagnostic. §8.4's cost estimate (~150 opcode emitters) stands.
+3. **Architecture change** — unchanged: a `03-architecture-design-synthesis` question, still not
+   to be reached for before (1) and (2) quantify the head-room.
+
+**Methodological lesson, recorded because it is the transferable part.** The §8.2 experiment was
+carefully run, internally consistent, independently reproduced by `VR-1110`, and wrong. It failed
+because it inferred a *hardware* mechanism from an *emulator* observation without first checking
+whether the emulator models that mechanism at all. The check that would have caught it costs one
+`grep` of the emulator's memory-write path. `R305` §3 now carries this as a standing rule.
+
+#### Sources
+- [`IP-9030` Blocking Report](../../implementation/packages/IP-9030-vram-write-integrity-detection.md#blocking-report--2026-07-31-08-code-implementation-run-102) — both experiments, full data, 2026-07-31.
+- PyBoy 2.7.0 installed source, `pyboy/core/mb.py` `setitem()` lines 502-511 and `getitem()` lines
+  370-374 (read directly from the installed package; version confirmed via `pip show pyboy`).
+- Local experiments, 2026-07-31, PyBoy 2.7.0: ROM-side live-`LY` probes at five per-frame points;
+  WRAM-mirror-vs-VRAM comparison; ROM-side frame counter. Instrumented builds were throwaway and
+  reverted — the shipped tree is unchanged and 122/122 green.
+- [Pan Docs — Accessing VRAM and OAM](https://gbdev.io/pandocs/Accessing_VRAM_and_OAM.html) —
+  mode-3 inaccessibility on real hardware, which remains true and remains untested here.

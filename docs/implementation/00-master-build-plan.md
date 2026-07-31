@@ -214,7 +214,7 @@ a fresh one.
 
 | IP | Package | BL cited | Status |
 |---|---|---|---|
-| IP-9030 | VRAM write-integrity detection — a `T19` suite asserting every visualizer cell against its source state across all four known-affected frame classes, plus a `VIS_END_LY` diagnostic quantifying how far past VBlank `update_visuals` finishes | `BL-0069` (Medium); folds in `BL-0052`, `BL-0057`; doc half of `BL-0040` | **READY** |
+| IP-9030 | VRAM write-integrity detection — a `T19` suite asserting every visualizer cell against its source state across all four known-affected frame classes, plus a `VIS_END_LY` diagnostic quantifying how far past VBlank `update_visuals` finishes | `BL-0069` (Medium); folds in `BL-0052`, `BL-0057`; doc half of `BL-0040` | **BLOCKED** 2026-07-31 — premise falsified by the package's own measurement (PyBoy models no mode-3 VRAM gating; no write is dropped; the symptom is a `pb.tick()` observation-window artifact uniform across all frame classes). See the package's own Blocking Report. Needs re-scoping by `07`. |
 
 **Verb inventory.** This capability needs only *review* (detect and quantify an existing
 behaviour) — no *generate*, no *apply*, no *persist*. The *render* verb is explicitly **not**

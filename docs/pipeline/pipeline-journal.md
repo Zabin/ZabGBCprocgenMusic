@@ -2,21 +2,25 @@
 
 ## Position
 
-- **Updated:** 2026-07-26 (run #91) — `11-release-readiness` wrote the Release Assessment for
-  adding **both** `IP-1100` (R6, song-form via autonomous phase cycling) **and** `IP-1110`
-  (`BL-0051`, settings & control visibility) to the shipped baseline together — no dependency
-  between them, both `VERIFIED` with real independent VRs, both integration-reviewed clean (15-
-  then 16-package re-reviews). No deviations found; 7 carried-forward Low/Medium findings swept,
-  none blocking. **Recommendation: GO.** No baseline record touched — this is a G4 gate.
-  **R1-R5+`IP-1090` remains the fully shipped baseline** (run #74) — `IP-1100`/R6 and
-  `IP-1110`/`BL-0051` are both `VERIFIED` and integration-reviewed clean, with a GO
-  recommendation now on record, awaiting the user's explicit confirmation before any baseline
-  flip. Every backlog item remains non-blocking `SCHEDULED`/`DEFERRED`
-  (`BL-0001`/`0005`-`0007`/`0012`-`0013`/`0015`-`0016`/`0021`-`0023`/`0025`-`0028`/`0030`/
-  `0032`-`0033`/`0039`/`0042`/`0044`/`0045`/`0048`/`0052`-`0053`/`0057`), none Critical/High.
-  **Open gate: G4** — this run's own GO recommendation for R6/`IP-1100` and `BL-0051`/`IP-1110`'s
-  addition to the shipped baseline, awaiting the user's explicit confirmation. This is the one
-  genuine stopping condition in iterate mode; the loop ends here until the user responds.
+- **Updated:** 2026-07-26 (run #92) — `03-architecture-design-synthesis` authored
+  [GDS-02](../architecture/02-system-context.md) (System Context), the first ladder level on this
+  project written against the real shipped system rather than synthesized forward; gate closed.
+  Its §7 names, for the first time anywhere in the tree, that **Driftune has never been run on
+  physical GBC hardware** — harvested as `BL-0058`. An overstatement was caught and corrected
+  mid-authoring (`R111`'s erratum is DMG-only and absent on CGB — a reassurance, not a risk).
+  **The GDS ladder is being drained level by level this run** (`BL-0001`): GDS-04, GDS-05,
+  GDS-06, GDS-08, GDS-09, GDS-10 remain unauthored. **R1-R5+`IP-1090` remains the fully shipped
+  baseline** (run #74); `IP-1100`/R6 and `IP-1110`/`BL-0051` are both `VERIFIED`,
+  integration-reviewed clean at 16-package scope, and carry a written GO recommendation awaiting
+  the user's explicit confirmation. Backlog: 30 open entries, none Critical/High, all
+  `SCHEDULED`/`DEFERRED` except `BL-0058` (`NEEDS-USER`, explicitly **not ripe** — nothing is
+  blocked on it).
+  **Open gates (neither stops iteration — both are independent threads batching into the
+  end-of-run report):** (1) **G4** — the release GO/NO-GO call for adding R6/`IP-1100` and
+  `BL-0051`/`IP-1110` to the shipped baseline; (2) **`BL-0058`** — whether physical-hardware
+  validation is actually wanted before a research pass grounds it.
+  Next step: `03-architecture-design-synthesis` for GDS-04 (Domain Model).
+
 - **Runs #33-52 summary:** the "Foundation + R216 + integrity remediation into one releasable
   state" convergence directive ran to completion and beyond: `IP-1060`/`IP-1061` (R216 sound
   design) and `IP-9010`/`IP-9020` (integrity remediation, `BL-0019`/`BL-0017`) were all built
@@ -543,3 +547,5 @@ per-step journaling rather than treating run #1 as a precedent to repeat.
 | 90 | 2026-07-26 | run (iterate mode, continuing) | `10-integration-review` | 16-package tranche (+`IP-1110`) | Re-reviewed the Foundation bucket at full 16-package scope, extending the prior clean 15-package review. Reviewed commit `5bd4773`. Full suite re-run: 122/122 (T1-T18). Dimension 1: grep-confirmed every LD_nn_A/LDH_n_A write in visuals.py (the whole module) targets only VRAM tilemap addresses, BCPS/BCPD, or LCDC -- never a 0xC0xx engine-state address or a PSG register -- directly confirming IP-1110's read-only characterization structurally, not just by claim. CHANNEL_CELLS/TILE_OFF/TILE_ON confirmed unmodified. Dimension 2: ROM 4240 used/28528 free, matching VR-1110's own measurement exactly; no new WRAM address. Dimension 3 (behavioral coherence, exercised live): drove the exact disclosed-finding scenario (5 taps then Select) and sampled NR52/CHANNEL_CELLS/SETTINGS_CELLS/BAD_ZONE_FLAGS on the reset frame -- confirmed the disclosed Select-frame VRAM-write timing exception is scoped to IP-1110's own settings-row writes only; IP-0006's channel-activity cells and IP-0007's bad-zone-clear both landed correctly on the same frame. Dimension 4/5: all trackers coherent, no stale row found. No new finding; six findings carried forward, none newly elevated. No Critical/High anywhere. Updated ROADMAP.md's stage-10 row. Committed (`ef813ce`), pushed. All 16 currently VERIFIED packages have now been integration-reviewed together at least once. | `Next: 11-release-readiness -- both R6/IP-1100 and BL-0051/IP-1110 are VERIFIED and now integration-reviewed clean at the same 16-package scope, unblocked for a joint or sequential release-readiness assessment (a G4 gate requiring explicit user confirmation before any baseline flip).` |
 
 | 91 | 2026-07-26 | run (iterate mode, continuing) | `11-release-readiness` | R6/`IP-1100` + `BL-0051`/`IP-1110` | Wrote the Release Assessment (docs/reviews/release-assessment-r1-r2-r3.md's new "Re-review -- 2026-07-26 (adding R6/IP-1100 and BL-0051/IP-1110 scope)" section) assessing both additions together (no dependency between them, confirmed by ADS-104 SS4/SS7). Scope audit: both FEAT-1100/FEAT-1110 trace to VERIFIED packages (VR-1100/VR-1110) covered by clean integration reviews (15- then 16-package re-reviews). No deviations found -- both G3 bases explicitly cited (IP-1100's explicit fresh basis, IP-1110's standing basis). Residual risk sweep: 7 carried-forward Low/Medium findings (BL-0040/0044/0045/0048/0052/0053/0057), none blocking, plus IP-1110's own disclosed self-healing display-lag accepted as tested/documented shipped behavior. **Recommendation: GO.** No baseline record touched -- this is a G4 gate awaiting the user's explicit confirmation. Rebuilt+tested against the assessed commit (a56bb01): 122/122. Committed (`eddb117`), pushed. | `GATE: G4 release GO/NO-GO -- awaiting the user's explicit confirmation before any baseline flip for R6/IP-1100 and BL-0051/IP-1110's addition to the shipped baseline.` |
+
+| 92 | 2026-07-26 | run (iterate mode) | `03-architecture-design-synthesis` | GDS-02 (System Context), `BL-0001` | Authored [GDS-02](../architecture/02-system-context.md), the next unauthored ladder level (GDS-01's gate confirmed closed first). **The first ladder level on this project authored against a real, shipped system rather than synthesized forward** — its own §0 records that late-authoring deviation honestly rather than pretending the ladder was walked in order. Content: the as-built artifact (real header values, section layout, 4240/32768 bytes used per `ADR-0002`'s own instrumentation), the Python-assembler build chain and the build-time-vs-runtime computation asymmetry that shapes every downstream level, the sound-register-asserting headless harness (`MSTR-001` C9) and the two hardware realities it must accommodate (write-only PSG frequency registers; the GBC boot ROM's ~90-frame logo delay), the single listener actor's eight-button surface, and six external constraint ceilings. **Caught and corrected an overstatement mid-authoring**: an initial §7 draft cited `R111` as evidence of emulator/silicon divergence risk — re-reading `R111` showed its documented erratum is **DMG-only and explicitly absent on CGB**, i.e. a reassurance for this target, not a risk; the section was rewritten to say so and to name the genuinely-unresearched gap instead. Harvested one new entry: `BL-0058` (the never-tested-on-hardware validation gap + the absent PyBoy-vs-CGB APU-divergence research topic), dispositioned `NEEDS-USER` but explicitly **not ripe** — nothing downstream is blocked on it, so it batches into the end-of-run report rather than stopping iteration. Updated `BL-0001`'s disposition (6 ladder levels remain). Rebuilt+tested (122/122, no code touched). Committed (`a711711`). | `Next: 03-architecture-design-synthesis again for GDS-04 (Domain Model), the next unauthored level — one level per pass.` |

@@ -177,6 +177,23 @@ Named honestly rather than glossed:
   either way exists.
 - `BL-0015` separately records that PyBoy's `tick()`/interrupt timing semantics are not fully
   characterized by this project — a prior verification run flagged it, and it remains unclosed.
+  **Partially characterized 2026-07-31 (`BL-0069`)**: `tick(1)` advances exactly one ROM frame,
+  but returns at a point *inside* that frame's work rather than between frames — after
+  `apply_input` and before `update_visuals` completes. `R305` §3 now carries this as a test-design
+  hazard. The interrupt-latency half of `BL-0015` remains uncharacterized.
+- **Added 2026-07-31 (`BL-0069`) — this gap now has one specific, named question attached to it,
+  which is a change in kind.** Until now §7 recorded a general fidelity concern with no
+  particular thing to check. `GDS-06` §2.3 establishes that the harness **structurally cannot
+  verify VRAM write acceptance**: PyBoy accepts every VRAM write regardless of PPU mode (`R301`
+  §3, source-cited), while real silicon discards writes issued in mode 3 (`R102` §3). Measurement
+  (`R308` §8.5) puts the shipped ROM's `update_visuals` finishing on VBlank's *last* scanline,
+  with head-room of a few instructions. **So the question real hardware would answer, and nothing
+  here can, is: does that margin actually hold on silicon?** The stakes are modest — the failure
+  mode is cosmetic and self-healing (`GDS-08` §3), not a correctness defect — but the *class* of
+  gap is exactly what this section exists to name, and this is the first instance where the
+  harness's fidelity limit is known rather than assumed. `GDS-06` §2.3 recommends cross-checking
+  against a mode-accurate emulator (SameBoy/BGB, `R309`) as the cheap partial substitute before
+  hardware.
 
 This gap does not block any current pipeline stage, and no requirement currently claims hardware
 validation. It is recorded here because a System Context level that described a hardware target

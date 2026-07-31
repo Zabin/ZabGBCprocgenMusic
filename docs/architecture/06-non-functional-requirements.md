@@ -2,7 +2,7 @@
 
 - **Level:** GDS-06 of the global design-synthesis ladder · **Owned by:**
   `03-architecture-design-synthesis`
-- **Status:** ✅ Authored 2026-07-26
+- **Status:** ✅ Authored 2026-07-26 · **§2.1/§2.2 corrected and §2.3 added 2026-07-31** (`BL-0069`) — §2.2's dropped-VRAM-write causal story was falsified by direct measurement; the judgement it supported survives on stronger evidence. See §2.2a.
 - **Upstream:** [GDS-02 System Context](02-system-context.md) (§6's measured constraint table),
   [GDS-03 Architecture](03-architecture.md), research `R101`, `R102`, `R110`, `R113`, `R301`,
   `R302`, `R304`, `R305`, `R306`, `R308`
@@ -81,8 +81,34 @@ Two separate timing disciplines apply, and they have very different evidentiary 
 synchronization convention). Writing VRAM outside VBlank produces dropped or corrupted writes on
 this hardware (`R102`), so this is a correctness discipline, not an optimization.
 
-**Standing:** solid. The gate is structural — there is exactly one place visualizer code runs, and
-it is inside the gated region by construction.
+**Standing (as recorded 2026-07-26):** ~~solid. The gate is structural — there is exactly one place
+visualizer code runs, and it is inside the gated region by construction.~~
+
+> **Correction — 2026-07-31 (`BL-0069`).** The sentence above is half right, and the half that is
+> wrong is the half people read it for. Superseded text kept visible deliberately; the corrected
+> standing follows.
+
+**Standing (corrected 2026-07-31): sound in mechanism, marginal in budget — "solid" is the wrong
+word.** The distinction this level failed to draw is between *entering* the window and *fitting
+inside* it, and only the first is structural.
+
+- **Vindicated.** The gating mechanism is exactly as described, and measurement confirms it:
+  `HALT` wakes at `LY` = 144 — the first scanline of VBlank — on every frame, of every class,
+  without exception. There is exactly one place visualizer code runs and it is inside the gated
+  region by construction. Nothing about the main-loop design is wrong.
+- **Refuted.** "Structural by construction" was written, and has since been cited, as though it
+  implied the writes therefore *land* inside VBlank. That does not follow. The construction
+  guarantees the window is **entered**; it guarantees nothing about the work **fitting**. Measured
+  (`R308` §8.5): `read_joypad`+`apply_input`+`engine_tick` consume roughly **9 of VBlank's 10
+  scanlines** before `update_visuals` begins, and the shipped ROM's `update_visuals` finishes at
+  `LY` = **153 — the last scanline of the window**. Adding ~7 diagnostic stores per frame was
+  enough to push the visualizer's writes past the boundary entirely. The head-room is measured in
+  instructions, not scanlines, and **nothing in the build guards it**: there is no assertion, no
+  budget check, and no test that would fail if the next package spent it.
+
+A discipline whose margin is a handful of instructions and whose margin is unmonitored is not
+"solid." The accurate statement is: **the gate is structurally entered and empirically, narrowly
+met — and it is one careless package away from being silently violated.**
 
 ### §2.2 The per-frame CPU budget (unquantified — and now with contrary evidence)
 
@@ -106,30 +132,104 @@ condition appears to have been met:
 > per-frame work close to the VBlank budget (a symptom would be `R308`-style stress testing
 > starting to show occasional frame drops)."*
 
-`IP-1110` shipped with a disclosed, independently reproduced finding: **on the exact frame Select
+> ⚠️ **The two paragraphs immediately below were falsified on 2026-07-31 — see §2.2a. They are
+> retained, struck through, as the record of what this level believed and why. This level's
+> *judgement* — that `R101`'s revisit trigger had fired — survives; its *causal story* does not.**
+
+~~`IP-1110` shipped with a disclosed, independently reproduced finding: **on the exact frame Select
 is pressed, that frame's settings-indicator VRAM writes are silently dropped.** The root cause is
 CPU cost — `apply_input`'s full `init_engine` reset on a Select edge is enough extra work that
 `update_visuals`'s later writes fall outside the safe window. `VR-1110` reproduced it across three
 distinct button sequences; the display self-heals the next frame, so no requirement is violated
-and it was correctly accepted as shipped behavior.
+and it was correctly accepted as shipped behavior.~~
 
-**This level's judgement: that is the symptom `R101` described, arriving through a slightly
+~~**This level's judgement: that is the symptom `R101` described, arriving through a slightly
 different door than expected.** Not "occasional dropped frames" under stress, but a *specific,
 reproducible frame class* where per-frame work demonstrably exceeds what the VBlank window can
 absorb. The project's per-frame budget is therefore known to be closer to its edge, on at least
-one frame class, than the "generous budget, empirical proxy is adequate" posture assumed.
+one frame class, than the "generous budget, empirical proxy is adequate" posture assumed.~~
+
+### §2.2a Correction — 2026-07-31: the trigger fired, but not for the stated reason (`BL-0069`)
+
+`IP-9030` was planned to quantify the drop described above. Stage 08 built the diagnostic, took
+the measurement, and the measurement falsified the premise; the package is `BLOCKED` and carries
+the evidence, and `R308` §8.5 records the research-side correction. What follows is this level's
+own re-derivation.
+
+**What was wrong.** No VRAM write is dropped, on any frame class. Two independent lines of
+evidence: PyBoy 2.7.0 applies no PPU-mode gating to VRAM writes at all (`R301` §3), so no
+experiment in this harness could ever have observed a drop; and a WRAM mirror of each cell write
+matches the VRAM byte on every frame of every class. The observed symptom was a `pb.tick()`
+mid-frame sampling artifact producing a **uniform** one-frame display lag — on plain index steps
+exactly as much as on Select, and on idle frames with no input at all. The Select-vs-`Up`
+asymmetry that made the finding look decisive **does not exist**, and `VR-1110`'s independent
+reproduction reproduced the sampling error rather than confirming the mechanism.
+
+**What is right instead, and why the judgement stands.** `R101`'s revisit trigger fired — this
+level's 2026-07-26 judgement was correct — but the symptom is broader and duller than a
+"specific, reproducible frame class." On ROM-side live-`LY` evidence (`R308` §8.5), the per-frame
+budget is **~exhausted on every frame, idle frames included**. `read_joypad`+`apply_input`+
+`engine_tick` take ~9 of VBlank's 10 scanlines; `update_visuals` finishes on the last one.
+
+**No frame class is special.** Select and Start are marginally more expensive, but they are not a
+distinct category — they are a few instructions further along a budget that was already nearly
+gone. This matters at this level because it changes the shape of the problem from *"one code path
+is too heavy"* (fixable by shortening `init_engine`) to *"the per-frame budget is structurally
+tight"* (not fixable by shortening any single routine). It is a worse finding than the one it
+replaces, and it lands squarely on §2's own thesis: this is exactly the headroom nobody measured.
+
+**A methodological note this level should carry**, because it is about how the ladder gets its
+facts: the falsified claim was carefully derived, internally consistent, cited to real hardware
+documentation, and independently reproduced — and wrong, because it inferred a *hardware*
+mechanism from an *emulator* observation without checking whether the emulator models that
+mechanism. `R305` §3 now carries this as a standing test-design rule. Design levels that cite
+harness evidence for hardware claims are exposed to the same error.
 
 **The posture this level records, accordingly:**
 
 1. The empirical stress-run method remains the primary check — it is cheap, it runs on every
    package, and it has caught real problems.
-2. It is **no longer sufficient on its own** for any package that adds work to the Select-reset
-   frame or to `update_visuals`. Such a package should state its per-frame cost impact
-   explicitly rather than relying on "stress runs were clean," because stress runs without a
-   Select press will not exercise the frame class already known to be tight.
+2. It is **no longer sufficient on its own for any package that adds per-frame work at all**
+   (widened 2026-07-31, §2.2a — the original wording named only the Select-reset frame and
+   `update_visuals`, which is now known to be too narrow: no frame class is special, and the
+   budget is tight on every frame including idle ones). Any such package should state its
+   per-frame cost impact explicitly rather than relying on "stress runs were clean." A stress run
+   cannot detect this: exhausting the VBlank budget produces no hang, no slowdown and no dropped
+   frame — the engine keeps perfect time and only the write *placement* moves.
 3. The cycle-tallying follow-up `R101` describes (adding documented cycle costs to `gbc_lib.py`'s
    opcode emitters so `build_rom.py` can assert a static per-routine budget) is now a **grounded,
    triggered recommendation** rather than a hypothetical one — see §6 Open Question 1.
+
+### §2.3 What the harness structurally cannot verify (added 2026-07-31)
+
+Placed here, in the timing-discipline section, because it is not a general testing caveat — it is
+a specific hole in the verification of *this* discipline, and §2.1/§2.2a both depend on it.
+
+**The project's test harness cannot verify VRAM write acceptance, and never could.** PyBoy 2.7.0
+accepts every VRAM write regardless of PPU mode (`R301` §3, with the source citation); real CGB
+silicon does not (`R102` §3). `R305` §5 now carries a can/cannot-establish table bounding every
+suite the project will ever write. The consequences for this level:
+
+- **§2.1's discipline is verified only up to write *issuance*, not write *acceptance*.** Every
+  check in `T1`-`T18` that reads a tilemap cell confirms the ROM issued the write it intended.
+  None of them confirms the PPU would have taken it. On silicon, a write issued at `LY` 0-9 —
+  which the instrumented build showed happens as soon as a few instructions are added — lands in
+  mode 2 or mode 3 depending on sub-scanline position, and mode 3 discards it.
+- **This converts `GDS-02` §7's hardware gap from an aspiration into a named question.** That
+  section records that Driftune has never run on physical hardware (`BL-0058`), framed as a
+  general fidelity concern. It now has one specific thing to answer that nothing here can:
+  *does the shipped ROM's ~one-scanline VBlank margin actually hold on real silicon?* Note the
+  answer could differ from any emulator's in either direction, and that the failure mode would be
+  cosmetic and self-healing (`GDS-08` §3), not a correctness defect.
+- **A cheaper partial substitute exists and should be tried first.** A mode-accurate emulator
+  (SameBoy/BGB — `R309`, cross-checking already named in `R305` §5 as available-but-not-required)
+  would answer the same question without hardware. This level recommends that as the next
+  concrete step, ahead of any remediation.
+
+**What this level asks of future work:** do not write, and do not accept in review, a test whose
+name claims a property from the cannot-establish half of `R305` §5's table. A check that cannot
+fail converts an open question into a false record of coverage — which is precisely the failure
+chain that ran from `R308` §8 through `VR-1110` to `IP-9030`.
 
 ## §3 Save integrity — deliberately empty
 
@@ -201,21 +301,28 @@ independently — which it has, every time.
 
 ## §6 Open Questions
 
-1. **Should cycle-cost tallying be added now?** `R101`'s own revisit trigger appears to have
-   fired (§2.2): `IP-1110`'s Select-frame write drop is reproducible evidence of per-frame work
-   exceeding the window on a specific frame class. The follow-up `R101` itself specifies — cycle
-   costs on `gbc_lib.py`'s opcode emitters, a static per-routine budget assertion in
-   `build_rom.py` — is now grounded rather than hypothetical. Genuinely open because the cost is
-   real (touching every opcode emitter) and the current symptom is cosmetic and self-healing.
-   Owner: `02-research-tooling-and-testing` to re-derive the recommendation against this new
-   evidence, then `07-implementation-planning` if it stands.
-2. **Is the Select-frame drop the only tight frame class?** Nobody has looked. The same reasoning
-   would apply to any frame combining heavy `apply_input` work with visualizer writes — a Start
-   press triggers style application on the same frame as its own visualizer update, and a
-   song-form phase transition writes two indices on a frame the visualizer then renders. Neither
-   has been probed for dropped writes the way Select was, and both were only found *because*
-   `IP-1110` gave the visualizer a value that visibly changes. Owner: `09-package-verification`
-   or `10-integration-review` as a targeted probe; cheap to answer.
+1. **Should cycle-cost tallying be added now?** *(Restated 2026-07-31 — the premise changed, the
+   question got sharper.)* `R101`'s revisit trigger has fired, now on direct measurement rather
+   than on the falsified drop finding (§2.2a): the shipped ROM finishes `update_visuals` on
+   VBlank's last scanline, on every frame, with head-room measured in instructions and guarded by
+   nothing. The follow-up `R101` specifies — cycle costs on `gbc_lib.py`'s opcode emitters, a
+   static per-routine budget assertion in `build_rom.py` — is correspondingly better grounded.
+   Still genuinely open because the cost is real (~150 opcode emitters) and **there is now a much
+   cheaper first option**: a runtime `LY` budget assertion (have the ROM record `LY` at entry to
+   `update_visuals`, assert 144-153 in `test_rom.py`) costs a handful of instructions and one
+   check, and would catch the regression this level actually fears. The honest sequencing is
+   *cheap runtime guard first, static cycle table only if that proves insufficient*.
+   Owner: `07-implementation-planning` (the `LY` guard, folded into `IP-9030`'s re-scoping);
+   `02-research-gbc-hardware` still owes `R101`'s own correction.
+2. ~~**Is the Select-frame drop the only tight frame class?**~~ **ANSWERED 2026-07-31 — and the
+   question was malformed.** There is no Select-frame drop, and no frame class is distinctly
+   tight (§2.2a). Every frame — including idle frames with no input — finishes `update_visuals`
+   on VBlank's last scanline; Select and Start are a few instructions further along the same
+   nearly-spent budget, not a separate category. The probe this question asked for was run (it is
+   what produced §2.2a), so this closes as answered rather than deferred. **Replacement question,
+   which is the live one:** *how much head-room is there actually, in cycles, and what guards it?*
+   — carried by Open Question 1 above and by §2.3's recommendation to cross-check on a
+   mode-accurate emulator.
 3. **Does the test-coverage bar need a stated generality standard?** §5's pattern (tests
    demonstrating a mechanism once where the claim is general) has recurred four times and been
    caught four times by independent verification. That is a working system — but it works because

@@ -2,360 +2,38 @@
 
 ## Position
 
-- **Updated:** 2026-07-26 (run #101) — `02-research-gbc-hardware` reversed `R101`'s
-  cycle-tallying conclusion (§8) to match `R308`'s, quantified the per-frame budget against
-  `R102`'s ~1140 M-cycle VBlank window, honestly costed the ~150-emitter tooling, and **named a
-  cheaper first diagnostic nobody had proposed** (an `LY`/`STAT` probe around `update_visuals`).
-  `R102` §3b records the **first real observed instance** of the Mode-3 hazard it has documented
-  abstractly since day one. Applied the C10 forward-trace convention to all 15 R1xx topics —
-  **4 honest exceptions**, including `R112`, exactly the orientation-topic case `MSTR-001` v1.3
-  predicted. 24 of 44 topics traced; **R2xx (23) remains owed**.
-  **`BL-0069` (the VRAM-write-integrity test suite) is the backlog's highest-value actionable
-  item** and is next — both research topics name it first-priority.
-  **R1-R5+`IP-1090` remains the fully shipped baseline** (run #74); `IP-1100`/R6 and
-  `IP-1110`/`BL-0051` are `VERIFIED`, integration-reviewed clean, GO recommendation written and
-  awaiting explicit user confirmation. Backlog: 34 open entries, none Critical/High.
-  **Open gates (none stops iteration — all batch into the end-of-run report):** (1) **G4** — the
-  release GO/NO-GO for R6/`IP-1100` + `BL-0051`/`IP-1110`; (2) **`BL-0058`** — physical-hardware
-  validation (not ripe); (3) **fresh G3 for refactoring** — `BL-0064`/`BL-0065` need `IP-8xx0`
-  packages, never pre-authorized on this project.
-  Next step: `07-implementation-planning` for `BL-0069`.
-
-- **Runs #33-52 summary:** the "Foundation + R216 + integrity remediation into one releasable
-  state" convergence directive ran to completion and beyond: `IP-1060`/`IP-1061` (R216 sound
-  design) and `IP-9010`/`IP-9020` (integrity remediation, `BL-0019`/`BL-0017`) were all built
-  and independently `VERIFIED`; the Foundation bucket's integration review re-ran clean at
-  9-, then 11-package scope (closing `BL-0031`); `11-release-readiness` found a real NO-GO gap
-  once, closed it, recommended GO, and the user gave explicit G4 confirmation ("Go") — R1+R2+R3
-  **shipped 2026-07-25**. The loop then continued per its own "iterate until blocked" instruction
-  into R4 (`BL-0020`, combinable generation schemes): `04`→`05`→`06`→`07` produced `IP-1070`,
-  which stopped at a genuine G3 gate (planning found no standing build-authorization for this
-  item, unlike `BL-0024`/`IP-9010`/`IP-9020`) — the user explicitly granted G3 via
-  `AskUserQuestion` ("Yes, authorize and build it"). `IP-1070` was built, then independently
-  `VERIFIED` (via a dispatched fresh-session `Agent`, isolated worktree, merged in). The
-  Foundation bucket's integration review re-ran clean a third time at full 12-package scope
-  (run #51, one new Low finding `BL-0033`, non-blocking). `11-release-readiness` then assessed
-  whether adding R4 to the shipped baseline was release-worthy, recommended **GO** (run #52), and
-  the user gave explicit G4 confirmation ("Go") — **R4 shipped 2026-07-25**, joining R1+R2+R3.
-  Every baseline tracker (`ROADMAP.md`, Feature Catalog + INDEX, `Claude.md`, the release roadmap,
-  milestone definitions, capability map) now agrees the consolidated R1+R2+R3+R4 release is
-  shipped. **Open backlog, all non-blocking:** `BL-0030` (Medium — muted-channel onset-counting
-  asymmetry), `BL-0032` (Medium — Scheme E only reachable via one preset), `BL-0033` (Low —
-  muted+Scheme-E combination untested, safe by inspection), plus older Low/Low-Medium
-  doc-coherence items (`BL-0021`-`BL-0023`, `BL-0025`-`BL-0028`) and a handful of
-  `SCHEDULED`/`DEFERRED` items with named, not-yet-fired triggers. **No Critical/High finding is
-  open anywhere in the tree.** The roadmap's own next named release is **R4.5 — Cart-Shape
-  Decision Checkpoint** (`docs/roadmap/04-release-roadmap.md`): a genuine strategic decision
-  (MBC5/bank-switching adoption), not a mechanical planning/build step, and not yet raised to the
-  user. This is the loop's next candidate stopping point — surveying whether it's ripe to raise
-  now, or whether a lower-stakes backlog item (all currently non-blocking) should be picked up
-  first, is the next actionable work.
-- **Run #32:** user directed: "Ensure these docs are integrated with the pipeline manager
-  process." Run #31's `docs/roadmap/` package existed as a standalone artifact with no mechanical
-  tie into the manager's actual Step 1/Step 3 workflow — this run closed that gap. Edited
-  `.claude/skills/README.md` (new "Product Roadmap" section: what it is, how it fits the loop, who
-  keeps it current) and `.claude/skills/00-pipeline-manager/SKILL.md` (Step 1's reconciliation
-  ledger list now includes `docs/roadmap/04-release-roadmap.md`/`INDEX.md`; Step 3 now uses the
-  roadmap's release sequence/dependency graph as an explicit **tie-breaker among already-unblocked,
-  backlog-cleared candidates** — never an override of a gate, tier precedence, or stage ordering;
-  a roadmap/backlog conflict resolves in the backlog's favor, journaled for correction). Updated
-  `docs/roadmap/INDEX.md` with a matching "Integration with `00-pipeline-manager`" section so
-  either entry point (the skill definitions or the roadmap package itself) explains the mechanics
-  the same way. Write ownership deliberately follows the existing `ROADMAP.md` convention: the
-  manager reads and flags drift, never writes `docs/roadmap/` itself (per its own standing "never
-  edit a ledger the stages own" guardrail) — whichever skill completes roadmap-relevant work keeps
-  that release's status line current, the same pattern already used for `ROADMAP.md`'s per-stage
-  rows. No pipeline behavior changed for any run already logged; this is a forward-looking wiring
-  change only.
-- **Run #31:** user directed, acting explicitly as "Lead Systems Architect and Technical Program
-  Manager": build a comprehensive, capability-driven product roadmap from empty ROM to release
-  candidate, using only the existing Vision + Research Encyclopedia (no new research), producing
-  10 named deliverables (Product Goals, Capability Map, Capability Dependency Graph, Release
-  Roadmap, Milestone Definitions, Feature Specifications, Traceability Matrix, Development
-  Strategy, Release Exit Criteria, Final Roadmap Review) with permission to rename/adjust to fit
-  the existing pipeline hierarchy. Authored `docs/roadmap/01-10.md` + `INDEX.md`: a 21-capability
-  map (`CAP-01`-`CAP-21`) with honest current status against the real shipped tree (10 Foundational
-  capabilities `VERIFIED`, 5 Intermediate — two carrying open defects `BL-0019`/`BL-0017` — 5
-  Advanced planned, 1 cross-cutting); a dependency graph identifying `CAP-10`'s fix as the true
-  critical-path blocker (technically small, already G3-authorization-blocked) and two genuinely
-  parallel work streams (Integrity & Diversity vs. Musical Maturity) converging only at the
-  visualizer; a 14-release sequence `R0`-`R13` (`R0`-`R2` shipped, included for continuity only,
-  not re-planned) tracing the user's requested arc (basic audio → multi-channel → song structure →
-  long-form evolution → genre support/blending → emotion modelling → visual sync → interactive
-  controls → optimization → RC) onto the project's actual research findings (R219 genre-
-  feasibility tiering, R220 song-form/style-drift, R221 emotional/energy, R106/R302 cart-shape
-  facts); six milestones; catalog-grain `RM-xxxx` feature entries (explicitly distinct from and
-  feeding, not replacing, the live `FEAT-xxxx`/`FS-xxx` grain); a full vision-to-feature
-  traceability matrix (one deliberate gap named — L-system motif recurrence, correctly excluded as
-  not yet groundable, not silently dropped); a development strategy restating the pipeline's own
-  already-proven practices at roadmap scale; per-release exit criteria; and a genuinely critical
-  final review (5 ranked findings, not a rubric pass) whose top finding — the cart-shape/
-  bank-switching decision was bundled too late at R11, risking an unplanned mid-roadmap ROM-budget
-  emergency — was **applied directly** (a new `R4.5` checkpoint release added, `R11` narrowed to
-  just the save feature) rather than left as a dangling recommendation. No algorithms, source
-  code, APIs, or file structures named anywhere in the package, per the user's explicit scope
-  limit. No code/requirements/architecture authored; no G3 authorization granted or implied — this
-  package is planning input for `03`/`04`/`05`/`06` as each release is actually picked up, not a
-  shortcut around any of them. Cross-linked from `docs/INDEX.md` and `ROADMAP.md`.
-- **Runs #27-30 summary:** user directed "Iterate pipeline on the research thread. Cycle in
-  updates to the vision." Ran the three §9 threads in turn — `02-research-game-design` (R219
-  genre feasibility, R220 style-evolution/song-form, R221 emotional/energy — the largest
-  cluster), `02-research-gbc-hardware` (R106 extended — MBC1/3/5 + PyBoy save mechanics),
-  `02-research-tooling-and-testing` (R302 §8-9 addendum — bank-switching's real tooling cost) —
-  then `01-vision` to cycle findings back in (MSTR-001 v1.4). No architecture, requirements, or
-  code authored; every finding stayed within its owning skill's scope (research grounds, vision
-  records, `03-architecture-design-synthesis` still owns every actual adoption decision). Full
-  detail in the run-log rows below.
-- **This run (#26):** user directed: "Add a vision goal of having every research topic directly
-  traceable to a design feature implemented in code." Invoked `01-vision` directly (deliberate
-  change mode — a genuine new scope commitment, not a consistency check). Added **C10** to
-  MSTR-001 §3 (v1.3): every authored `R1xx`/`R2xx`/`R3xx` topic must trace forward to a design
-  feature actually implemented in code, or carry an honestly-named exception for topics that
-  ground implementation *quality* rather than a standalone feature (codegen practice, ROM-header
-  validation, toolchain portability, etc.) — the exception itself must be recorded, never left
-  implicit. Folded the same discipline into §5's "done" quality bar. This is the mirror-image of
-  the traceability discipline the project already had: `04-requirements-engineering`'s
-  traceability matrix already records each requirement's backward *Research Source*; C10 adds the
-  forward direction (topic → shipped code), which had no existing audit artifact. Updated GDS-00
-  to match (new "Research-to-code traceability goal" section, framed alongside the existing
-  testability-requirement section as the same discipline running in opposite directions).
-  **Explicitly did not perform the audit itself** — auditing which of the 39 currently-authored
-  topics already satisfy C10 and which need a real forward link or an exception is named as
-  downstream work (`04-requirements-engineering`'s next traceability-matrix pass, or
-  `10-integration-review`'s traceability-coherence dimension), not `01-vision`'s to perform.
-  Flagged a likely near-term finding in §8's amendment log: orientation/history topics (e.g.
-  `R112`, `R218`) and `BL-0010`/`BL-0011`-deferred findings may currently have no forward trace.
-  Updated `ROADMAP.md`, `docs/master/INDEX.md`, `docs/architecture/INDEX.md`.
-- **This run (#25):** user supplied a 22-section vision-expansion topic list (musical identity/
-  diversity across many genre references, style evolution/blending, song-form structure, an
-  emotional/energy model, visual evolution, longer-arc listener relationship — favorites/
-  collection), framed as "additional research topics for building out the vision." Invoked
-  `01-vision`. Attempted to ask the user whether to treat the list as long-term aspiration vs.
-  immediate scope change vs. narrower before touching MSTR-001 — the question tool was rejected
-  (user hadn't seen it) but the user's follow-up message answered the substance directly and
-  corrected the framing: *"This is exactly why this type of research is needed, arbitrary
-  decisions have been mistaken for firm decisions... It should educate the vision through
-  research in these areas. Do not limit to a single bank ceiling. Do not discount saves."*
-  Amended MSTR-001 to **v1.2**: removed the single-bank and no-SRAM-save items from §4's
-  non-goals (both had been stated as settled since v1.0 without a research basis), reopened both
-  explicitly as open questions pending dedicated hardware/tooling research, and added a new §9
-  recording the topic list's genuinely new direction (not adopted as binding architecture —
-  named as standing research threads routed to the owning `02-research-*` skills: musical
-  identity/diversity and style-evolution/song-structure/emotional-energy-model to
-  `02-research-game-design`; visual-evolution hardware budget and cart-shape/MBC/SRAM hardware
-  facts to `02-research-gbc-hardware`; multi-bank build/verify-chain impact to
-  `02-research-tooling-and-testing`). Updated GDS-00 to match (new "Cart shape and persistence —
-  reopened, not decided" section, mirroring the input-mapping/bad-zone-metric/scheme-combination
-  items already delegated to GDS-03). Reopened `strategic-assumptions-register.md`'s A5 (was:
-  "ROM stays within a single 32KB bank, no MBC, no cartridge RAM/battery," read as confirmed) —
-  now explicitly under active reconsideration, its trigger fired by the user's own correction,
-  not by new evidence from the tree. Updated `ROADMAP.md`, `docs/master/INDEX.md`,
-  `docs/architecture/INDEX.md`. No architecture, requirements, or code touched — this run is
-  vision-tier only, per `01-vision`'s own scope discipline.
-- **This run's thread:** user directed "Iterating the pipeline skill run through to implantation the concepts in R216 — Sound Design Techniques: Timbre, Arpeggio, Vibrato, Portamento & Percussion Synthesis. Iterate until they are all in a committed and pushed ROM" — explicit, direct authorization to carry this specific, scoped feature through implementation and verification, distinct from and not extending to the still-unauthorized `IP-9010`/`IP-9020` gate. `BL-0024` filed via `00-intake`, then carried through `04`→`05`→`06`→`07`→`08` (×2) in runs #20-#24: FR-1130-FR-1170/NFR-1040-1050 authored, FEAT-1060 cataloged, FS-106 (full 20-field spec) authored, IP-1060 (arpeggio + duty-cycle) and IP-1061 (vibrato + portamento) planned and both built. Percussion synthesis (R216's 5th technique) confirmed already satisfied by shipped `IP-0003` (`NR42=0xF2` fast-decay envelope) — no new work, traced via new `FR-1170`. Test suite grew 60→65 checks (new suite T11), two clean stress runs (6000+ and 8000+ frames). Both packages `COMPLETE`, not yet `VERIFIED` (standing fresh-session-independence rule applies, no waiver given this run — same posture as `IP-9010`/`IP-9020`, a future run's job). Committed across 7 commits on `claude/iterate-pipeline-skill-04nvuc` and pushed.
-- **Prior run (#19) summary, retained for context:** research/architecture push complete: ADS-100 authored, BL-0013/BL-0018 reconciled
-- **Increment:** Foundation release bucket unchanged (all 7 `VERIFIED`, integration-reviewed, `IP-9010`/`IP-9020` still await G3 — not being re-asked this run per explicit user direction). New thread this run: user directed closing out all open research topics and revisiting top-tier hierarchy (vision/architecture), adjusting vision as new research warrants.
-- **Pipeline state:**
-  - `01-vision`: ✅ MSTR-001 **v1.1** (amended: bad-zone must be autonomously recoverable, Select
-    reframed as reset-and-randomize) + GDS-00, **both now consistency-checked (run #18)**:
-    GDS-00 had real drift (still described the pre-v1.1 model — fixed, dated rationale recorded
-    inline); strategic assumptions register authored for the first time (7 assumptions; A7,
-    `pyboy` dependency availability, already has its trigger fired per `R306`/`BL-0023`).
-    Confirmed `BL-0020` (combinable schemes) is architecture-level, not a vision tension — GDS-00
-    got a light delegation note, MSTR-001 unchanged.
-  - `02-research-*`: ✅ **All 39 topics across R100/R200/R300 now authored — every `⛔ Planned`
-    row closed out.** R100 (run #15): R101-R115 all `✅`. R200 (run #16): R208 closed, confirming
-    the shipped `visuals.py` calm/bad-zone palette follows real warning-color convention but
-    surfacing `BL-0021` (accessibility: narrow luminance gap). R300 (run #17): R302 (codegen
-    patterns — confirmed no gap, `IP-0007`'s `JR`-out-of-range incident is evidence the
-    label/fixup mechanism catches what it should), R303 (tile encoding — confirmed `visuals.py`'s
-    tiles correctly formed), R304 (ROM validation, split from R109 — surfaced `BL-0022`, a minor
-    test-coverage note), R306 (toolchain portability — path handling confirmed portable,
-    dependency management confirmed **not** portable, surfacing `BL-0023`: no `requirements.txt`
-    despite this session's own repeated `pip install pyboy` friction across every fresh-session
-    verification run).
-  - `03-architecture-design-synthesis`: 🟡 GDS-00/01/03/07 authored; GDS-02/04/05/06/08/09/10
-    remain `⛔ Planned` (`BL-0001`). **Run #19**: GDS-03/GDS-07 reconciled against shipped code
-    (`BL-0013`'s architecture half done — GDS-03 §4a/§4b and GDS-07 §3/§4 now describe the actual
-    period-1/7-entry-interval-class design with a dated note, R204/FR-1090 still owed to their
-    own owning skills); GDS-07 extended with 6 previously-undocumented WRAM addresses (`BL-0018`,
-    `DONE`); **`ADS-100`** (Combinable Generation Schemes) authored for `BL-0020` — one concrete
-    design (a second "Scheme E" selectable per pitched channel, riding `IP-9010`'s not-yet-shipped
-    `CHMIX_IDX` mask-byte bits, `ADR-0001`), contingent on `IP-9010` shipping first.
-  - `04-requirements-engineering`: ✅ FR-1000...FR-1120, NFR-1000...NFR-1030 authored (v1).
-    **Run #20**: extended with FR-1130 (arpeggio), FR-1140 (vibrato, explicitly scoped to not
-    affect dissonance/stale scoring), FR-1150 (portamento), FR-1160 (duty-cycle variation),
-    FR-1170 (percussion-synthesis trace — confirms, doesn't reopen, `IP-0003`'s existing noise
-    implementation), NFR-1040 (ROM/WRAM budget), NFR-1050 (per-frame timing budget) — all for
-    `BL-0024`/R216.
-  - `05-feature-decomposition`: ✅ Feature Catalog v1 (FEAT-1000...FEAT-1050). **Run #20**:
-    `FEAT-1060` (Sound design techniques) added, tracing FR-1130-FR-1170/NFR-1040/NFR-1050.
-  - `06-feature-specification`: ⛔ No formal FS-xxx for the Foundation bucket — abbreviated
-    per-package notes used instead for that MVP push (`BL-0006`/`BL-0012`, backfill still
-    scheduled). **Run #20**: `FS-106` (Sound Design Techniques) authored in full, the pipeline's
-    first genuine 20-field FS — grounds `BL-0024`/`FEAT-1060`, does not retroactively backfill
-    FS-100...FS-105.
-  - `07-implementation-planning`: ✅ Master Build Plan authored and kept current through all 7
-    Foundation packages plus the `IP-9010`/`IP-9020` remediation tranche. **Run #21**: `IP-1060`
-    (arpeggio + duty-cycle) and `IP-1061` (vibrato + portamento) authored for `FS-106`, split per
-    FS-106's own Risks recommendation to build one effect at a time; both recorded G3-authorized
-    on the basis of the user's own `BL-0024`-filing request wording ("iterate until... committed
-    and pushed") — distinct from and not extending to `IP-9010`/`IP-9020`'s still-open gate.
-  - `08-code-implementation`: ✅ **All 7 Foundation-bucket packages `COMPLETE`**: IP-0001 (pulse A,
-    input mapping, scoped reset — `VERIFIED`), IP-0002 (pulse B + wave/bass), IP-0003 (noise +
-    density), IP-0004 (bad-zone detection), IP-0005 (full reset, delivered incrementally),
-    IP-0006 (minimal visualizer), **IP-0007 (autonomous avoidance/recovery + Select reset-and-
-    randomize, new this run)**. G5 gate green (32768 bytes, valid header, **60/60** `test_rom.py`
-    checks across T1-T10). An 8000+ frame stress run with continuous input churn showed no hangs,
-    with bad-zone entry and self-recovery both observed.
-  - `09-package-verification`: 🟡 IP-0001 `VERIFIED` ([VR-0001](../implementation/verification/VR-0001-skeleton-and-single-channel-generation.md)),
-    **IP-0002 `VERIFIED`** ([VR-0002](../implementation/verification/VR-0002-pulse-b-and-wave-channel.md),
-    run #7 — independently drove the wave channel's octave-floor edge case, `OCTAVE_IDX=0`, and
-    confirmed the half-rate reload), **IP-0003 `VERIFIED`** ([VR-0003](../implementation/verification/VR-0003-noise-channel-and-density.md),
-    run #8 — independently drove a mid-range density (`DENSITY_IDX=3`, k=5) the suite's own fixture
-    never exercises, confirming monotonic onset scaling), **IP-0004 `VERIFIED`** ([VR-0004](../implementation/verification/VR-0004-bad-zone-detection.md),
-    run #9 — independently drove a non-default scale (`SCALE_IDX=3`, pentatonic), surfaced a new
-    finding extending `BL-0013`'s scope up to `FR-1090`'s wording), **IP-0005 `VERIFIED`** ([VR-0005](../implementation/verification/VR-0005-full-reset-scope.md),
-    run #10 — independently drifted and reset pulse B/wave/noise state, closing `BL-0014`),
-    **IP-0006 `VERIFIED`** ([VR-0006](../implementation/verification/VR-0006-minimal-visualizer.md),
-    run #11 — independently confirmed the palette/bad-zone reaction via rendered pixels,
-    correctly explaining an initially-confusing one-frame VBlank lag; filed `BL-0016`, `FR-1120`
-    overstates the shipped tempo-representation scope), **IP-0007 `VERIFIED`** ([VR-0007](../implementation/verification/VR-0007-autonomous-recovery-and-randomize.md),
-    run #12 — independently confirmed the dissonance pull-toward-tonic mechanism (51/51 deltas
-    exactly `-1` following a DISSONANT onset); filed `BL-0017` (Medium-High): `OVERLOAD_THRESHOLD`
-    is mathematically unreachable, computed ceiling `~8.8` onsets/window vs. threshold `20` even
-    at max tempo+density — `FR-1100`/the overload-recovery logic are code-complete but permanently
-    dead under current constants). **All 7 packages now independently `VERIFIED`.**
-  - `10-integration-review`: ✅ run this run — [Foundation bucket review](../reviews/integration-review-foundation-bucket.md).
-    Full-suite gate re-confirmed (32768 bytes, 60/60). Two new findings: **`BL-0019` (High)** —
-    `CHMIX_IDX` (Start-button channel-mix) has no consumer anywhere in the shipped code, a
-    cross-package dead-end no single VR could see, contradicting `FR-1000`/`FR-1010`'s text and
-    `FEAT-1000`'s "delivered" status; **`BL-0018` (Low-Medium)** — six WRAM addresses
-    (`LFSR_STATE_PB`/`WV`, `NOISE_STEP_IDX`, `SEMI_PA`/`PB`/`WV`) live in the shipped code but
-    undocumented in GDS-07. `BL-0017` (from `VR-0007`) re-surfaced, not duplicated. `ROADMAP.md`
-    and `docs/reviews/INDEX.md` updated to reflect the review (this skill's own named
-    responsibility, not a separate finding).
-  - `11-release-readiness`: **not reached — recommend against advancing** until `BL-0019` is
-    remediated and re-verified, per the integration review's own verdict.
-  - `07-implementation-planning`: ✅ run this run — authored the pipeline's first remediation
-    tranche: [`01-technical-work-breakdown.md`](../implementation/01-technical-work-breakdown.md)
-    (verb-inventory + supersession-sweep for both), [`IP-9010`](../implementation/packages/IP-9010-channel-mix-gating.md)
-    (wires `CHMIX_IDX` to a real channel-activity-mask table, `BL-0019`) and
-    [`IP-9020`](../implementation/packages/IP-9020-overload-threshold-recalibration.md)
-    (recalibrates `OVERLOAD_THRESHOLD`/`ONSET_WINDOW_FRAMES`, `BL-0017`). Both fully specified,
-    **neither `READY`/authorized** — this project carries no G3 bootstrap carve-out.
-  - `08-code-implementation`: ✅ **Run #22**: `IP-1060` built (arpeggio: `ARPEGGIO_OFFSETS`
-    period-4 pattern, non-retriggering register writes every `ARP_SUBTICK_RELOAD` frames;
-    duty-cycle: `DUTY_BY_DEGREE` indexed by `CUR_DEGREE mod 4`, written to `NR11`/`NR21` per
-    onset) — 63/63 tests, 6000+ frame stress run clean. **Run #23**: `IP-1061` built (vibrato: a
-    deliberately-scoped +-1 low-byte wobble via exact `JP_C`/`JP_NC` carry/borrow handling, no
-    ADC/SBC available in this project's opcode subset; portamento: onset trigger writes use the
-    *old* degree, `engine_tick`'s `arp_tick`-before-`gen_tick` reordering carries the pitch to
-    the new target over the following frame(s), zero extra WRAM) — 65/65 tests (new suite T11),
-    8000+ frame stress run clean. Both packages `COMPLETE` on the Master Build Plan/`INDEX.md`.
-  - `09-package-verification`: 🟡 unchanged for `IP-1060`/`IP-1061` this run — both stay
-    `COMPLETE`, not `VERIFIED`; the standing fresh-session-independence rule applies and no
-    waiver was given, same posture as the still-unauthorized `IP-9010`/`IP-9020` (a future run's
-    job, not skipped).
-- **Backlog:** 20 open entries (`BL-0001`, `BL-0005`...`BL-0007`, `BL-0010`...`BL-0013`, `BL-0015`
-  ...`BL-0023`; `BL-0002`/`BL-0003`/`BL-0004`/`BL-0008`/`BL-0009`/`BL-0014`/`BL-0018` are `DONE`,
-  pending archiving at the next triage sweep). `BL-0013`/`BL-0020` remain `IN PIPELINE`
-  (architecture halves done, remainder owed to `02-research-game-design`/
-  `04-requirements-engineering`). `BL-0024` (this run's thread) now `IN PIPELINE` — carried
-  through `04`→`08`, both packages `COMPLETE`/not yet `VERIFIED`; folds in and supersedes
-  `BL-0011` item (1) (arpeggio), noted there. `BL-0021`/`BL-0022`/`BL-0023` remain
-  `SCHEDULED`/`DEFERRED` with named triggers. `IP-9010`/`IP-9020`'s G3 authorization remains an
-  open gate, not touched this run.
-- **Next step:** the Product Roadmap package (`docs/roadmap/`) now gives this project's next
-  moves a concrete, traced sequence for the first time: **R3** (integrity remediation, `IP-9010`/
-  `IP-9020`) is named as the critical-path-first release, blocked only on the standing G3
-  authorization gate below. Once authorized, **R4.5** (the cart-shape decision) and **R6** (song-
-  form/style-drift, parallelizable with R4/R5) are the next-highest-value moves per the roadmap's
-  own dependency analysis. Separately, still owed from earlier runs, all independent of the
-  roadmap: **visual evolution & audio-visual synchronization** research (owed to
-  `02-research-game-design`/`02-research-gbc-hardware`, and now also a named hard prerequisite for
-  the roadmap's own R9), the **forward-traceability audit** (run #26's C10), `09-package-
-  verification` on `IP-1060`/`IP-1061` (fresh session needed), and the standing **G3 authorization
-  gate for `IP-9010`/`IP-9020`** (open since run #14) — now doubly load-bearing, since the roadmap
-  confirms it blocks not just the Foundation bucket's own release-readiness but the entire
-  Milestone B/D chain (Multi-Scheme, Style Engine, Genre Blending).
-- **Open gates (superseded by run #33, see below):** ~~G3 authorization for `IP-9010`/`IP-9020`~~
-  — **granted explicitly by the user in run #33**, this session. ~~Independent verification owed
-  for `IP-1060`/`IP-1061`~~ — **`IP-1060` verified run #33**; `IP-1061` next.
-
----
-
-- **Updated:** 2026-07-25 (runs #33-50 — user-directed convergence: Foundation +
-  R216 sound-design + integrity remediation into one releasable state; **GO confirmed, R1+R2+R3
-  shipped**; iterated `03`→`04`→`05`→`06`→`07`→`08`→`09` for R4's `FEAT-1070`/`IP-1070`, now
-  `VERIFIED` — next is `10-integration-review` at the full 12-package scope)
-- **Run #33 so far:** this is a genuinely fresh session relative to every package below —
-  independence achieved for `IP-1060`/`IP-1061` (built in an earlier session), and for
-  `IP-9010`/`IP-9020` (never built at all, contrary to this run's initial premise — see below).
-  **Reconciliation finding (Step 1):** the run's directing prompt assumed `IP-9010`/`IP-9020` were
-  already `COMPLETE` and that `IP-1060`/`IP-1061` were already `VERIFIED` — neither matched the
-  tree. Master Build Plan/`packages/INDEX.md` showed `IP-9010`/`IP-9020` still `NOT STARTED`, no
-  G3 on record anywhere in git history (checked both branches); `IP-1060`/`IP-1061` still
-  `COMPLETE`, not `VERIFIED`. Surfaced this to the user via `AskUserQuestion` before proceeding
-  (per the manager's own "verify against real ledgers, don't trust blind" rule) — user chose:
-  grant G3 for `IP-9010`/`IP-9020` now, build them this session, accept that their verification
-  moves to a future fresh session (can't verify same-session work). Re-sequenced this run's
-  actual steps accordingly: (1) `09-package-verification` on `IP-1060` — done, see run-log row
-  below; (2) `09-package-verification` on `IP-1061` — next; (3) `08-code-implementation` on
-  `IP-9010` then `IP-9020` (G3 now granted); (4) `10-integration-review`/`11-release-readiness`
-  deferred until a future session can independently verify `IP-9010`/`IP-9020`; (5) `ROADMAP.md`
-  stale-row + roadmap-package R2-write-up reconciliation, once `IP-1060`/`IP-1061`'s verified
-  status makes the "R2 already verified" text actually true.
-- **Runs #38-39:** user directed "start a fresh session to verify IP-9010 and IP-9020." Dispatched
-  to an `Agent`-tool subagent in an isolated git worktree (no memory of this conversation's
-  implementation work) to satisfy the fresh-session-independence rule within the same wall-clock
-  session. Both [VR-9010](../implementation/verification/VR-9010-channel-mix-gating.md) and
-  [VR-9020](../implementation/verification/VR-9020-overload-threshold-recalibration.md) came back
-  `VERIFIED` — 77/77 full suite, independent non-default live drives distinct from each package's
-  own test fixture, 8200-frame stress runs clean, no Critical/High findings. The agent's commits
-  were merged into this branch and the merge independently re-verified (rebuild + full suite still
-  77/77 post-merge). `IP-9010`/`IP-9020` both flipped `COMPLETE`→`VERIFIED`. `BL-0019`/`BL-0017`
-  both flipped to `DONE`. Two new findings harvested: `BL-0028` (Low, doc-scope process note) and
-  `BL-0029` (Low-Medium, filed `DONE` — the entry itself closes the gap a code comment named).
-- **Run #40:** `10-integration-review` re-ran clean at the 9-package scope (commit `c4f12b5`,
-  full suite 77/77). Both `BL-0019`/`BL-0017` confirmed genuinely remediated at the integration
-  level. One new Medium finding filed (`BL-0030` — channel-mix/overload-counting inconsistency
-  within `IP-9010` itself, non-blocking per the review's own verdict). `ROADMAP.md`/`docs/roadmap/`
-  updated to show all 11 packages `VERIFIED` and the review re-run clean.
-- **Run #41:** `11-release-readiness` assessed the consolidated R1+R2+R3 release —
-  **NO-GO**: found `FEAT-1060` (`IP-1060`/`IP-1061`) had never been integration-reviewed. Filed
-  `BL-0031` (High, blocked the assessment). No baseline flipped.
-- **Run #42:** `10-integration-review` re-ran at the full 11-package scope, closing `BL-0031` —
-  exercised the arpeggio/vibrato-vs-channel-mix seam live, confirmed clean. No new findings.
-- **Backlog:** `BL-0025`-`BL-0031` all open/closed as above. `BL-0019`/`BL-0017`/`BL-0024`/`BL-0029`/
-  `BL-0031` `DONE`; `BL-0030` `SCHEDULED` (non-blocking). No open Critical/High findings anywhere.
-- **Run #43:** `11-release-readiness` re-assessed post-`BL-0031` closure — **GO recommended**
-  (advisory). No baseline record touched.
-- **Run #44:** User confirmed **GO**. Baseline flipped: `ROADMAP.md`, Feature Catalog + its
-  `INDEX.md`, `Claude.md`'s Known Good Behavior heading (now v1.0), `docs/roadmap/04`/`05`. R1
-  (Foundation) + R2 (Sound Design) + R3 (Integrity Remediation) are now the shipped baseline.
-- **Run #45:** `04-requirements-engineering` formalized `ADS-100`'s candidate FRs/NFRs
-  (`FR-1180`-`FR-1220`, `NFR-1060`/`1070`) for `BL-0020` — `IP-9010`'s `ADR-0001` contingency
-  confirmed satisfied. Delta review clean.
-- **Run #46:** `05-feature-decomposition` added `FEAT-1070` to the Feature Catalog. No conflicts,
-  right-sized for one implementation package.
-- **Run #47:** `06-feature-specification` authored `FS-107` (full 20-field spec) for `FEAT-1070`.
-  Four Open Questions recorded, none blocking.
-- **Run #48:** `07-implementation-planning` authored `IP-1070` (single package). Recorded **NOT
-  authorized** — `BL-0020`'s filing request never carried explicit build-and-ship language.
-- **Run #49:** G3 confirmed explicitly by the user. `08-code-implementation` built `IP-1070` —
-  85/85 full suite (new T14 suite), 8200-frame stress run clean, independently drove Scheme E
-  live and confirmed bad-zone entry/recovery unaffected. `COMPLETE`, not yet `VERIFIED`.
-- **Run #50:** `09-package-verification` (fresh-session agent) came back **VERIFIED** —
-  [VR-1070](../implementation/verification/VR-1070-combinable-generation-schemes.md). Two
-  findings: `BL-0032` (Medium — Scheme E unreachable for pulse A/B via any shipped preset) and
-  one Low (verifier's own self-corrected methodology note). `BL-0020` flipped `DONE`.
-- **Next step:** `10-integration-review` on all 12 packages together (the full tree —
-  `IP-0001`-`IP-0007` + `IP-1060`/`IP-1061` + `IP-9010`/`IP-9020` + `IP-1070`). Not gated (no
-  session-independence constraint applies to this stage). Given
-  `release-assessment-r1-r2-r3.md`'s own precedent (a missing-coverage gap blocked a prior GO),
-  this should close before any future release-readiness call touches R4 scope.
-- **Open gates:** none. G3 (run #49) and G4 (run #44) are both spent, not standing open.
+- **Updated:** 2026-07-31 (run #102) — **a five-step iterate run that spent itself unwinding a
+  finding the pipeline had already published.** `08-code-implementation` built `IP-9030`'s own
+  diagnostic, took the measurement the package existed to produce, and **the measurement falsified
+  the package's premise**. The dropped-VRAM-write finding that runs #100 and #101 established, that
+  `VR-1110` independently reproduced, and that had propagated into `R308` §8, `R101` §8, `R102`
+  §3b, `GDS-06` §2.1/§2.2 and three backlog entries, **is false**: PyBoy 2.7.0 applies no PPU-mode
+  gating to VRAM writes (`mb.py:502-511`), so no write is dropped and none could ever have been
+  observed; the symptom was a `pb.tick()` mid-frame sampling artifact, uniform across every frame
+  class including idle ones. The asymmetry that made it look decisive did not exist.
+  **What replaced it is real and worse:** `HALT` wakes at `LY` 144, `read_joypad`+`apply_input`+
+  `engine_tick` consume ~9 of VBlank's 10 scanlines, and `update_visuals` finishes at `LY` 153 —
+  the window's last line. Head-room is a handful of instructions, spent on **every** frame, and
+  nothing in the build or the suite guards it. Corrections landed at source in all eight affected
+  documents; `IP-9030` was re-scoped v2 from an unbuildable write-integrity suite to a falsifiable
+  VBlank budget assertion.
+- **Increment:** post-R6 integrity/coverage work. Release baseline unchanged.
+- **Pipeline state:** `08` — `IP-9030` v1 `BLOCKED` (Blocking Report retained), v2 `READY` but
+  **not authorized**. `02` — R3xx and R1xx tiers corrected and C10-traced; **R2xx (23 topics)
+  still owed C10 traces** (`BL-0071`). `03` — ladder complete, `GDS-06`/`GDS-02` corrected. `07` —
+  `IP-9030` v2 authored, `BL-0064`/`BL-0065` refactoring packages unplanned and never
+  pre-authorized. `11` — R6 release GO/NO-GO still pending (`IP-1100`+`IP-1110` `VERIFIED`, GO
+  recommendation written, baseline not flipped).
+- **Backlog:** 3 new (`BL-0072` G3 re-confirmation, `BL-0073` verification reproduced the error
+  rather than catching it, `BL-0074` nobody owns the *fix* verb). `BL-0070`/`BL-0061` `DONE`;
+  `BL-0069` re-derived and `IN PIPELINE`; `BL-0015`'s trigger fired and its hypothesis was
+  confirmed; `BL-0052`/`BL-0057`/`BL-0040` ride `IP-9030` v2.
+- **Next step:** **stopped at gates — user input required.** Four open, in tier order below.
+- **Open gates:** (1) **G3 re-confirmation for `IP-9030` v2** (`BL-0072`) — the standing grant was
+  given for a package addressing a problem that turned out not to exist. (2) **G3, fresh, for the
+  refactoring packages** `BL-0064`/`BL-0065` — never pre-authorized, by standing rule. (3) **G4
+  release GO** for R6 (`IP-1100`) + `IP-1110`. (4) `BL-0058` — hardware or mode-accurate-emulator
+  validation, now carrying one specific unanswerable-here question rather than a general concern.
 
 ## Run log
 
@@ -567,3 +245,4 @@ per-step journaling rather than treating run #1 as a precedent to repeat.
 | 100 | 2026-07-26 | run (iterate mode) | `02-research-tooling-and-testing` | `BL-0060`/`BL-0061`/`BL-0067` | **Reversed `R308` §5's \"cycle counting is over-engineering\" conclusion in a new §8, on evidence gathered this run rather than on re-reasoning.** Local experiment (PyBoy 2.7.0, commit `e4db8ef`): drove four frame classes and read each settings-indicator cell against its source WRAM on the press frame itself. Plain index steps land; **Start (style apply) drops the settings writes; Select drops them; and an autonomous song-form phase transition drops them PARTIALLY** — cell 0 landed, cell 3 did not. **This answers `BL-0061` (`DONE`) and is materially broader than `IP-1110` disclosed**: Select was never the only affected frame class, and the song-form case is not an input frame at all, so no button-driven testing would have found it by design. **The partial drop is the decisive observation** — the write sequence is cut off *mid-block*, which can only mean the frame's work overruns the window rather than any single operation blocking a write. That reframes the mechanism: the writes are **not reliably VBlank-gated** — the loop starts in VBlank but outlasts it, so each write lands in whatever PPU mode it hits and is discarded in mode 3. Corroborated by `IP-1110`'s own history (moving the block to the front made the *channel-activity* writes drop instead — whichever block runs last is exposed) and by a static label-extent measurement showing `init_engine` is only **176 bytes, ~6% of the per-frame region**, so the margin was already ≈zero. **Critically: `NFR-1010`'s stress-run proxy is structurally blind to this** — a dropped VRAM write causes no hang, no slowdown and no frame drop, the only three things it watches for. Revised recommendation in priority order: a **VRAM-write-integrity test suite first** (`BL-0069` — cheap, no new tooling, would have caught all four rows), cycle tallying second (`R101`'s own tier, routed to `02-research-gbc-hardware`), architecture change only after quantification. Severity scoped honestly: no correctness defect, audio unaffected, impact cosmetic and self-healing. **Also established the `MSTR-001` C10 forward-trace convention** (`BL-0067`) by applying it to all nine R3xx topics — each now carries a `## 6b. Forward trace` section; three are honestly recorded as *not* clean traces (`R306`'s unbuilt `requirements.txt` half, `R308`'s just-reopened no-act decision, `R309`'s process-grounding exception + `BL-0015`). Harvested `BL-0069` (the integrity check — currently the backlog's highest-value actionable item), `BL-0070` (GDS-06 §2.1 overstates VBlank-gating confidence), `BL-0071` (R1xx/R2xx forward traces still owed). Rebuilt+tested (122/122, no code touched). Committed (`b2c0eaa`). | `Next: 02-research-gbc-hardware — it owns R101's cycle-tallying reversal (BL-0060's remaining half), BL-0063's R105 C10 exception, and the R1xx tier's forward traces (BL-0071).` |
 
 | 101 | 2026-07-26 | run (iterate mode) | `02-research-gbc-hardware` | `BL-0060`/`BL-0063`/`BL-0071` | **Reversed `R101` §5's own conclusion in a new §8** (`BL-0060` `DONE`), re-derived against `R308` §8's experiment rather than re-reasoned. Recorded that the symptom arrived in a *different form* than §5 predicted — not \"occasional frame drops under stress\" but a reproducible frame class dropping VRAM writes while the engine keeps perfect time. Quantified the budget against `R102`'s 10-scanline (~1140 M-cycle) window and concluded §5's \"generous per-frame budget\" premise **no longer holds at current engine size**. **Assessed §5's own proposed tooling honestly rather than just endorsing it**: the design is still right and is the only option that converts silent runtime degradation into a loud build-time error — but it is no longer *first*, and it costs more than §5 implied (~150 emitters, two figures per conditional branch, call-graph following for anything better than a lower bound). **Named a cheaper first diagnostic nobody had proposed**: an `LY`/`STAT` probe at the top and bottom of `update_visuals` to measure how far past VBlank it actually finishes — a handful of lines that would say whether the overrun is marginal or structural *before* committing to the full package. **`R102` §3b** records the first time this project has actually hit the Mode-3 ignored-write hazard `R102` has documented abstractly since day one, and sharpens the design lesson: *\"issue VRAM writes during VBlank\" is not achieved by starting the frame's work in VBlank* — a long iteration beginning inside the window and ending outside it satisfies the letter of the rule and violates its substance. **Applied the C10 forward-trace convention to all 15 R1xx topics** (`BL-0063` `DONE`, `BL-0071` R1xx half `DONE`): 11 clean traces, **4 honest exceptions** — `R105` (no sprites/OAM used at all, by design), `R106` (grounds `ADR-0002`'s decision *not* to adopt MBC/SRAM), `R111` (confirmed a non-risk — the erratum is DMG-only), and `R112` (an orientation topic, exactly the case `MSTR-001` v1.3's own changelog predicted would turn up). 24 of 44 topics now traced; R2xx (23 topics) remains owed. Rebuilt+tested (122/122, no code touched). Committed (`00a0837`). | `Next: 07-implementation-planning for BL-0069's VRAM-write-integrity test suite — R308 §8.4 and R101 §8.4 both name it first-priority, it is the backlog's highest-value actionable item, and it rides the standing G3 authorization (it is a normal test/code package, not a refactoring one).` |
+| 102 | 2026-07-31 | run (iterate mode) | `08-code-implementation` → `02-research-tooling-and-testing` → `03-architecture-design-synthesis` → `02-research-gbc-hardware` → `07-implementation-planning` | `IP-9030`, then `BL-0069` corrections across four stages | **`IP-9030` `BLOCKED` — the package's own measurement falsified its premise, and the run then spent four further steps unwinding the claim at source.** Stage 08 added `VIS_END_LY` and the tail `LY` store exactly as Implementation Tasks 1-2 specified, built (32768 bytes), and measured. **Two independent lines of evidence killed the finding:** PyBoy 2.7.0's `mb.py` `setitem()` writes VRAM unconditionally at lines 502-511 with no `STAT`/mode check anywhere (and `getitem()` 370-374 likewise), so **a dropped VRAM write is not an observable event in this harness and never was**; and a WRAM mirror of each settings-cell write, taken at the instant of the write, matches the VRAM byte on **every frame of every class**. The real mechanism is a `pb.tick()` mid-frame sampling point — a ROM-side frame counter confirms exactly one ROM frame per tick, but the sample falls after `apply_input` and before `update_visuals` re-renders, producing a **uniform** one-frame lag. `Up` lags identically to `Select`; the "partial drop" is a partial *observation* and occurs on idle frames, which no drop hypothesis predicts. Code reverted, tree clean, 122/122. **What the ROM-side live-`LY` probes established instead** (Tier-A, independent of anything PyBoy models): `HALT` wakes at `LY` 144 every frame; `read_joypad`+`apply_input`+`engine_tick` reach `LY` 152-153; clean-build `update_visuals` ends at **153, VBlank's last scanline**; ~7 added stores/frame pushed it to `LY` 0/1/9. **Stronger than the finding it replaces** — not three heavy frame classes but a budget ~exhausted on every frame, unfixable by shortening any single routine, and unguarded. Corrections: `R308` §8.5 (mechanism withdrawn, budget conclusion survives), `R301` §3/§5 + `R305` §3/§5 (the harness limitation and the `tick()` hazard as first-class standing rules, plus a can/cannot-establish table), `GDS-06` §2.1 ("solid" → "sound in mechanism, marginal in budget" — the construction guarantees the window is *entered*, not that work *fits*), §2.2a, new §2.3, §6 OQ2 closed as answered-and-malformed, `GDS-02` §7 (the hardware gap now carries one specific unanswerable-here question), `R101` §8.5 (re-answers the tooling question: cheap runtime guard first, static table only at remediation — but the static table *prices* routines before they ship, which a guard cannot), `R102` §3b **withdrawn** + new §3c (the Mode-3 exposure is live, measured and untested) + §4's "writes execute at the very start of VBlank" corrected to the end, `R110` §3/§5 (first measured wake latency on this project). `R107` checked clean; `memory.md` checked clean. **`IP-9030` re-scoped v2** to a falsifiable VBlank budget assertion (`VIS_ENTRY_LY` at routine *entry*, `T19` asserting 144-153 across five frame classes), keeping `BL-0052`/`BL-0057`/`BL-0040` folded in, with a supersession sweep locating the four remaining places the false claim is stated as fact. **Authorization recorded `NEEDS RE-CONFIRMATION`** rather than assumed either way — the standing grant was given for a materially different package. Harvested `BL-0072`/`BL-0073`/`BL-0074`; `BL-0070`/`BL-0061` `DONE`; `BL-0015`'s own hypothesis confirmed. Commits `6ea24ad`, `5a8b072`, `59a8996`, `494f6f2`, `700dae5`. | `GATE: four open — G3 re-confirmation for IP-9030 v2 (BL-0072); fresh G3 for the BL-0064/BL-0065 refactoring packages; G4 release GO for R6 + IP-1110; and BL-0058 (hardware / mode-accurate-emulator validation). Iteration stopped here per the manager's own rule: a gate stop ends the loop.` |

@@ -15,7 +15,7 @@ bootstrap was.
 |---|---|---|---|
 | GDS-00 | Vision | [00-vision.md](00-vision.md) | ✅ Authored 2026-07-21; amended 2026-07-22 (v1.1 drift fix); amended 2026-07-22 (v1.2 — cart-shape/save reopened, not decided); amended 2026-07-22 (v1.3 — research-to-code traceability goal, C10); amended 2026-07-22 (v1.4 — §9 research findings cycled in) |
 | GDS-01 | Concept of Interaction | [01-concept-of-play.md](01-concept-of-play.md) | ✅ Authored 2026-07-21 |
-| GDS-02 | System Context | 02-system-context.md | ⛔ Planned |
+| GDS-02 | System Context | [02-system-context.md](02-system-context.md) | ✅ Authored 2026-07-26 — the first ladder level authored against a real, shipped system rather than synthesized forward (its §0 records that late-authoring deviation honestly). Describes the as-built artifact/build-chain/verification-harness context, the six external constraint ceilings, and — newly named here, nowhere else in the tree — the fact that Driftune has **never been run on physical GBC hardware**. Three Open Questions routed (hardware validation, `BL-0023`'s absent dependency manifest, `BL-0015`'s uncharacterized PyBoy timing semantics) |
 | GDS-03 | Architecture (module layout, main loop, input->parameter mapping, bad-zone metric) | [03-architecture.md](03-architecture.md) | ✅ Authored 2026-07-21 (SS1-5; SS6 lists what's still open); reconciled 2026-07-22 against shipped `IP-0004`/`IP-0007` (`BL-0013`, `BL-0017` root-cause note) |
 | GDS-04 | Domain Model | 04-domain-model.md | ⛔ Planned |
 | GDS-05 | Functional Requirements | 05-functional-requirements.md | ⛔ Planned (superseded in ordering by a direct `04-requirements-engineering` FR/NFR pass, see `docs/requirements/`) |

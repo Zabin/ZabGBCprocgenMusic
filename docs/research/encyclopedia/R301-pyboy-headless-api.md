@@ -60,6 +60,13 @@ frame/tick control.
 
 All of `test_rom.py`, NFR-1020, `IP-0001`'s T1-T5 suites.
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds `test_rom.py`'s entire PyBoy usage — `fresh_boot()`, `pb.memory[]` register/WRAM reads, `button_press`/`button_release`, `tick()`, `set_emulation_speed(0)` — shipped and exercised by all 122 checks (`T1`-`T18`), and by every `VR-xxxx`'s independent live drive. Requirements: `NFR-1010`/`NFR-1020`.
+
 ## 7. Related Topics
 
 R108 (what the memory reads this API performs actually mean), R305 (test-design patterns built on

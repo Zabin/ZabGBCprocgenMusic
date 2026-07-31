@@ -54,6 +54,13 @@ errors.
 ## 6. Feature Mapping
 FR-1120 (visualizer), `IP-0006` (the tile data this topic grounds).
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds the shipped 16-byte 2bpp tile format in `visuals.py` — `_tile_off_bytes()`/`_tile_on_bytes()` (`IP-0006`) and `_bar_tile_bytes(n)`'s 8 fill levels (`IP-1110`). Requirements: `FR-1120`, `FR-1350`. Design: [GDS-08 §1](../../architecture/08-presentation-architecture.md).
+
 ## 7. Related Topics
 R104 (CGB palette — the color *values* these tile indices select between), R205 (visualizer
 design convention — template-based tile animation), R302 (the codegen pattern class this

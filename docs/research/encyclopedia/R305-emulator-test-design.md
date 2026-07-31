@@ -76,6 +76,13 @@ parameter/reset checks) already implements every pattern above.
 
 `test_rom.py` (all suites), NFR-1020, `IP-0004`'s future bad-zone test design.
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds the shipped harness's central design choice — assert on sound registers and the WRAM engine-state mirror rather than the framebuffer (`MSTR-001` C9) — realised across all 18 `test_rom.py` suites. Design: [GDS-02 §4](../../architecture/02-system-context.md).
+
 ## 7. Related Topics
 
 R301 (the API these test patterns are built on), R108/R110 (the hardware facts that motivate each

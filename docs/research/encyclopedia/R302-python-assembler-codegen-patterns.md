@@ -62,6 +62,13 @@ given how rare the failure has been (once, across 9 packages).
 None directly (a toolchain-internal topic) — grounds every package's own `Files to
 Create/Modify` claims about `music_engine.py`/`build_rom.py`/etc. being buildable as described.
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds `gbc_lib.py`'s shipped two-pass label/fixup resolution and the memory-mapped-in-place `ROM.data` model — now formally specified as an interface in [GDS-09 §2](../../architecture/09-interface-specification.md). Every `IP-xxxx` in the tree is built through it.
+
 ## 7. Related Topics
 R301 (PyBoy headless API — the other half of the build-then-verify toolchain), R304 (ROM
 validation — the header/checksum pass that runs after `resolve()`), R109 (cartridge header, the

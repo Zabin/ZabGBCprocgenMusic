@@ -78,6 +78,14 @@ concrete bounded-depth/weighted-rule design constraint); **R219 §8** (`BL-0036`
 Holiday genre-coverage gap, Celtic joins the Folk/World tier, Holiday found high-confidence and
 uniquely cheap, Seasonal reclassified as a preset-rotation concern not a genre).
 
+> **Forward-trace convention (`MSTR-001` C10) — established 2026-07-26 (`BL-0067`).** Every topic
+> carries a `## 6b. Forward trace` section naming the shipped code it fed, or an explicitly-named
+> exception (a topic whose real job is grounding implementation *quality* or a decision *not* to
+> act). Rationale and the decision to keep this per-topic rather than in a central matrix:
+> [GDS-10 §4](../architecture/10-requirements-traceability-matrix.md).
+> **Status: R301-R309 (R300 tier) done. R1xx and R2xx tiers still owed** — their owners are
+> `02-research-gbc-hardware` and `02-research-game-design` respectively.
+
 ## R300 — Tooling, Emulation & Verification
 
 | ID | Topic | File | Status |

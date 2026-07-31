@@ -187,12 +187,28 @@ pixel design, not tuned by eye, same `BL-0005`-class deferral as every other vis
 decision). `SETTINGS_CELLS` (5 tilemap cells, immediately after `CHANNEL_CELLS`) each display one
 base control's current index (`TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX`) as a
 fill level via `_emit_update_settings_row`, called once per frame from `update_visuals`
-(`IP-1110`/`BL-0051`/`ADS-104`), positioned last in that routine — a real, disclosed timing
-finding: on the exact frame Select is pressed, `apply_input`'s full `init_engine` reset costs
-enough extra CPU that this block's VRAM writes for that one frame are silently dropped (a
-pre-existing property of the visualizer's per-frame VRAM-write design, only made observable here
-since this is the first indicator whose value changes across a Select press); the display
-self-heals the very next frame (`update_visuals` reruns unconditionally every frame). `OCTAVE_IDX`/
+(`IP-1110`/`BL-0051`/`ADS-104`), positioned last in that routine.
+
+> **Corrected 2026-07-31 (`BL-0069`).** This paragraph previously stated that on the exact frame
+> Select is pressed, `apply_input`'s `init_engine` reset costs enough extra CPU that the
+> settings-row VRAM writes for that frame are **silently dropped**. **That finding is false and is
+> withdrawn.** No VRAM write is dropped, on any frame. PyBoy 2.7.0 applies no PPU-mode gating to
+> VRAM writes at all (`R301` §3, `mb.py:502-511`), so the harness could never have observed a
+> drop; and a WRAM mirror taken at the instant of each write matches the VRAM byte on every frame
+> of every class. What was actually seen is a **`pb.tick()` mid-frame sampling artifact**: `tick`
+> returns after `apply_input` has updated the index but before `update_visuals` has re-rendered
+> from it, so any test reading a WRAM field and its derived tilemap cell after the same `tick`
+> reports a one-frame lag — **uniformly, on every frame class including idle frames with no
+> input**. The Select-vs-`Up` asymmetry that made it look like a real drop does not exist.
+>
+> **The real finding, which is broader and worse:** `HALT` wakes at `LY` 144, but
+> `read_joypad`+`apply_input`+`engine_tick` consume roughly **9 of VBlank's 10 scanlines**, so
+> `update_visuals` finishes at `LY` 153 — the window's last line — on *every* frame. Head-room is
+> a handful of instructions and nothing in the build or the suite guards it. Full account:
+> `R308` §8.5, `R101` §8.5, `R102` §3c, `GDS-06` §2.2a. On real hardware, which does enforce
+> mode 3, that margin is a live and untested exposure (`GDS-02` §7, `BL-0058`) — the display
+> would still self-heal the next frame, since `update_visuals` reruns unconditionally
+> (`GDS-08` §3). `OCTAVE_IDX`/
 `SCALE_IDX` (4 possible values) share the same 8-level tile set as `TEMPO_IDX`/`DENSITY_IDX`/
 `CHMIX_IDX` (8 possible values) rather than a separate narrower set — those two bars simply never
 exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).

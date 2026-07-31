@@ -57,7 +57,7 @@ across `VR-0001`-`VR-0007`), not via static cycle analysis grounded by this topi
 *Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
 
 ✅ **TRACED.** Grounds `gbc_lib.py`'s ~150 opcode emitters — every byte of shipped SM83 code is emitted through them. Formally specified as an interface in [GDS-09 §2](../../architecture/09-interface-specification.md), including the `JR` signed-8-bit range limit that actually fired during `IP-1090`. The *cycle-cost* half was originally a decision **not** to act (a C10 exception shape) but **§8 reopened it** — now an open recommendation tracked as `BL-0060`.
-
+ **Updated 2026-07-31 (`BL-0069`):** §8.5's self-correction traces forward to `IP-9030`'s `BLOCKED` status and to the runtime `LY` budget assertion recommended for its re-scope — a research correction that stopped an unbuildable test from shipping. Architecture: `GDS-06` §2.2a.
 ## 7. Related Topics
 R108 (APU register-write timing, the one place a misplaced write could matter more than raw
 cycle count), R110 (interrupt/VBlank timing), R308 (performance budgeting — the topic that
@@ -77,6 +77,13 @@ own revisit condition explicitly:
 
 That condition is now met. The sibling topic [`R308` §8](R308-performance-budgeting.md) carries
 the experiment in full; this addendum re-derives *this* topic's own conclusion against it.
+
+> ⚠️ **§8.1-§8.3 were written against evidence that was falsified on 2026-07-31. Read
+> [§8.5](#85-self-correction--2026-07-31-the-drop-evidence-was-wrong-the-conclusion-was-not-bl-0069)
+> before citing anything in them.** The headline — **the revisit condition has been met and cycle
+> accounting is warranted** — survives, and is now on materially stronger evidence. The
+> dropped-VRAM-write causal story it was derived from does not. §8.1-§8.4 are retained verbatim as
+> the methodological record; §8.5 states the correction and re-derives §8.2 and §8.3.
 
 ### 8.1 The symptom arrived, but not in the predicted form
 
@@ -174,3 +181,111 @@ is the right first measurement.
   10-scanline VBlank window, with its own Pan Docs citations.
 - [Pan Docs — Rendering / PPU timing](https://gbdev.io/pandocs/Rendering.html) — the 154-line
   frame and 456-dot scanline figures underlying the ~1140 M-cycle VBlank window.
+
+---
+
+### 8.5 Self-correction — 2026-07-31: the drop evidence was wrong, the conclusion was not (`BL-0069`)
+
+`IP-9030` was planned to detect and quantify §8.1's finding. Stage 08 built the diagnostic, took
+the measurement, and the measurement falsified the finding; the package is `BLOCKED` and carries
+the full data in its own
+[Blocking Report](../../implementation/packages/IP-9030-vram-write-integrity-detection.md#blocking-report--2026-07-31-08-code-implementation-run-102).
+`R308` §8.5 records the sibling tier's correction. This subsection corrects *this* topic.
+
+**Withdrawn.** §8.1's four-frame-class list and the "partial drop is the decisive datum" reading,
+and every step of §8.2 that reasons from the drop *pattern*. No VRAM write is dropped, on any
+frame class. PyBoy 2.7.0 applies no PPU-mode gating to VRAM writes whatsoever (`R301` §3, citing
+`mb.py:502-511`), so the experiment could not have observed a drop; and a WRAM mirror of each cell
+write matches the VRAM byte on every frame of every class. The symptom was a `pb.tick()`
+mid-frame sampling artifact producing a **uniform** one-frame display lag — identical on plain
+index steps and on Select, and present on idle frames with no input at all. The asymmetry §8.1
+built its argument on does not exist.
+
+**§8.2 re-derived against real numbers.** The replacement evidence is the live `LY` register read
+from *inside the ROM* at five points per frame — Tier-A, and (unlike VRAM write acceptance)
+dependent on nothing beyond a plain memory-mapped counter that every emulator models:
+
+| Probe point | Measured `LY` |
+|---|---|
+| main-loop top, immediately after `HALT` wakes | **144** — every frame, every class |
+| entry to `update_visuals` (after `read_joypad`+`apply_input`+`engine_tick`) | **152-153** |
+| end of `update_visuals`, **clean shipped build** | **153** — VBlank's last scanline |
+| end of `update_visuals`, **instrumented build** (~7 extra stores/frame) | 0 idle · 1 Start · 9 Select |
+
+The corrected §8.2 conclusion, stated plainly: **`read_joypad`+`apply_input`+`engine_tick` consume
+roughly 9 of VBlank's 10 scanlines, and `update_visuals` finishes on the tenth.** The head-room is
+a few dozen M-cycles — a handful of instructions — and it is spent on *every* frame, including
+idle frames with no input and no phase transition.
+
+This is duller than §8.1's story and considerably worse. Three differences matter for this topic:
+
+1. **No frame class is special.** Select and Start are a few instructions further along an
+   already-spent budget, not a distinct category. §8.2's "an addition as small as `init_engine`'s
+   176 bytes tips the tail out" was directionally right about the *margin* and wrong about the
+   *mechanism*: the margin really is ≈zero, but `init_engine` is not what spends it.
+2. **It is therefore not fixable by shortening any single routine.** §8.2 implicitly framed the
+   problem as one heavy path. It is not — the ordinary path is the heavy path. Shortening
+   `init_engine` to nothing would not move `LY` at entry to `update_visuals`, because
+   `init_engine` does not run on the idle frames that already reach 152-153.
+3. **The falsified version was, ironically, the more reassuring one.** A single tight frame class
+   is a local defect. A budget that is exhausted on every frame is a property of the engine's
+   size, and it will get worse with every package that adds per-frame work — which is precisely
+   what §5's revisit condition was written to catch.
+
+**§8.3 re-answered: is §5's proposed tooling design still right?** Partly, and its *priority* has
+changed for a second time.
+
+- **`R308` §8.4's "VRAM-write-integrity test first" is withdrawn** — by the sibling topic itself.
+  That test is not buildable honestly, because the harness cannot falsify it (`R305` §5's
+  can/cannot-establish table). It has been replaced by a **runtime `LY` budget assertion**: have
+  the ROM read `LY` at entry to `update_visuals`, store it to WRAM, and assert 144-153 in
+  `test_rom.py`. A handful of instructions and one check.
+- **This topic's position: build the runtime guard first, and agree with `GDS-06` §6 Open
+  Question 1's sequencing.** It is cheap, it is falsifiable, and it guards the exact regression
+  §8.2 fears — the next package quietly spending the last scanline.
+- **But the static cycle table retains independent value the runtime guard cannot supply, and
+  this topic does not want that lost.** A runtime assertion is a *detector*: it fires after a
+  package has been written, built and run, and it says "you are over" without saying by how much
+  or where. A static per-routine cycle sum is a *pricer*: it says what a routine costs **before**
+  it ships, attributes the cost to a named routine, and can fail the build at authoring time. Now
+  that the budget is known to be spent on the ordinary path, knowing *which* of `read_joypad`/
+  `apply_input`/`engine_tick` owns the 9 scanlines is the question any remediation must answer
+  first — and no runtime `LY` probe at a single point can answer it. **Revised recommendation:
+  runtime guard now; static table when remediation is actually attempted, not before.**
+- **§8.3's cost estimate stands unchanged** (~150 emitters, two figures per conditional branch,
+  call-graph following for anything better than a lower bound). Nothing measured since makes it
+  cheaper.
+
+**A recommendation that was right, recorded because those deserve recording too.** §8.3 proposed,
+as "a cheaper diagnostic worth considering first, and not previously named," reading `LY`/`STAT`
+around `update_visuals` to measure how far past VBlank it finishes. **That probe was built, it
+worked, and it is the entire evidentiary basis of this correction** — including the basis for
+overturning the finding it was commissioned to confirm. It cost roughly a dozen instructions and
+replaced a wrong conclusion with a measured one. §8.3's judgement that this should come before the
+150-emitter package was correct and is hereby vindicated.
+
+**Revised §8.4 guidance** (superseding the list above):
+
+- **Do not** treat the per-frame budget as generous — unchanged, and now measured rather than
+  inferred.
+- **Do** require any package adding per-frame work **at all** to state its cost impact. The
+  earlier wording singled out `apply_input`/`update_visuals`; that is too narrow, since idle
+  frames already reach `LY` 152-153.
+- **Do** build the runtime `LY` budget assertion first (`BL-0069`, via `IP-9030`'s re-scope).
+- ~~**Do** build the VRAM-write-integrity check first.~~ **Withdrawn** — unbuildable in this
+  harness; see `R305` §5.
+- **Do not** infer a hardware mechanism from an emulator observation without checking the
+  emulator's implementation of that mechanism. This addendum's original version did exactly that,
+  and the check would have cost one `grep`. `R305` §3 carries it as a standing rule.
+- **Do not** conclude the engine is broken — unchanged and still true. Audio writes APU registers,
+  not VRAM. Nothing observable is wrong; what is thin is the margin, and the real exposure is on
+  hardware, where mode 3 is enforced and nothing here can test it (`R102` §3c).
+
+#### Sources
+- [`IP-9030` Blocking Report](../../implementation/packages/IP-9030-vram-write-integrity-detection.md#blocking-report--2026-07-31-08-code-implementation-run-102) — both experiments and full data, 2026-07-31.
+- [`R308` §8.5](R308-performance-budgeting.md) — the sibling tier's matching self-correction.
+- [`R301` §3](R301-pyboy-headless-api.md) / [`R305` §5](R305-emulator-test-design.md) — PyBoy's
+  unconditional VRAM writes (`mb.py:502-511`) and the resulting can/cannot-establish boundary.
+- [`R102` §3c](R102-ppu-modes-and-vram-oam-access-timing.md) — the untested hardware exposure.
+- Local experiments, 2026-07-31, PyBoy 2.7.0: ROM-side live-`LY` probes, WRAM-mirror comparison,
+  ROM-side frame counter. Instrumented builds were throwaway and reverted.

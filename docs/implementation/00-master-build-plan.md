@@ -214,7 +214,7 @@ a fresh one.
 
 | IP | Package | BL cited | Status |
 |---|---|---|---|
-| IP-9030 | VRAM write-integrity detection — a `T19` suite asserting every visualizer cell against its source state across all four known-affected frame classes, plus a `VIS_END_LY` diagnostic quantifying how far past VBlank `update_visuals` finishes | `BL-0069` (Medium); folds in `BL-0052`, `BL-0057`; doc half of `BL-0040` | **BLOCKED** 2026-07-31 — premise falsified by the package's own measurement (PyBoy models no mode-3 VRAM gating; no write is dropped; the symptom is a `pb.tick()` observation-window artifact uniform across all frame classes). See the package's own Blocking Report. Needs re-scoping by `07`. |
+| IP-9030 | **VBlank budget assertion** (re-scoped v2, 2026-07-31 — was *VRAM write-integrity detection*): a `VIS_ENTRY_LY` diagnostic recording `LY` at **entry** to `update_visuals`, plus a `T19` suite asserting it stays within VBlank (144-153) across five frame classes. Replaces the v1 write-integrity scope, which was unbuildable — the harness accepts every VRAM write regardless of PPU mode, so such a check could never fail | `BL-0069` (Medium); folds in `BL-0052`, `BL-0057`; doc half of `BL-0040` | **READY** — but **authorization NEEDS RE-CONFIRMATION** (see below). v1 was `BLOCKED` 2026-07-31 when its own measurement falsified its premise; the Blocking Report is retained in the package doc. |
 
 **Verb inventory.** This capability needs only *review* (detect and quantify an existing
 behaviour) — no *generate*, no *apply*, no *persist*. The *render* verb is explicitly **not**
@@ -254,10 +254,17 @@ acceptance criterion (4) carried before run #99 corrected it. Same fix, same mec
 phrasing. It is in this package rather than its own because it is a one-sentence wording change in
 a document this skill was already opening.
 
-**G3 authorization for `IP-9030`**: **granted on the user's standing basis, 2026-07-26** — the
-user's own words this turn, *"Same pre authorization as before"*, reaffirming the standing
-per-package authorization already cited for `IP-1090` and `IP-1110`. Cited explicitly rather than
-assumed. **Note this is a normal code/test package owned by `08-code-implementation`, not a
+**G3 authorization for `IP-9030`**: ~~**granted on the user's standing basis, 2026-07-26**~~ —
+**SUPERSEDED 2026-07-31 by the v2 re-scope; now `NEEDS RE-CONFIRMATION`, not authorized to
+build.** The 2026-07-26 grant rested on the user's *"Same pre authorization as before"*, and it
+was correctly cited — but it was given for a package whose objective was to detect and quantify a
+dropped-VRAM-write behaviour that has since been shown not to exist. The v2 package addresses a
+different (real) problem, ships a **permanent per-frame ROM diagnostic** rather than removable
+instrumentation, and additionally corrects four documents that carry the falsified claim. Full
+reasoning in the package's own *Authorization (G3)* section. The planning judgement is that the
+user's underlying intent is better served by v2 than by v1 and nothing here is irreversible — but
+that a grant given for X is not a grant for Y, and the user should decide. Cited explicitly rather
+than assumed, in both directions. **Note this is a normal code/test package owned by `08-code-implementation`, not a
 refactoring package** — the "refactoring packages are never pre-authorized" rule (`IP-8xx0`,
 `08-refactoring`) does not apply here. It *does* apply to `BL-0064`/`BL-0065`, which remain
 unplanned and would each need their own fresh go-ahead.

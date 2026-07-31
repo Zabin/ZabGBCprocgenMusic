@@ -204,3 +204,68 @@ product roadmap" directive) — the same kind of authorization basis `BL-0020`/`
 attached), not the `BL-0024`-style explicit build-and-ship filing. `IP-1080` is recorded **NOT
 authorized** below; the user's explicit per-package go-ahead is needed before
 `08-code-implementation` may build it.
+
+---
+
+## TWBS — `IP-9030` re-scope (2026-07-31, `BL-0069`)
+
+**Trigger.** `IP-9030` v1 (*VRAM write-integrity detection*) was returned `BLOCKED` by
+`08-code-implementation` on 2026-07-31. Unusually, it did not block on drift or a missing
+dependency: stage 08 built the diagnostic the package specified, took the measurement the package
+existed to produce, and **the measurement falsified the package's own premise**. This section
+records the re-cut and why it is shaped as it is.
+
+**What was retired.** The v1 objective — assert that visualizer VRAM writes are dropped on three
+heavy frame classes — is not merely wrong, it is **unbuildable**. PyBoy 2.7.0 accepts every VRAM
+write regardless of PPU mode (`R301` §3, `mb.py:502-511`), so a check asserting a drop cannot
+fail, and a check asserting no-drop cannot fail either. `R305` §5's can/cannot-establish table now
+codifies the boundary. v1's `T19` items (b), (c) and (d) all sat on the wrong side of it.
+
+**Supersession sweep.** Required whenever a package retires an existing model — here, the model
+being retired is a *claim* rather than a code pattern, so the sweep was for every place the
+falsified finding is stated as fact. Found, and each assigned an owner:
+
+| Location | Disposition |
+|---|---|
+| `R308` §8, `R101` §8, `R102` §3b | corrected by the `02-research-*` owners, 2026-07-31 — **done** |
+| `GDS-06` §2.1/§2.2, `GDS-02` §7 | corrected by `03`, 2026-07-31 — **done** |
+| `visuals.py` `build_visuals_update_asm` comment block (~lines 163-177) | **folded into `IP-9030` v2**, task 6 |
+| `Claude.md` settings-row paragraph + Known Good Behavior | **folded into `IP-9030` v2**, task 6 |
+| `test_rom.py` `T18.10` check name | **folded into `IP-9030` v2**, task 6 |
+| `IP-1110` package doc's disclosed-finding text | **folded into `IP-9030` v2**, task 6 |
+| `memory.md` | **checked — clean**, carries no drop-finding text. Recorded as a positive result, not silence. |
+| `BL-0069`/`BL-0070`/`BL-0061` | `00-pipeline-manager`'s to re-derive — **not this skill's** |
+
+**Split decision: fold the doc corrections in, do not cut a separate doc-fix package.** Arguments
+both ways were real. *For splitting:* the corrections are pure documentation and touch four files
+this package otherwise has no reason to open, which is the usual signal for a separate cut.
+*For folding, which won:* the corrections and the code change are the **same finding** — v2 exists
+because the claim was false, and shipping the package that disproved a claim while leaving that
+claim standing in `Claude.md`'s Known Good Behavior would be incoherent. A separate package would
+also have to re-derive the entire evidentiary context to be reviewable, duplicating the Blocking
+Report. The corrections are wording-only and mechanically small; the risk folding creates is that
+stage 08 re-litigates the findings rather than transcribing the corrected account, which the
+package's Risks field names explicitly as a thing not to do.
+
+**No-split decision: `BL-0052`/`BL-0057` stay folded in, as in v1.** Both are `test_rom.py`
+coverage-widening items (`T17.6` across all three phase-transition boundaries; `T18.8`-`T18.10`
+across ≥2 pre-Select sequences), both entirely unaffected by the falsification, and both land in
+the same file and the same stage-08 run as `T19`. Cutting them out now would be churn.
+`BL-0040`'s doc half likewise stays.
+
+**Verb inventory.** The capability is *review* only — assert a property of existing behaviour. No
+*generate*, no *apply*, no *persist*. **Deliberate deferral recorded:** the *fix* verb (widening
+the per-frame budget — static cycle tallying per `R101` §8.5, or moving visualizer writes to a
+dedicated VBlank ISR per `GDS-06` §6 OQ1) is **explicitly not owned by any package yet**, and
+that is intentional: both `R101` §8.5 and `GDS-06` §6 OQ1 hold that a regression guard should
+exist before remediation is attempted, and this package is that guard. When remediation is
+scheduled it needs its own package and its own G3.
+
+**Right-sizing.** One focused stage-08 run: two instructions of ROM, one WRAM byte, one new test
+suite, two widened suites, four wording corrections. Coherent against a single Definition of Done.
+
+**Authorization.** Recorded as **`NEEDS RE-CONFIRMATION`**, superseding the 2026-07-26 standing-
+basis grant. Reasoning in the package's own *Authorization (G3)* section and mirrored on the
+Master Build Plan; in short, the grant was given for a materially different package and v2 ships a
+permanent per-frame cost the original did not. This skill takes the position that the user's
+underlying intent favours v2, and that the decision is nonetheless theirs.

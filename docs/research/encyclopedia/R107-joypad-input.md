@@ -35,5 +35,12 @@ than a single read, to avoid intermittent false edges from unsettled lines.
 ## 6. Feature Mapping
 FR-1020–FR-1070 (all edge-triggered input mapping), GDS-07 SS5 (`JOY_PREV`/`JOY_CUR`/`JOY_NEW`).
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds `input_map.py`'s shipped `read_joypad` — the two-nibble read, the `CPL` active-high convention, and the settling reads this topic's dual-read guidance requires. Requirements: `FR-1020`-`FR-1070`. Tested by `test_rom.py` `T4`/`T5`.
+
 ## 7. Related Topics
 R110 (the VBlank-driven frame cadence `read_joypad` runs on).

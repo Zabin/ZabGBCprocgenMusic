@@ -44,6 +44,13 @@ frames from (`music_engine.py`'s `TEMPO_TABLE`, computed from BPM at ~60fps).
 ## 6. Feature Mapping
 NFR-1010 (per-frame budget), GDS-03 SS2 (main loop structure), `IP-0001`'s T2/T3 suites.
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds `build_rom.py`'s shipped interrupt model: the VBlank ISR at `0x0040` setting `VBLANK_FLAG`, the `RETI`-stubbed unused vectors, `IE` configured for VBlank only, and the `HALT`-until-VBlank main loop. Formally specified as the per-frame call-order contract in [GDS-09 §5](../../architecture/09-interface-specification.md). Requirement: `NFR-1010`.
+
 ## 7. Related Topics
 R108 (what happens inside a tick — the register writes this cadence gates), R305 (test-design
 implications of the boot-frame-count discovery). R102 (the PPU-mode timing the VBlank interrupt

@@ -105,6 +105,13 @@ MSTR-001 C1/C2 (the reopened, not-yet-decided scope commitments this topic groun
 (the vision-tier thread that triggered this update), `test_rom.py` T1.4 (current cart-type=
 ROM-ONLY assertion, still accurate for the *shipped* ROM, not a forward commitment).
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⚠️ **EXCEPTION — grounds a recorded decision *not* to act.** No MBC and no SRAM ship: cart type is ROM-ONLY, asserted by `test_rom.py` `T1.4`. This topic's research is precisely what let [`ADR-0002`](../../architecture/adr/) *defer* MBC/SRAM adoption on evidence rather than by assumption — `MSTR-001` C2 had explicitly reopened the question after the original blanket "no save" commitment was named as an arbitrary decision. A decision-grounding exception under C10, and a load-bearing one: `ADR-0002`'s named re-triggers depend on this topic's facts.
+
 ## 7. Related Topics
 
 R109 (cartridge header — the cart-type/RAM-size bytes this topic's recommendations would touch),

@@ -29,6 +29,38 @@ ignored-write hazard.
 - [Pan Docs — OAM](https://gbdev.io/pandocs/OAM.html)
 - [mgba-emu gbdoc — Open Game Boy Documentation Project](https://mgba-emu.github.io/gbdoc/) (cross-reference for mode-timing figures)
 
+## 3b. Addendum — 2026-07-26: this project has now actually hit the Mode-3 hazard
+
+Until 2026-07-26 the Mode-3 ignored-write behaviour §3 documents was a hazard this project had
+grounded but never observed. It has now been observed, repeatedly and reproducibly, and this is
+the first real instance — worth recording here because §3's abstract statement and a concrete
+shipped symptom are very different things for a future reader.
+
+**Observed:** the visualizer's settings-indicator writes are silently discarded on any frame where
+`apply_input` or `engine_tick` does more than minimum work — a Start press (style application), a
+Select press (full `init_engine` reset), or an autonomous song-form phase transition. In the
+song-form case the loss is **partial**: the first of five cells lands and the fourth does not.
+
+**Why §3 explains it exactly:** the main loop `HALT`s until VBlank (Mode 1), then runs all
+per-frame work before its visualizer writes. When that work outlasts the 10-scanline VBlank
+window, the PPU has already resumed and later writes land in whatever mode they hit — surviving in
+Mode 0/2, **discarded in Mode 3**, precisely as §3 states. The partial loss is the signature: a
+write sequence straddling the Mode 1 → Mode 2/3 boundary loses only its tail.
+
+**The design lesson this sharpens**, beyond what §5 already says: "issue VRAM writes during
+VBlank" is not achieved by *starting* the frame's work in VBlank. It is only achieved if the
+writes themselves are still inside the window when they execute. A long main-loop iteration that
+begins in VBlank and ends outside it satisfies the letter of the rule and violates its substance.
+Cross-referenced from [`R101` §8](R101-sm83-instruction-set-and-cycle-costs.md) and
+[`R308` §8](R308-performance-budgeting.md), which carry the measurement and the remediation
+priority respectively.
+
+### Sources
+- [`R308` §8.2](R308-performance-budgeting.md) — the local experiment (PyBoy 2.7.0, commit
+  `e4db8ef`) producing the four-frame-class table and the partial-drop observation.
+- [Pan Docs — Accessing VRAM and OAM](https://gbdev.io/pandocs/Accessing_VRAM_and_OAM.html)
+  (already cited in §3) — the underlying ignored-write behaviour.
+
 ## 4. Operational Context
 `build_rom.py`'s `main_loop` (`build_rom.py:75-85`) `HALT`s the CPU until the VBlank interrupt
 sets `VBLANK_FLAG` (the ISR at `0x0040`, GDS-07 §8), then runs `engine_tick`/`update_visuals`
@@ -55,6 +87,13 @@ protect.
 FR-1120 (visualizer, read-only + correctly-timed writes), NFR-1010 (per-frame budget — the VBlank
 window's actual duration is part of that budget), GDS-07 §8 (`VBLANK_FLAG` synchronization
 mechanism).
+
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds the VBlank-gated visualizer write discipline in `build_rom.py`'s main loop and `visuals.py` (`IP-0006`, `IP-1110`). Requirement: `NFR-1010`. **§3b records the first real observed instance** of the Mode-3 ignored-write hazard this topic documents (`BL-0069`).
 
 ## 7. Related Topics
 R103 (`LCDC`/`STAT`, the registers that report/configure PPU mode), R104 (CGB palette registers,

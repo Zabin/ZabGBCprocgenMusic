@@ -50,6 +50,13 @@ anything currently planned.
 ## 6. Feature Mapping
 FR-1120 (visualizer boot init), `test_rom.py` T9.1.
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds `visuals.py`'s shipped `LCDC = 0x91` configuration (LCD on, BG tile data at `0x8000` unsigned addressing, BG display on) in `build_visuals_init_asm`, asserted by `test_rom.py` `T9.1`.
+
 ## 7. Related Topics
 R102 (PPU mode timing `STAT`'s mode bits report), R104 (CGB palette, the other half of the
 visualizer's boot config), R105 (OBJs — why bit1/bit2 stay clear), R110 (interrupt model — why

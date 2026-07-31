@@ -83,8 +83,13 @@ uniquely cheap, Seasonal reclassified as a preset-rotation concern not a genre).
 > exception (a topic whose real job is grounding implementation *quality* or a decision *not* to
 > act). Rationale and the decision to keep this per-topic rather than in a central matrix:
 > [GDS-10 §4](../architecture/10-requirements-traceability-matrix.md).
-> **Status: R301-R309 (R300 tier) done. R1xx and R2xx tiers still owed** — their owners are
-> `02-research-gbc-hardware` and `02-research-game-design` respectively.
+> **Status: R300 tier (R301-R309) done 2026-07-26; R100 tier (R101-R115) done 2026-07-26. R200
+> tier (R201-R223, 23 topics) still owed** — owner `02-research-game-design`.
+> Of the 24 topics traced so far, **7 carry honest exceptions rather than forward links**:
+> `R105` (no sprites/OAM used at all, by design), `R106` (grounds `ADR-0002`'s decision *not* to
+> adopt MBC/SRAM), `R111` (confirmed a non-risk — the erratum is DMG-only), `R112` (orientation
+> topic, exactly the case `MSTR-001` v1.3's changelog predicted), `R306`/`R308`/`R309`. That
+> ratio is itself the audit's value: none of these were visible before the convention existed.
 
 ## R300 — Tooling, Emulation & Verification
 

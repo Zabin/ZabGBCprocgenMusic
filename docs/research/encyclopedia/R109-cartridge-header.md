@@ -39,6 +39,13 @@ SRAM — currently a non-goal, MSTR-001 SS4) must update both `set_header`'s cal
 ## 6. Feature Mapping
 NFR-1000 (valid header, fixed ROM size), `IP-0001` T1 suite.
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds `gbc_lib.py`'s `set_header` — title bytes, CGB compatibility flag `0x80`, cart type, and the header checksum the boot ROM verifies. Asserted by `test_rom.py` `T1.1`-`T1.5` as a permanent G5 gate.
+
 ## 7. Related Topics
 R108 (the cart type's interaction with which hardware features are available — ROM ONLY means no
 SRAM-backed persistence is possible even if a later increment wanted it). R304 (ROM validation —

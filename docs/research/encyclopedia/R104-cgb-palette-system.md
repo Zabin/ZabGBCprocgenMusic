@@ -120,6 +120,13 @@ addendum flags as real, non-trivial work.
   any future visual-evolution package ships, to keep the budget-tracking discipline this project
   has now established for cart-shape decisions consistent across all future content additions.
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds `visuals.py`'s `rgb15()`/`BCPS`/`BCPD` palette writes and the `CALM_PALETTE`/`BAD_PALETTE` swap (`IP-0006`). Requirement: `FR-1120`. Its §7-8 budget addendum grounds [GDS-08 §4.2](../../architecture/08-presentation-architecture.md)'s adoption of palette-swap as the standing visual-extension strategy.
+
 ## 7. Related Topics
 R102 (VRAM/palette access-timing window this must write within), R103 (`LCDC`, the sibling boot
 config), R208 (palette/color design conventions — still `⛔ Planned`, a design-taste topic

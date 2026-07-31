@@ -45,6 +45,13 @@ Not yet implemented (`IP-0003`).
 `IP-0003` (noise channel, not yet authored), R202 (Euclidean density this topic's onset gating
 depends on).
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds `music_engine.py`'s `_emit_noise_gen` — `NR41`-`NR44` usage and the LFSR-based noise the Euclidean-gated percussion rides on (`IP-0003`). Requirements: `FR-1010`/`FR-1100`. Tested by `T7`.
+
 ## 7. Related Topics
 R108 (register map), R202 (density/rhythm generation), R204 (channel-overload scoring includes
 noise-channel onset events).

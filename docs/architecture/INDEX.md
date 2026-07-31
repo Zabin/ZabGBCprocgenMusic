@@ -3,9 +3,12 @@
 Owned by `03-architecture-design-synthesis` (GDS-01...10, ADS, ADRs) and `01-vision` (GDS-00 +
 strategic assumptions register). See `.claude/skills/README.md` for the pipeline.
 
-This is a from-scratch increment (no shipped ROM), so the ladder is authored level by level as
-the pipeline actually reaches it, not mined from existing code the way the reference project's
-bootstrap was.
+The ladder is authored level by level as the pipeline actually reaches it. **This was originally
+a from-scratch increment with no shipped ROM**, and GDS-00/01/03/07 were synthesized forward on
+that basis. That is no longer the situation: a ROM has shipped and 16 packages are `VERIFIED`, so
+the levels authored from 2026-07-26 onward (GDS-02, GDS-04, and those still to come) are written
+**against the real system as-built and measured**, not forward from intention. Each such level
+says so in its own §0.
 
 [↑ Docs index](../INDEX.md)
 

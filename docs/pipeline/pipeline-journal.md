@@ -2,24 +2,21 @@
 
 ## Position
 
-- **Updated:** 2026-07-26 (run #92) — `03-architecture-design-synthesis` authored
-  [GDS-02](../architecture/02-system-context.md) (System Context), the first ladder level on this
-  project written against the real shipped system rather than synthesized forward; gate closed.
-  Its §7 names, for the first time anywhere in the tree, that **Driftune has never been run on
-  physical GBC hardware** — harvested as `BL-0058`. An overstatement was caught and corrected
-  mid-authoring (`R111`'s erratum is DMG-only and absent on CGB — a reassurance, not a risk).
-  **The GDS ladder is being drained level by level this run** (`BL-0001`): GDS-04, GDS-05,
-  GDS-06, GDS-08, GDS-09, GDS-10 remain unauthored. **R1-R5+`IP-1090` remains the fully shipped
-  baseline** (run #74); `IP-1100`/R6 and `IP-1110`/`BL-0051` are both `VERIFIED`,
-  integration-reviewed clean at 16-package scope, and carry a written GO recommendation awaiting
-  the user's explicit confirmation. Backlog: 30 open entries, none Critical/High, all
-  `SCHEDULED`/`DEFERRED` except `BL-0058` (`NEEDS-USER`, explicitly **not ripe** — nothing is
-  blocked on it).
-  **Open gates (neither stops iteration — both are independent threads batching into the
-  end-of-run report):** (1) **G4** — the release GO/NO-GO call for adding R6/`IP-1100` and
-  `BL-0051`/`IP-1110` to the shipped baseline; (2) **`BL-0058`** — whether physical-hardware
-  validation is actually wanted before a research pass grounds it.
-  Next step: `03-architecture-design-synthesis` for GDS-04 (Domain Model).
+- **Updated:** 2026-07-26 (run #93) — `03-architecture-design-synthesis` authored
+  [GDS-04](../architecture/04-domain-model.md) (Domain Model), gate closed. Three statements land
+  there that exist nowhere else in the tree: the **steering-index family** + writer analysis (a
+  verified last-write-wins contract over `TEMPO_IDX`/`DENSITY_IDX`'s three writers each), the
+  **index-0 invariant** as one cross-cutting rule, and the **one-frame-stale bad-zone read**.
+  **GDS ladder draining** (`BL-0001`): GDS-02 and GDS-04 authored this run; GDS-06, GDS-08,
+  GDS-09, GDS-10 remain (GDS-05 is recorded as superseded in ordering by the direct
+  `04-requirements-engineering` pass). **R1-R5+`IP-1090` remains the fully shipped baseline**
+  (run #74); `IP-1100`/R6 and `IP-1110`/`BL-0051` are both `VERIFIED`, integration-reviewed clean
+  at 16-package scope, and carry a written GO recommendation awaiting explicit user confirmation.
+  Backlog: 31 open entries, none Critical/High.
+  **Open gates (neither stops iteration — both batch into the end-of-run report):** (1) **G4** —
+  the release GO/NO-GO for R6/`IP-1100` + `BL-0051`/`IP-1110`; (2) **`BL-0058`** — whether
+  physical-hardware validation is wanted (not ripe; nothing blocked on it).
+  Next step: `03-architecture-design-synthesis` for GDS-06.
 
 - **Runs #33-52 summary:** the "Foundation + R216 + integrity remediation into one releasable
   state" convergence directive ran to completion and beyond: `IP-1060`/`IP-1061` (R216 sound
@@ -549,3 +546,5 @@ per-step journaling rather than treating run #1 as a precedent to repeat.
 | 91 | 2026-07-26 | run (iterate mode, continuing) | `11-release-readiness` | R6/`IP-1100` + `BL-0051`/`IP-1110` | Wrote the Release Assessment (docs/reviews/release-assessment-r1-r2-r3.md's new "Re-review -- 2026-07-26 (adding R6/IP-1100 and BL-0051/IP-1110 scope)" section) assessing both additions together (no dependency between them, confirmed by ADS-104 SS4/SS7). Scope audit: both FEAT-1100/FEAT-1110 trace to VERIFIED packages (VR-1100/VR-1110) covered by clean integration reviews (15- then 16-package re-reviews). No deviations found -- both G3 bases explicitly cited (IP-1100's explicit fresh basis, IP-1110's standing basis). Residual risk sweep: 7 carried-forward Low/Medium findings (BL-0040/0044/0045/0048/0052/0053/0057), none blocking, plus IP-1110's own disclosed self-healing display-lag accepted as tested/documented shipped behavior. **Recommendation: GO.** No baseline record touched -- this is a G4 gate awaiting the user's explicit confirmation. Rebuilt+tested against the assessed commit (a56bb01): 122/122. Committed (`eddb117`), pushed. | `GATE: G4 release GO/NO-GO -- awaiting the user's explicit confirmation before any baseline flip for R6/IP-1100 and BL-0051/IP-1110's addition to the shipped baseline.` |
 
 | 92 | 2026-07-26 | run (iterate mode) | `03-architecture-design-synthesis` | GDS-02 (System Context), `BL-0001` | Authored [GDS-02](../architecture/02-system-context.md), the next unauthored ladder level (GDS-01's gate confirmed closed first). **The first ladder level on this project authored against a real, shipped system rather than synthesized forward** — its own §0 records that late-authoring deviation honestly rather than pretending the ladder was walked in order. Content: the as-built artifact (real header values, section layout, 4240/32768 bytes used per `ADR-0002`'s own instrumentation), the Python-assembler build chain and the build-time-vs-runtime computation asymmetry that shapes every downstream level, the sound-register-asserting headless harness (`MSTR-001` C9) and the two hardware realities it must accommodate (write-only PSG frequency registers; the GBC boot ROM's ~90-frame logo delay), the single listener actor's eight-button surface, and six external constraint ceilings. **Caught and corrected an overstatement mid-authoring**: an initial §7 draft cited `R111` as evidence of emulator/silicon divergence risk — re-reading `R111` showed its documented erratum is **DMG-only and explicitly absent on CGB**, i.e. a reassurance for this target, not a risk; the section was rewritten to say so and to name the genuinely-unresearched gap instead. Harvested one new entry: `BL-0058` (the never-tested-on-hardware validation gap + the absent PyBoy-vs-CGB APU-divergence research topic), dispositioned `NEEDS-USER` but explicitly **not ripe** — nothing downstream is blocked on it, so it batches into the end-of-run report rather than stopping iteration. Updated `BL-0001`'s disposition (6 ladder levels remain). Rebuilt+tested (122/122, no code touched). Committed (`a711711`). | `Next: 03-architecture-design-synthesis again for GDS-04 (Domain Model), the next unauthored level — one level per pass.` |
+
+| 93 | 2026-07-26 | run (iterate mode) | `03-architecture-design-synthesis` | GDS-04 (Domain Model), `BL-0001` | Authored [GDS-04](../architecture/04-domain-model.md) (GDS-02's gate confirmed closed first). Entity set read directly out of `music_engine.py` rather than inferred from downstream docs. Holds a deliberate line against GDS-07 — no WRAM address or byte layout anywhere. **Three statements land here that exist nowhere else in the tree**: (1) the five steering indices named as one coherent *family* with shared semantics, plus a writer analysis showing `TEMPO_IDX`/`DENSITY_IDX` each have three independent writers (D-pad/B handlers, `IP-1080` style application, `IP-1100` song-form transitions) governed by a last-write-wins contract `VR-1100` adversarially confirmed at all three phase boundaries; (2) the **index-0 invariant** stated once as a cross-cutting rule binding `STYLE_TABLE`/`MOTIF_TABLE`/`SONG_TABLE`/`CHMIX_MASKS`, rather than four separate per-table requirements — with `IP-1100`'s own ten-test regression recorded as proof it is not optional; (3) the **one-frame-stale bad-zone read** (channels act on the previous frame's flags), which already produced one false test failure in `T16.7`. Also recorded `CHMIX_IDX`'s three-meanings overload and its two different application latencies, and named the **\"good-state snapshot\" as a deliberate non-entity** — the original ladder sketch assumed one, the shipped design took a different route (recovery biases generation in place), so it was never built. Four Open Questions routed. Harvested `BL-0059` (a stale `ROADMAP.md` stage-06 row missing `FS-111`, spotted while updating the adjacent stage-03 row; not fixed in-pass since it belongs to stage 06). Also corrected `docs/architecture/INDEX.md`'s own stale header framing (it still described the ladder as a from-scratch increment with no shipped ROM — two levels are now authored against the real system). Rebuilt+tested (122/122, no code touched). Committed (`2d8c6f5`). | `Next: 03-architecture-design-synthesis for GDS-06 (Non-functional Requirements) — GDS-05 is recorded as superseded in ordering by the direct 04-requirements-engineering pass, so GDS-06 is the next level that genuinely needs authoring.` |

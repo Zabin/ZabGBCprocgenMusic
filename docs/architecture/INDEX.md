@@ -12,7 +12,11 @@ says so in its own §0.
 
 [↑ Docs index](../INDEX.md)
 
-## §1 — The global ladder (GDS-00...GDS-10)
+## §1 — The global ladder (GDS-00...GDS-10) — ✅ **COMPLETE 2026-07-26**
+
+Ten of eleven levels authored with closed gates; GDS-05 is recorded as *deliberately not owed*
+rather than outstanding (rationale in [GDS-06 §0](06-non-functional-requirements.md)). This closed
+`BL-0001`, the pipeline's oldest backlog entry, open since run #1.
 
 | Level | Title | File | Status |
 |---|---|---|---|
@@ -26,7 +30,7 @@ says so in its own §0.
 | GDS-07 | Data Model (WRAM map) | [07-data-model.md](07-data-model.md) | ✅ Authored 2026-07-21; extended 2026-07-22 with 6 previously-undocumented WRAM addresses (`BL-0018`) and reconciled re: the unused ring buffer (`BL-0013`) and the `DIV`-reseed drift fix |
 | GDS-08 | Presentation Architecture (visualizer) | [08-presentation-architecture.md](08-presentation-architecture.md) | ✅ Authored 2026-07-26 — closes `BL-0001`'s long-standing "GDS-08 rides with the visualizer work" disposition, authored after **both** visualizer packages shipped rather than before either. Records the stateless **re-render-every-frame** contract and why it is what makes `IP-1110`'s dropped Select-frame write self-healing; the palette-swap extension strategy (`R222`/`R104` §7); what the layer deliberately does **not** do (no sprites/OAM at all, no font — so the ROM cannot explain its own controls). **Places the four scattered reactive-signal Open Questions (`FS-107`-`FS-110`) architecturally** with a ranked recommendation. Addresses `BL-0021` (accessibility: a state distinction should never rest on colour alone) and `BL-0016` (`FR-1120`'s tempo claim — satisfied on a narrow reading, overstated on the natural one). Four Open Questions routed |
 | GDS-09 | Interface Specification | [09-interface-specification.md](09-interface-specification.md) | ✅ Authored 2026-07-26 — **closes the gap all six `FS-1xx` specs flagged in their own *Interfaces Used* fields**. Documents the real surface (5 modules, 4 functions) and names the ladder table's `build_tile_data()`/`ALL_PATTERNS`/`music_data()` as reference-project inheritances that don't exist here. **Two findings from reading the source**: the **patch-point contract is vestigial** (both `patches` dicts are always empty and both return values are discarded — three documents describe a live interface that carries no information), and `visuals.py`'s deliberate WRAM-constant duplication **grew 1→11 in one package**. Also records the per-frame call-order contract as an interface (where the last-write-wins contract, the one-frame-stale bad-zone read, and the frame-budget finding all bottom out) and the undocumented-but-consistent label-prefix convention. Four Open Questions routed |
-| GDS-10 | Requirements Traceability Matrix level | 10-requirements-traceability-matrix.md | ⛔ Planned |
+| GDS-10 | Requirements Traceability Matrix level | [10-requirements-traceability-matrix.md](10-requirements-traceability-matrix.md) | ✅ Authored 2026-07-26 — **the ladder's final level**. Deliberately thin/structural (no matrix). Describes traceability as it actually works: backward via each FR/NFR's *Traces to* column (healthy), forward via the FEAT→FS→IP→VR chain (works, distributed). **Takes positions rather than just noting gaps**: the never-authored `03-rtm.md` is a *reasonable deviation* — leave it, the chain plus independent verification is a stronger gap-finder than a 90-row table nobody would keep accurate; but `MSTR-001` C10's **research→code forward-trace audit is a real gap worth closing** — 44 topics, no artifact of any kind, no alternative mechanism doing the job |
 
 ## §2 — Per-cluster design syntheses (ADS-xxx)
 

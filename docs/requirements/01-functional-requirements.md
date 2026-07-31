@@ -20,7 +20,7 @@
 | FR-1090 | On every note-onset event, each pitched channel's history ring buffer (`HIST_PA`/`PB`/`WV`) records the new scale degree; `STALE_COUNT_*` increments while a period-1-or-2 repeat continues and resets otherwise; `BAD_ZONE_FLAGS` bit1 (`STUCK`) is set when any `STALE_COUNT_*` exceeds the stale threshold. | GDS-03 §4b |
 | FR-1100 | The engine counts note-onset events across all channels in a rolling window and sets `BAD_ZONE_FLAGS` bit2 (`OVERLOAD`) when the count exceeds the overload threshold within the window. | GDS-03 §4c |
 | FR-1110 | `BAD_ZONE_FLAGS` bit3 (`COMBINED`) is the logical OR of bits0-2, recomputed whenever any of them changes. | GDS-03 §4d |
-| FR-1120 | The visualizer reads `NR52`/`NR51` and the WRAM engine-state mirror and updates BG tile/palette content to represent tempo, per-channel activity, and bad-zone status, without writing to any engine-state or PSG register itself (read-only consumer). | GDS-03 §1, GDS-08 (pending) |
+| FR-1120 | The visualizer reads `NR52`/`NR51` and the WRAM engine-state mirror and updates BG tile/palette content to represent per-channel activity and bad-zone status, without writing to any engine-state or PSG register itself (read-only consumer). **Reworded 2026-07-26** (`BL-0016`, per [GDS-08 §7](../architecture/08-presentation-architecture.md)): the original text also claimed tempo representation. Displaying the tempo *setting* is real but is owned by `FR-1350` (`IP-1110`'s indicator row), not here; tempo-*synced motion* — a visual element whose timing follows the beat, which is how the original wording read naturally in `R205`/`R223`'s audio-visual-sync context — was never built and is now `CR-0001` below, explicitly not baselined. | GDS-03 §1, GDS-08 §2/§3 |
 | FR-1130 | Each pitched channel's note-onset behavior rapidly cycles the channel's frequency register among 2 or 3 notes of a chord implied by the channel's current scale degree (root + at least one harmonic interval above it, e.g. a third and/or fifth within the active scale), for the duration of that note, before the next scheduled note-onset event. | R216 §3/§5 (arpeggio-as-polyphony), GDS-03 §1 (channel ownership) |
 | FR-1140 | Each pitched channel's currently-sounding frequency is periodically modulated by a small, bounded oscillation (vibrato) around the note's base frequency, audible as a pitch wobble rather than a step change, without altering which scale degree the channel is considered to be playing for dissonance/stale-repetition scoring purposes (FR-1080/FR-1090 read the base note, not the modulated instantaneous frequency). | R216 §3/§5 (vibrato) |
 | FR-1150 | On a note-onset event where the channel's previous and new scale degrees differ, the channel's frequency register transitions from the previous note's frequency to the new note's frequency over more than one frame (a glide/portamento), rather than jumping directly to the new frequency on the onset frame. | R216 §3/§5 (portamento) |
@@ -53,7 +53,7 @@
 | ID | Requirement | Traces to |
 |---|---|---|
 | NFR-1000 | The ROM builds to a fixed size with a valid header (correct logo, checksum, GBC compatibility flag) via `build_rom.py`, with no external assembler. | MSTR-001 C1/C3 |
-| NFR-1010 | The per-frame VBlank ISR work (joypad edges + engine tick + visualizer update) completes within the VBlank-to-next-frame budget with no dropped frames, verified by driving the headless suite for an extended run (thousands of frames) with no hang/slowdown. | R100 cycle-budget note |
+| NFR-1010 | The per-frame VBlank ISR work (joypad edges + engine tick + visualizer update) completes within the VBlank-to-next-frame budget with no dropped frames, verified by driving the headless suite for an extended run (thousands of frames) with no hang/slowdown. **Caveat added 2026-07-26** (`BL-0060`, per [GDS-06 §2.2](../architecture/06-non-functional-requirements.md)): the extended-run method remains the primary check but is **no longer sufficient on its own** for a package adding work to the Select-reset frame or to `update_visuals` — `IP-1110` shipped a reproducible case where that frame's VRAM writes are dropped, and a stress run without a Select press cannot exercise it. Such a package states its per-frame cost impact explicitly. | R100 cycle-budget note, GDS-06 §2.2 |
 | NFR-1020 | Every shipped behavior (FR-1000 through FR-1120) has at least one headless PyBoy test that drives a button sequence and asserts on sound-register and/or WRAM engine-state changes. | MSTR-001 C9 |
 | NFR-1030 | Threshold/preset constants (tempo table, octave table, scale table, density table, channel-mix table, dissonance/stale/overload thresholds) live in one clearly-labeled data block in `music_engine.py`, tunable without touching generation logic. | GDS-03 §6 |
 | NFR-1040 | Arpeggio/vibrato/portamento (FR-1130/FR-1140/FR-1150) each add bounded per-channel WRAM scratch state (a sub-tick/phase/glide counter per pitched channel) and bounded ROM-resident tables (an arpeggio-interval table, a vibrato depth/rate table) — the total addition stays within the current 32KB single-bank budget (GDS-07 §6's headroom) with no bank-switching change (MSTR-001 §4 non-goal). | MSTR-001 C2/§4, GDS-07 §6, strategic assumptions register A5 |
@@ -108,6 +108,14 @@
   song-form-phase indicators reusing the same bar-tile mechanism) is not baselined here — it is a
   named future extension, not a requirement of this delta.
 
+## Candidate Requirements
+
+Untraceable-to-a-source or explicitly-unbuilt statements, **excluded from the numbered baseline**.
+
+| ID | Candidate requirement | Why it is not baselined |
+|---|---|---|
+| CR-0001 | The visualizer contains at least one element whose *motion or animation timing follows the generated beat* (tempo-synced motion), distinct from displaying the tempo setting as a static value. | **Never built, never scheduled.** Split out of `FR-1120` on 2026-07-26 (`BL-0016`) per [GDS-08 §7](../architecture/08-presentation-architecture.md)'s three-part resolution. `IP-0006`'s own package doc named "tempo-synced motion" as its explicit non-scope; nothing since has built it. Kept as a candidate rather than deleted because it is a real and reasonable future capability (`R223` treats pitch/rhythm-driven visual mapping as well-grounded) — it simply has never been required of the shipped system, and `FR-1120` should not have implied it was. |
+
 ## Changelog
 
 | Date | Change | Why |
@@ -117,6 +125,7 @@
 | 2026-07-26 | Added FR-1230 (`CHMIX_IDX` preset maps to a style data row), FR-1240 (style values applied immediately, not gated to next onset — the one behavioral contrast with `FR-1190`'s scheme-select timing), FR-1250 (at least 3 audibly-distinct styles), FR-1260 (preset-0 style matches shipped default, no regression), NFR-1080 (ROM/WRAM budget), NFR-1090 (no new input control). Delta update formalizing `ADS-101` §5/§6's candidate FRs/NFRs for R5 (Genre-Aware Style Presets). No existing FR/NFR changed. | Roadmap R5, grounded in `ADS-101`. |
 | 2026-07-26 | Added FR-1270 (motif data is a small fixed set of variants, variant 0 matches the shipped sequence), FR-1280 (weighted variant selection at motif-cycle boundaries, no input required), FR-1290 (weighting favors retaining the current variant), FR-1300 (variant 0 held throughout a run reproduces pre-change behavior exactly, no regression), NFR-1100 (ROM/WRAM budget), NFR-1110 (no new input control/WRAM control byte beyond the variant-index field). Delta update formalizing `ADS-102` §5/§6's candidate FRs/NFRs for `BL-0010`'s motif-recurrence half. No existing FR/NFR changed. | `BL-0010`, grounded in `ADS-102`. |
 | 2026-07-26 | Added FR-1310 (autonomous 4-phase song-form cycle), FR-1320 (phase transition overwrites tempo/density immediately), FR-1330 (bad-zone/motif-variant mechanisms are phase-agnostic), FR-1340 (all 4 phases occur in cyclic order over a long run), NFR-1120 (ROM/WRAM budget), NFR-1130 (no new input control). Delta update formalizing `ADS-103` §5/§6's candidate FRs/NFRs for roadmap R6 (song-form half of `BL-0010`). No existing FR/NFR changed. | Roadmap R6, grounded in `ADS-103`. |
+| 2026-07-26 | **Corrective/precision pass — no new baseline IDs.** Reworded `FR-1120` to drop its tempo claim (`BL-0016`): the tempo *setting* display is real but owned by `FR-1350`, and tempo-*synced motion* was never built — split out as new `CR-0001` in a new **Candidate Requirements** section. Added a caveat to `NFR-1010` recording that its extended-run method is no longer sufficient alone for packages touching the Select-reset frame or `update_visuals` (`BL-0060`, per GDS-06 §2.2). Updated `FR-1120`'s Traces-to from "GDS-08 (pending)" to the now-authored GDS-08 §2/§3. Re-labelled `docs/requirements/INDEX.md`'s two `⛔ Planned` rows as deliberate deviations (`BL-0068`, per GDS-10 §3.1). **`BL-0040` investigated and found NOT to be a requirements defect** — see this pass's Delta Review. | `BL-0016`/`BL-0040`/`BL-0060`/`BL-0068`, grounded in the newly-authored GDS-06/GDS-08/GDS-10. |
 | 2026-07-26 | Added FR-1350 (5 settings indicators, bar-height glyph per parameter), FR-1360 (each indicator updates same-frame as its parameter), FR-1370 (purely additive, no change to existing channel-activity/palette behavior), FR-1380 (at least one indicator demonstrably live-reflects a manual button change), NFR-1140 (ROM/VRAM budget), NFR-1150 (VBlank-gated, comparable per-frame cost), NFR-1160 (no new input control). Delta update formalizing `ADS-104` §5/§6's candidate FRs/NFRs for `BL-0051` (settings & control visibility). No existing FR/NFR changed. | `BL-0051`, grounded in `ADS-104`. |
 
 ## Delta Review — 2026-07-25 (`FR-1180`-`FR-1220`, `NFR-1060`/`1070`)
@@ -276,3 +285,56 @@ Reviewed this delta only, same "not a wholesale regeneration" convention as ever
 
 No Critical/High finding. This delta is ready for `05-feature-decomposition` to add a
 `FEAT-1110`-equivalent catalog row once picked up.
+
+## Delta Review — 2026-07-26 (corrective pass: `FR-1120`, `NFR-1010`, `CR-0001`, `BL-0040` adjudication)
+
+A **corrective/precision pass**, not a new-feature formalization — no new baseline IDs were added.
+Reviewed per the same "not a wholesale regeneration" convention as every prior delta.
+
+- **`FR-1120`'s tempo claim, split (`BL-0016`).** The original text required the visualizer to
+  represent "tempo, per-channel activity, and bad-zone status." [GDS-08 §7](../architecture/08-presentation-architecture.md)
+  resolved this honestly in three parts, and this pass implements that resolution: the tempo
+  *setting* is genuinely displayed now (`IP-1110`'s indicator bar) but is `FR-1350`'s claim, not
+  `FR-1120`'s; tempo-*synced motion* was never built; so the original wording was satisfied on a
+  narrow reading and overstated on the natural one. `FR-1120` now covers only per-channel activity
+  and bad-zone status — both true since `IP-0006` — and the synced-motion claim moved to
+  **`CR-0001`** in a new Candidate Requirements section, explicitly excluded from the baseline.
+  This is the first Candidate Requirement this project has recorded; the section exists now for
+  future use. **No requirement lost coverage**: the split moved a claim to a more accurate owner
+  and demoted an unbuilt one, rather than dropping anything shipped.
+- **`NFR-1010` gained a caveat, not a rewrite (`BL-0060`).** [GDS-06 §2.2](../architecture/06-non-functional-requirements.md)
+  found that `R101`'s own stated cycle-tallying revisit trigger appears to have fired, and its
+  merge decision explicitly left to this skill whether `NFR-1010` should point at that. It should:
+  the requirement's extended-run verification method remains correct and primary, but `IP-1110`
+  demonstrated a reproducible case it structurally cannot catch (a stress run with no Select press
+  cannot exercise the Select-reset frame). The caveat records that limit without weakening the
+  requirement — the method is still required, it is just no longer sufficient alone for one named
+  class of package.
+- **`BL-0040` investigated and found NOT to be a requirements defect — re-routed, not fixed.**
+  The finding is that an absolute-sounding bad-zone-independence claim ("a style change does not
+  alter `DISSONANCE_SCORE`/`BAD_ZONE_FLAGS`/`STALE_COUNT_*`/`ONSET_WINDOW_COUNT`") is true only
+  narrowly, since `engine_tick` runs every frame and an unrelated channel's coincidental onset can
+  touch those fields on the same frame (`VR-1080` measured ≈16% under adversarial play). It was
+  routed to this skill on the assumption the imprecision lived in the FR text. **It does not.**
+  Checked directly: no FR in `FR-1230`-`FR-1260` (the style range) states bad-zone independence at
+  all, and the two FRs that *do* state independence claims of this shape — `FR-1220` (scheme) and
+  `FR-1330` (song-form) — are both phrased at **mechanism level** ("no scheme-specific bad-zone
+  logic exists" / "no phase-specific logic exists in either mechanism") rather than as same-frame
+  guarantees, which is exactly the phrasing that keeps them accurate. The absolute claim exists
+  only in **`FS-108`'s acceptance criterion (4)** (owned by `06-feature-specification`) and
+  **`IP-1080`'s Definition of Done** (owned by `07-implementation-planning`). Nothing here to fix;
+  `BL-0040` should be re-routed to those two owners.
+  **Worth recording as a positive finding**: the FR baseline stayed accurate here *because* of a
+  phrasing convention — state what logic exists, not what can never coincide — and future FRs of
+  this shape should follow it.
+- **`docs/requirements/INDEX.md` re-labelled (`BL-0068`).** The `02-requirements-review.md` and
+  `03-rtm.md` rows read `⛔ Planned`, implying owed work. [GDS-10 §3.1](../architecture/10-requirements-traceability-matrix.md)'s
+  reasoning is agreed with and adopted: review findings live inline as Delta Review sections (all
+  eight present), and the RTM's information is distributed across artifacts already maintained,
+  with independent verification a stronger gap-finder than a table. Both rows now read as
+  deliberate, reasoned deviations.
+- **No conflict, no duplicate, no architecture violation introduced.** `FR-1120`'s narrowing does
+  not orphan any shipped behavior (`FR-1350` covers the indicator display); `NFR-1010`'s caveat
+  strengthens rather than relaxes it; `CR-0001` is explicitly non-baselined.
+
+No Critical/High finding. One item re-routed rather than resolved (`BL-0040` → `06`/`07`).

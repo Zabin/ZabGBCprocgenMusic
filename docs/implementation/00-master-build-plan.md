@@ -210,6 +210,58 @@ this package. Recorded here as its own explicit citation, per this project's sta
 package's G3 basis is ever assumed silently, even when it rides a standing instruction rather than
 a fresh one.
 
+## Technical Work Breakdown (TWBS) — VRAM Write-Integrity Detection (`BL-0069`, remediation tranche)
+
+| IP | Package | BL cited | Status |
+|---|---|---|---|
+| IP-9030 | VRAM write-integrity detection — a `T19` suite asserting every visualizer cell against its source state across all four known-affected frame classes, plus a `VIS_END_LY` diagnostic quantifying how far past VBlank `update_visuals` finishes | `BL-0069` (Medium); folds in `BL-0052`, `BL-0057`; doc half of `BL-0040` | **READY** |
+
+**Verb inventory.** This capability needs only *review* (detect and quantify an existing
+behaviour) — no *generate*, no *apply*, no *persist*. The *render* verb is explicitly **not**
+covered and that is the point: `R308` §8.4 and `R101` §8.4 both state that remediation (changing
+how or when the visualizer writes) must follow quantification, not accompany it. **Deferral
+recorded explicitly**: the fix — whether shaving per-frame work, adding cycle-cost budgeting
+(`R101` §8.3's ~150-emitter package), or moving visualizer writes into a dedicated VBlank ISR — is
+deliberately **not** in scope, and which of those is even appropriate depends on the number this
+package produces.
+
+**Supersession sweep.** Nothing is retired or generalized — the package adds a diagnostic and
+tests alongside unmodified routines. Sweep not applicable; recorded as a positive result rather
+than silence.
+
+**Right-sizing decisions, with rationale:**
+
+- **`BL-0052` and `BL-0057` folded in, not split out.** Both are `DEFERRED` test-hardening items
+  in `test_rom.py`, both small, and both are instances of the *same* pattern GDS-06 §5 named as a
+  discipline-level observation — a shipped test demonstrating a mechanism once where the claim is
+  general. This package's own Definition of Done is "the test suite actually covers the claims it
+  makes," which is exactly what those two items are. One stage-08 run, one file, one coherent DoD.
+  Splitting them into their own package would produce two near-empty packages and a third
+  invocation for no traceability gain.
+- **The `VIS_END_LY` diagnostic is folded in, and this is a real judgement call.** It is a
+  production ROM change inside what is otherwise a test package, which normally argues for a
+  split. It is included because **without it the package's central question is unanswerable**:
+  PyBoy's tick granularity is per-frame, so the harness cannot observe mid-routine PPU state, and
+  "how far past VBlank does `update_visuals` finish" — the number `R101` §8.3 says decides the
+  remediation — simply cannot be measured from the test side alone. Six bytes of ROM is the
+  minimum change that makes the problem measurable at all. Splitting it would mean shipping a
+  detection package that detects the symptom but cannot size it, then a second package to size it.
+- **The fix is not folded in**, per the verb inventory above.
+
+**`BL-0040`'s remaining half rides along as a doc-only task** (Implementation Task 6): `IP-1080`'s
+Definition of Done carries the same over-absolute bad-zone-independence claim that `FS-108`'s
+acceptance criterion (4) carried before run #99 corrected it. Same fix, same mechanism-level
+phrasing. It is in this package rather than its own because it is a one-sentence wording change in
+a document this skill was already opening.
+
+**G3 authorization for `IP-9030`**: **granted on the user's standing basis, 2026-07-26** — the
+user's own words this turn, *"Same pre authorization as before"*, reaffirming the standing
+per-package authorization already cited for `IP-1090` and `IP-1110`. Cited explicitly rather than
+assumed. **Note this is a normal code/test package owned by `08-code-implementation`, not a
+refactoring package** — the "refactoring packages are never pre-authorized" rule (`IP-8xx0`,
+`08-refactoring`) does not apply here. It *does* apply to `BL-0064`/`BL-0065`, which remain
+unplanned and would each need their own fresh go-ahead.
+
 ## G5 gate (every stage-08 run)
 
 The ROM must build (`python3 build_rom.py <path>` -> fixed size, valid header) and the full

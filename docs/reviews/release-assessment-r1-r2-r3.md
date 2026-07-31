@@ -22,7 +22,7 @@ definitions, which is what this assessment reconstructs the promise from.
 | `FEAT-1030` (bad-zone detection) | abbreviated notes | `IP-0004`, `IP-0007` | [VR-0004](../implementation/verification/VR-0004-bad-zone-detection.md), [VR-0007](../implementation/verification/VR-0007-autonomous-recovery-and-randomize.md) | ✅ same review | Yes |
 | `FEAT-1040` (minimal visualizer) | abbreviated notes | `IP-0006` | [VR-0006](../implementation/verification/VR-0006-minimal-visualizer.md) | ✅ same review | Yes |
 | `FEAT-1050` (headless verification suite) | abbreviated notes | rides every package above (`IP-0008+` placeholder row, not a real package) | covered per-package | ✅ same review (full-suite gate run at every stage) | Yes |
-| `FEAT-1060` (sound design techniques) | [`FS-106`](../features/FS-106-sound-design-techniques.md) (full 20-field spec) | `IP-1060`, `IP-1061` | [VR-1060](../implementation/verification/VR-1060-arpeggio-and-duty-cycle.md), [VR-1061](../implementation/verification/VR-1061-vibrato-and-portamento.md) | **❌ NONE — see Blocking Gap below** | Verified at package level only |
+| `FEAT-1060` (sound design techniques) | [`FS-106`](../features/fs-106-sound-design-techniques.md) (full 20-field spec) | `IP-1060`, `IP-1061` | [VR-1060](../implementation/verification/VR-1060-arpeggio-and-duty-cycle.md), [VR-1061](../implementation/verification/VR-1061-vibrato-and-portamento.md) | **❌ NONE — see Blocking Gap below** | Verified at package level only |
 | `BL-0019` remediation (channel-mix gating) | no FS — bug-remediation package, cites `BL-0019` directly | `IP-9010` | [VR-9010](../implementation/verification/VR-9010-channel-mix-gating.md) | ✅ [Foundation bucket re-review](integration-review-foundation-bucket.md#re-review--2026-07-25) | Yes |
 | `BL-0017` remediation (overload recalibration) | no FS — bug-remediation package, cites `BL-0017` directly | `IP-9020` | [VR-9020](../implementation/verification/VR-9020-overload-threshold-recalibration.md) | ✅ same re-review | Yes |
 
@@ -413,8 +413,8 @@ and integration-reviewed to the same evidentiary bar as every prior addition to 
 |---|---|
 | `FEAT-1090` (Feature Catalog) | Authored 2026-07-26, traces `FR-1270`-`FR-1300`/`NFR-1100`/`1110`, Feature Review clean |
 | `FS-109` (full 20-field spec) | Authored 2026-07-26, carries `ADS-102` forward, all Open Questions resolved or explicitly deferred |
-| `IP-1090` (Implementation Package) | `VERIFIED` via [VR-1090](implementation/verification/VR-1090-motif-recurrence-via-weighted-variant-selection.md) |
-| Integration coverage | [14-package re-review](reviews/integration-review-foundation-bucket.md#re-review--2026-07-26-14-package-scope-ip-1090), clean, no Critical/High |
+| `IP-1090` (Implementation Package) | `VERIFIED` via [VR-1090](../implementation/verification/VR-1090-motif-recurrence-via-weighted-variant-selection.md) |
+| Integration coverage | [14-package re-review](integration-review-foundation-bucket.md#re-review--2026-07-26-14-package-scope-ip-1090), clean, no Critical/High |
 
 No feature was deferred, descoped, or split since planning — `IP-1090` delivers exactly what
 `FS-109`/`ADS-102` scoped (a 4-variant `MOTIF_TABLE` extension with weighted, retention-biased,
@@ -518,8 +518,8 @@ sequencing constraint requiring them to ship separately.
 |---|---|---|
 | Catalog entry | `FEAT-1100`, authored 2026-07-26, traces `FR-1310`-`FR-1340`/`NFR-1120`/`1130`, Feature Review clean | `FEAT-1110`, authored 2026-07-26, traces `FR-1350`-`FR-1380`/`NFR-1140`-`NFR-1160`, Feature Review clean |
 | Feature Spec | `FS-110`, full 20-field spec, all Open Questions resolved or explicitly deferred | `FS-111`, full 20-field spec, both Open Questions resolved (shared tile set; tilemap placement) or explicitly deferred |
-| Implementation Package | `VERIFIED` via [VR-1100](implementation/verification/VR-1100-song-form-via-autonomous-phase-cycling.md) | `VERIFIED` via [VR-1110](implementation/verification/VR-1110-settings-and-control-visibility.md) |
-| Integration coverage | [15-package re-review](reviews/integration-review-foundation-bucket.md#re-review--2026-07-26-15-package-scope-ip-1100), clean, no Critical/High; independence from bad-zone/motif-variant re-confirmed live | [16-package re-review](reviews/integration-review-foundation-bucket.md#re-review--2026-07-26-16-package-scope-ip-1110), clean, no Critical/High; read-only characterization confirmed structurally, disclosed timing finding confirmed scoped to its own writes only |
+| Implementation Package | `VERIFIED` via [VR-1100](../implementation/verification/VR-1100-song-form-via-autonomous-phase-cycling.md) | `VERIFIED` via [VR-1110](../implementation/verification/VR-1110-settings-and-control-visibility.md) |
+| Integration coverage | [15-package re-review](integration-review-foundation-bucket.md#re-review--2026-07-26-15-package-scope-ip-1100), clean, no Critical/High; independence from bad-zone/motif-variant re-confirmed live | [16-package re-review](integration-review-foundation-bucket.md#re-review--2026-07-26-16-package-scope-ip-1110), clean, no Critical/High; read-only characterization confirmed structurally, disclosed timing finding confirmed scoped to its own writes only |
 
 No feature was deferred, descoped, or split since planning for either. `IP-1100` delivers exactly
 what `FS-110`/`ADS-103` scoped (a 4-phase autonomous state machine overwriting

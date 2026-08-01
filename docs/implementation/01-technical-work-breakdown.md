@@ -269,3 +269,77 @@ basis grant. Reasoning in the package's own *Authorization (G3)* section and mir
 Master Build Plan; in short, the grant was given for a materially different package and v2 ships a
 permanent per-frame cost the original did not. This skill takes the position that the user's
 underlying intent favours v2, and that the decision is nonetheless theirs.
+
+---
+
+## TWBS — `IP-8010`/`IP-8020` (2026-07-31, `BL-0064`/`BL-0065`)
+
+Both `refactor`-type backlog entries from `GDS-09` (run #96), both `SCHEDULED`, neither previously
+planned. Planned together in one pass since they surfaced from the same review, but cut as **two
+separate packages**, not combined, despite the backlog's own "natural companion" framing.
+
+**Split decision.** The backlog suggested combining these since both are `visuals.py`/interface-
+hygiene items. Examined concretely: `BL-0064`'s scope is `music_engine.py` + `input_map.py` (two
+dead local variables and a docstring, `build_rom.py` untouched); `BL-0065`'s scope is `visuals.py`
++ `music_engine.py` + a new shared module. The file overlap is real but partial (`music_engine.py`
+only), and — decisively — **each needs its own equivalence contract for a different reason**:
+`IP-8010`'s is trivial (two Python-level local variables never reaching `rom.data`); `IP-8020`'s
+is a genuine claim about Python-level-only relocation having zero ROM consequence, which is a
+different kind of assertion needing its own verification story. A single package with one
+Definition of Done covering two independently-justified equivalence claims would make it harder
+for `09-package-verification` to tell which claim failed if the hash ever *didn't* match. Splitting
+costs nothing here — both are small enough that combining would save no real overhead — and keeps
+each package's proof legible on its own. **No-split** would have been the wrong economy.
+
+**`BL-0064` → `IP-8010` (code-only, doc corrections routed elsewhere).** The backlog entry itself
+flagged three documents describing the vestigial patch-point contract as live: `GDS-03`'s
+"patch-point contract" language, `GDS-09`'s ladder-table row, and six `FS-1xx` *Interfaces Used*
+fields. Checked each: **`GDS-09` §3 already documents this accurately as a finding** (authored
+against the real discovery, not stale) and its own Merge decision already records the `GDS-03`
+correction as "this skill's [`03`'s] own to amend on a future pass" — not a doc-scoped refactoring
+task, since `08-refactoring`'s write scope is structure/meaning-preservation, not design-content
+correction, and `GDS-03`'s patch-point language is a content claim only its own owner should
+revise. **The six `FS-1xx` fields were checked and are already clean** — a grep for "patch-point"
+across `docs/features/fs-*.md` returns nothing, confirming `BL-0066`'s earlier corrective pass
+already closed that half. So `IP-8010`'s scope is genuinely code-only: delete two dead `patches =
+{}`/`return patches` pairs and their `-> dict` annotations, nothing else.
+
+**`BL-0065` → `IP-8020` (code restructuring, byte-identical-ROM contract).** Scoped to exactly the
+11 constants the backlog entry names (5 index addresses, 5 `PRESET_*` values, `BAD_ZONE_FLAGS`) —
+**not** `LY` or `VIS_ENTRY_LY`, which `IP-9030` added to `visuals.py` this session. Checked both
+against the `BL-0065` pattern and found neither fits: `LY` is a hardware-register constant with no
+`music_engine.py` counterpart (the same un-remediated pattern as `NR52`/`LCDC` in the same file —
+fixing one hardware register while leaving the others would be incoherent), and `VIS_ENTRY_LY` is
+`visuals.py`'s own address, not a duplicate of anything `music_engine.py` owns. Recorded explicitly
+in the package so a future reader doesn't wonder why two more recent, on-their-face-similar
+constants were left out.
+
+**Verb inventory.** Both are pure `refactor` capabilities (restructure existing code) — no
+generate/render/apply/persist/review verb applies; not a multi-verb capability requiring the
+inventory check.
+
+**Supersession sweep.** Run for both: (1) confirmed no file besides `music_engine.py`/`input_map.py`
+constructs or reads a `patches` dict (`build_rom.py`'s two call sites already discard the return
+value — verified by reading the call sites, not assumed); (2) confirmed `input_map.py` already
+imports the 5 index constants directly from `music_engine.py` (no duplication there to fix) and
+should switch to the new shared module if `IP-8020`'s task 1 relocates canonical ownership;
+(3) confirmed `test_rom.py`'s independent declaration of every WRAM address it reads (including
+`VIS_ENTRY_LY`) is a separate, much larger, pre-existing test-harness convention, not an instance
+of either `BL-0064`/`BL-0065` pattern — out of scope for both packages, named so it isn't mistaken
+for an oversight.
+
+**Authorization — the judgement call the manager's own rule requires be made explicitly, not
+dodged.** This project's standing rule states refactoring packages are **never pre-authorized**,
+with no bootstrap carve-out, "regardless" of other authorization context. The user's session-wide
+grant this turn ("assuming pre authorization for everything this session") is broad, but the
+standing rule's own wording ("never," "no bootstrap carve-out... regardless") reads as a
+categorical exception carved out specifically *because* structural change is judged to warrant a
+distinct decision from ordinary code/test work — not a rule that yields to a general grant unless
+the word "refactor" is used, but a rule written to require the user's attention land specifically
+on *this class* of change. **Position taken: the general grant does not satisfy that, and both
+packages are recorded as authorization `NOT GRANTED` pending an explicit refactoring go-ahead.**
+This is a conservative reading and could be wrong — the user may well have meant to include
+refactoring — but the cost of asking is one round-trip, and the cost of proceeding on a
+mis-read of a rule this project has stated in unusually emphatic, repeated language ("never,"
+restated on both backlog entries, restated in `08-refactoring`'s own `SKILL.md` frontmatter) is
+higher. Recorded on the Master Build Plan; both packages are `READY` and blocked only on this.

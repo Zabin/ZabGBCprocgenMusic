@@ -60,7 +60,7 @@ All under `docs/implementation/` (this skill's sole write scope):
   an **equivalence contract** in their Verification Checklist: byte-identical ROM (the default) or
   an enumerated, per-delta-justified list of predicted byte deltas; for doc-scoped work, the
   meaning-preservation constraints and the migration-map location if IDs/files move (grounding:
-  `R307`). A package that mixes refactoring with behavior change must be split — the equivalence
+  `R310`). A package that mixes refactoring with behavior change must be split — the equivalence
   proof doesn't survive mixing. Refactoring packages are **never** pre-authorized (G3, no
   bootstrap carve-out — the same rule every other package follows on this project).
 - **Status vocabulary (verbatim):** `NOT STARTED / READY / IN PROGRESS / BLOCKED / COMPLETE /

@@ -11,7 +11,7 @@ stage-08 peer — where `08-code-implementation` changes what the code *does* an
 `08-content-authoring` changes what the game *shows*, this skill changes only how code and docs
 are *organized*, and carries the burden of proving that's all it changed.
 
-Grounding: [`R307`](../../../docs/research/encyclopedia/R307-refactoring-practices.md)
+Grounding: [`R310`](../../../docs/research/encyclopedia/R310-refactoring-practices.md)
 (behavior-preserving refactoring, characterization/golden-master testing, doc-tree refactoring).
 
 ## What this is for (and what it is not)

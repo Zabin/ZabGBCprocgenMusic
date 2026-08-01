@@ -127,6 +127,7 @@ uniquely cheap, Seasonal reclassified as a preset-rotation concern not a genre).
 | R307 | Real-time audio engine architecture patterns | [encyclopedia/R307-realtime-audio-engine-architecture.md](encyclopedia/R307-realtime-audio-engine-architecture.md) | ✅ Authored 2026-07-21 (user-list Phase 6 items 69-80) |
 | R308 | CPU/RAM/ROM performance budgeting | [encyclopedia/R308-performance-budgeting.md](encyclopedia/R308-performance-budgeting.md) | ✅ Authored 2026-07-21 (user-list Phase 8 items 89-96) · **§8.5 self-correction 2026-07-31 (`BL-0069`): §8's dropped-write mechanism FALSIFIED and withdrawn; the budget-exceeded conclusion survives on stronger `LY`-probe evidence** |
 | R309 | Emulator comparison & debugging tools (SameBoy, BGB) | [encyclopedia/R309-emulator-debugging-tools.md](encyclopedia/R309-emulator-debugging-tools.md) | ✅ Authored 2026-07-21 (user-list Phase 9 items 97-100) |
+| R310 | Refactoring practices — equivalence proof, baseline capture, doc-tree restructuring | [encyclopedia/R310-refactoring-practices.md](encyclopedia/R310-refactoring-practices.md) | ✅ Authored 2026-07-31 (`BL-0076`) — grounds `08-refactoring`'s and `07-implementation-planning`'s equivalence-contract convention, previously citing a non-existent `R307-refactoring-practices.md` (`R307`'s real ID is taken by an unrelated topic); both skill files' citations corrected to `R310` |
 
 Superseded: [R300-tooling-and-testing.md](R300-tooling-and-testing.md) (content split across
 R301, R305).

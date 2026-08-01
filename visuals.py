@@ -57,6 +57,16 @@ SETTINGS_PRESETS = [PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX, PRESET_SCALE_IDX, PRESE
 BAD_ZONE_FLAGS = 0xC005  # music_engine.BAD_ZONE_FLAGS (kept as a plain int to avoid a circular
                           # import — visuals.py is a read-only consumer, GDS-03 SS1)
 NR52 = 0xFF26
+LY = 0xFF44   # PPU current-scanline register; 144-153 is VBlank (R102)
+
+# IP-9030 (BL-0069): permanent diagnostic recording LY at ENTRY to update_visuals, so the
+# per-frame VBlank budget this routine depends on is measurable rather than merely believed.
+# Measured (R101 SS8.5): HALT wakes at LY=144 every frame, and read_joypad+apply_input+
+# engine_tick alone consume through LY=152-153 before this routine even starts -- so the value
+# recorded here is expected to sit at the very edge of VBlank (144-153) on every frame, idle
+# included, not only on frames with heavy input work. This is one more duplicated plain-int WRAM
+# constant on the debt BL-0065 already tracks -- deliberate, not a new pattern.
+VIS_ENTRY_LY = 0xC061
 
 
 def _tile_off_bytes():
@@ -129,6 +139,13 @@ def build_visuals_update_asm(rom: ROM):
     + BAD_ZONE_FLAGS, no engine-state writes (FR-1120)."""
     rom.label('update_visuals')
 
+    # IP-9030: record LY at the very top of this routine, before any of this frame's visualizer
+    # work runs -- this measures what read_joypad/apply_input/engine_tick already spent, which is
+    # the falsifiable question (does the budget hold), not how far this routine's own writes run
+    # (v1 tried a tail probe and it read a flat, uninformative value in the clean build; see
+    # IP-9030's own Risks field for why entry was chosen over the tail).
+    rom.LDH_A_n(LY & 0xFF); rom.LD_nn_A(VIS_ENTRY_LY)
+
     rom.LDH_A_n(NR52 & 0xFF)   # NR52 is 0xFF26; LDH_A_n takes the 0xFF00 offset (0x26)
     rom.LD_B_A()               # B = NR52 (bits 0-3 = channel active status)
 
@@ -151,21 +168,21 @@ def build_visuals_update_asm(rom: ROM):
     _emit_write_palette(rom, CALM_PALETTE)
     rom.label('uv_palette_done')
 
-    # IP-1110: settings-row update runs last. Disclosed timing finding (not fixed by this
-    # package, see IP-1110's own Risks/Definition of Done): on the exact frame Select is pressed,
-    # apply_input's full init_engine reset costs measurably more CPU than a plain button-index
-    # step, and this block's VRAM writes for that one frame are silently dropped — a real,
-    # pre-existing property of the visualizer's per-frame VRAM-write design (GDS-03's
-    # timing-discipline invariant), only made observable here because this is the first indicator
-    # whose displayed value actually changes across a Select press (the existing channel-activity
-    # cells never exposed it, since NR52's active-channel set doesn't change on a Select reset —
-    # an equally-dropped write there would be indistinguishable from no write at all). The write
-    # self-heals the very next frame, since this routine reruns unconditionally every frame
-    # against already-reset WRAM. Placing this block last (rather than earlier in this routine)
-    # keeps the existing channel-activity/palette writes at their original, already-proven-safe
-    # position — moving this new block earlier was tried and instead caused an intermittent drop
-    # of the *channel-activity* writes on ordinary frames with no button input at all, a strictly
-    # worse outcome; last-position confines the risk to this one disclosed, self-healing case.
+    # IP-1110: settings-row update runs last. An earlier version of this comment claimed that on
+    # the exact frame Select is pressed, apply_input's init_engine reset costs enough extra CPU
+    # that this block's VRAM writes for that frame are silently dropped. That claim was falsified
+    # 2026-07-31 (BL-0069, IP-9030): PyBoy applies no PPU-mode gating to VRAM writes at all, so no
+    # write is ever dropped, and a WRAM mirror of each write matches VRAM on every frame of every
+    # class -- what looked like a Select-frame display lag was a pb.tick() mid-frame sampling
+    # artifact, uniform across every frame class including idle ones (R308 SS8.5, R101 SS8.5).
+    # The real, measured finding: read_joypad+apply_input+engine_tick alone consume roughly 9 of
+    # VBlank's 10 scanlines before this routine starts, so it runs against about one remaining
+    # scanline on every frame -- see VIS_ENTRY_LY above, which exists to make that margin
+    # measurable. Placing this block last keeps the channel-activity/palette writes at their
+    # original position; moving it earlier was tried during IP-1110's own implementation and
+    # instead made the *channel-activity* writes intermittently miss the boot-preset render on
+    # ordinary no-input frames -- re-explained the same way, by sampling position rather than by
+    # write acceptance, but the empirical ordering choice itself stands unchanged.
     _emit_update_settings_row(rom)
 
     rom.RET()

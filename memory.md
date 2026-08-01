@@ -51,6 +51,7 @@ no hangs, bad-zone entry and self-recovery both observed.
 | `0xC03E`-`0xC03F` | `SONG_STATE_TIMER_LO`/`HI` (`IP-1100`, roadmap R6) — 16-bit frames-remaining countdown in the current phase; reloaded from `SONG_TABLE`'s duration field on each transition |
 | `0xC050`-`0xC052` | `JOY_PREV`/`JOY_CUR`/`JOY_NEW` |
 | `0xC060` | `VBLANK_FLAG` |
+| `0xC061` | `VIS_ENTRY_LY` (`IP-9030`, `BL-0069`) — `LY` register recorded at entry to `update_visuals`, every frame; `T19` asserts it stays within VBlank (`144`-`153`) |
 
 Unused/reserved from GDS-07 but not yet consumed: `0xC013`-`0xC015` (history ring-buffer heads —
 superseded by the simpler period-1-only `STALE_COUNT_*` design, see `IP-0004`'s package doc),

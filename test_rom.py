@@ -40,6 +40,9 @@ Suites:
       tiles track TEMPO_IDX/OCTAVE_IDX/SCALE_IDX/DENSITY_IDX/CHMIX_IDX, pre-initialized at
       boot, updated live on each manual button press, purely additive to the existing
       channel-activity tiles, reset by Select
+  T19 VBlank budget assertion (IP-9030, BL-0069): VIS_ENTRY_LY, recorded at entry to
+      update_visuals, stays within VBlank (LY 144-153) on every frame class -- idle, plain
+      index step, Start, Select, and a song-form phase transition
 
 Run from the repo root: python3 test_rom.py
 Requires: pyboy (pinned 2.7.0, matching the reference project), numpy.
@@ -66,6 +69,8 @@ ARP_STATE_PA = 0xC01D; ARP_STATE_PB = 0xC01E
 MOTIF_STEP_PA = 0xC038; MOTIF_STEP_PB = 0xC039; MOTIF_STEP_WV = 0xC03A
 MOTIF_VARIANT_IDX = 0xC03C
 SONG_STATE = 0xC03D; SONG_STATE_TIMER_LO = 0xC03E; SONG_STATE_TIMER_HI = 0xC03F
+VIS_ENTRY_LY = 0xC061  # IP-9030 (BL-0069)
+LY = 0xFF44
 LCDC = 0xFF40
 CHANNEL_CELLS = [0x9800, 0x9801, 0x9802, 0x9803]
 SETTINGS_CELLS = [0x9804, 0x9805, 0x9806, 0x9807, 0x9808]  # IP-1110
@@ -884,36 +889,46 @@ def t17_song_form_via_autonomous_phase_cycling():
     pb3.stop(save=False)
 
     # (e): force a guaranteed collision between a Start press (IP-1080 style application) and a
-    # phase transition, using the empirically-derived plain-boot transition frame from the (a)/(b)
+    # phase transition, using the empirically-derived plain-boot transition frames from the (a)/(b)
     # run above (not a merely plausible interval, per BL-0045's own lesson) -- deliberately not
     # first_transition_frame, which was measured on a timeline with 6 prior Start taps already
     # consumed and would desync from this scenario's own untapped boot.
-    plain_transition_frame = transition_frames[0][0]
-    pb4 = fresh_boot()
-    for _ in range(plain_transition_frame):
-        pb4.tick()
-    song_state_before = pb4.memory[SONG_STATE]
-    pb4.button_press('start')
-    pb4.tick()  # the exact transition frame, with Start also held down
-    pb4.button_release('start')
-    # Per the real per-frame call order (build_rom.py: apply_input -> engine_tick, and
-    # engine_tick's own call order: gen_tick_*/badzone_tick -> song_tick last), a Start-press
-    # style-application write and a same-frame song-form transition write both land on
-    # TEMPO_IDX/DENSITY_IDX, but song_tick always runs after apply_input this frame -- so the
-    # phase's own target values are expected to win deterministically ("last write wins", the
-    # same contract FR-1240/FR-1320 both already establish), while CHMIX_IDX (untouched by
-    # song_tick) still reflects the Start press.
-    new_state = (song_state_before + 1) % N_SONG_PHASES
-    ok = (pb4.memory[SONG_STATE] == new_state and
-          pb4.memory[CHMIX_IDX] == 1 and
-          (pb4.memory[TEMPO_IDX], pb4.memory[DENSITY_IDX]) ==
-          (SONG_TABLE[new_state][0], SONG_TABLE[new_state][1]))
+    # BL-0052: exercise all three phase-internal boundaries (INTRO->BUILD, BUILD->PEAK,
+    # PEAK->BREAKDOWN), not only the first -- transition_frames[0:3] from the (a)/(b) run above
+    # covers exactly those three (the fourth transition, ...->INTRO, wraps the cycle and is the
+    # same boundary shape as the first).
+    plain_transition_frame = transition_frames[0][0]  # used unchanged by (f) below
+    t176_mismatches = []
+    for boundary_i, (tf, _state_at_tf) in enumerate(transition_frames[:3]):
+        pb4 = fresh_boot()
+        for _ in range(tf):
+            pb4.tick()
+        song_state_before = pb4.memory[SONG_STATE]
+        pb4.button_press('start')
+        pb4.tick()  # the exact transition frame, with Start also held down
+        pb4.button_release('start')
+        # Per the real per-frame call order (build_rom.py: apply_input -> engine_tick, and
+        # engine_tick's own call order: gen_tick_*/badzone_tick -> song_tick last), a Start-press
+        # style-application write and a same-frame song-form transition write both land on
+        # TEMPO_IDX/DENSITY_IDX, but song_tick always runs after apply_input this frame -- so the
+        # phase's own target values are expected to win deterministically ("last write wins", the
+        # same contract FR-1240/FR-1320 both already establish), while CHMIX_IDX (untouched by
+        # song_tick) still reflects the Start press.
+        new_state = (song_state_before + 1) % N_SONG_PHASES
+        ok = (pb4.memory[SONG_STATE] == new_state and
+              pb4.memory[CHMIX_IDX] == 1 and
+              (pb4.memory[TEMPO_IDX], pb4.memory[DENSITY_IDX]) ==
+              (SONG_TABLE[new_state][0], SONG_TABLE[new_state][1]))
+        if not ok:
+            t176_mismatches.append((boundary_i, song_state_before, new_state,
+                                     pb4.memory[SONG_STATE], pb4.memory[CHMIX_IDX],
+                                     pb4.memory[TEMPO_IDX], pb4.memory[DENSITY_IDX]))
+        pb4.stop(save=False)
     check("T17.6 A Start press landing on the exact same frame as a phase transition corrupts "
-          "neither mechanism's own state (SONG_STATE advances, CHMIX_IDX steps, song-form's "
-          "value wins per call order)", ok,
-          f"SONG_STATE={pb4.memory[SONG_STATE]}, CHMIX_IDX={pb4.memory[CHMIX_IDX]}, "
-          f"TEMPO_IDX={pb4.memory[TEMPO_IDX]}, DENSITY_IDX={pb4.memory[DENSITY_IDX]}")
-    pb4.stop(save=False)
+          "neither mechanism's own state, at all 3 phase-internal boundaries "
+          "(SONG_STATE advances, CHMIX_IDX steps, song-form's value wins per call order)",
+          not t176_mismatches, f"mismatches (boundary_i, state_before, expected_state, "
+          f"got_state, got_chmix, got_tempo, got_density): {t176_mismatches}")
 
     # (f): Select resets SONG_STATE/SONG_STATE_TIMER to phase 0 and re-applies its target values.
     pb5 = fresh_boot()
@@ -974,32 +989,157 @@ def t18_settings_and_control_visibility():
 
     # (d) Select resets the underlying WRAM fields on the reset frame itself (same guarantee
     # T5/T17.7 already established for other reset fields — unaffected by this package). The
-    # settings-indicator *display* catching up is a disclosed, narrower exception (see visuals.py's
-    # own comment above _emit_update_settings_row's call site): on the exact Select frame,
-    # apply_input's full init_engine reset costs enough extra CPU that this routine's VRAM writes
-    # for that one frame are silently dropped — a real, pre-existing property of the visualizer's
-    # per-frame VRAM-write design, only made observable here because this is the first indicator
-    # whose value actually changes across a Select press. The display self-heals the very next
-    # frame (update_visuals reruns unconditionally every frame against already-reset WRAM).
-    pb2 = fresh_boot()
-    for button, src_addr, cell_addr, label in cases:
-        tap(pb2, button)
-    drifted = [pb2.memory[addr] for addr in SETTINGS_CELLS]
-    check("T18.8.setup At least one settings indicator drifted away from its boot value before Select",
-          drifted != expected, f"got {drifted}")
-    pb2.button_press('select')
-    pb2.tick()
-    pb2.button_release('select')
-    reset_frame_wram = (pb2.memory[TEMPO_IDX], pb2.memory[OCTAVE_IDX], pb2.memory[SCALE_IDX],
-                        pb2.memory[DENSITY_IDX], pb2.memory[CHMIX_IDX])
-    check("T18.9 Select resets the underlying WRAM fields on the reset frame itself",
-          reset_frame_wram == tuple(settings_presets), f"got {reset_frame_wram}")
-    pb2.tick()  # disclosed one-frame display lag (see above) — self-heals here
-    cells_after_reset = [pb2.memory[addr] for addr in SETTINGS_CELLS]
+    # settings-indicator *display* takes one further frame to catch up, because update_visuals's
+    # re-render for the reset frame runs from WRAM that had not yet been reset when this frame's
+    # render happened -- corrected 2026-07-31 (BL-0069): this was previously attributed to a
+    # dropped VRAM write; that finding was falsified (no write is ever dropped, R308 SS8.5) and
+    # the true cause is this ordinary render-vs-reset-timing lag, present on every frame class,
+    # not a Select-specific defect. The display self-heals the very next frame regardless
+    # (update_visuals reruns unconditionally every frame against already-reset WRAM).
+    # BL-0057: exercise at least 2 distinct pre-Select button sequences, not only one -- reusing
+    # VR-1110's own independently-confirmed sequences.
+    pre_select_sequences = [
+        ["up", "right", "a", "b", "start"],
+        ["up", "up", "up", "left", "start", "start"],
+    ]
+    t18_8_mismatches = []
+    t18_9_mismatches = []
+    t18_10_mismatches = []
+    for seq_i, sequence in enumerate(pre_select_sequences):
+        pb2 = fresh_boot()
+        for button in sequence:
+            tap(pb2, button)
+        drifted = [pb2.memory[addr] for addr in SETTINGS_CELLS]
+        if drifted == expected:
+            t18_8_mismatches.append((seq_i, drifted))
+        pb2.button_press('select')
+        pb2.tick()
+        pb2.button_release('select')
+        reset_frame_wram = (pb2.memory[TEMPO_IDX], pb2.memory[OCTAVE_IDX], pb2.memory[SCALE_IDX],
+                            pb2.memory[DENSITY_IDX], pb2.memory[CHMIX_IDX])
+        if reset_frame_wram != tuple(settings_presets):
+            t18_9_mismatches.append((seq_i, reset_frame_wram))
+        pb2.tick()  # one-frame render-vs-reset-timing lag (see above) — self-heals here
+        cells_after_reset = [pb2.memory[addr] for addr in SETTINGS_CELLS]
+        if cells_after_reset != expected:
+            t18_10_mismatches.append((seq_i, cells_after_reset))
+        pb2.stop(save=False)
+    check("T18.8.setup At least one settings indicator drifted away from its boot value before "
+          f"Select, across all {len(pre_select_sequences)} pre-Select sequences",
+          not t18_8_mismatches, f"sequences that failed to drift: {t18_8_mismatches}")
+    check("T18.9 Select resets the underlying WRAM fields on the reset frame itself, across all "
+          f"{len(pre_select_sequences)} pre-Select sequences",
+          not t18_9_mismatches, f"mismatches (seq_i, got): {t18_9_mismatches}")
     check("T18.10 The settings-indicator display catches up to the restored preset within one "
-          "further frame (disclosed Select-frame display lag, self-healing)",
-          cells_after_reset == expected, f"got {cells_after_reset} expected={expected}")
+          f"further frame, across all {len(pre_select_sequences)} pre-Select sequences "
+          "(one-frame render-vs-reset-timing lag, self-healing)",
+          not t18_10_mismatches, f"mismatches (seq_i, got): {t18_10_mismatches}")
     pb2.stop(save=False)
+
+
+# ── T19: VBlank budget assertion (IP-9030, BL-0069) ──────────────────
+def t19_vblank_budget_assertion():
+    """VIS_ENTRY_LY records LY at entry to update_visuals -- before this frame's channel-activity,
+    palette or settings-row writes run, but after read_joypad/apply_input/engine_tick have already
+    executed. Measured (R101 SS8.5): those three routines alone consume roughly 9 of VBlank's 10
+    scanlines, so this value is expected to sit at 152-153 on every frame, idle included, not only
+    on frames with heavy input work -- the budget is tight everywhere, not on one special frame
+    class. This suite asserts the falsifiable thing that actually matters: the value never leaves
+    VBlank (144-153) at all, on any of five representative frame classes. It does NOT assert that
+    any VRAM write is accepted or discarded by the PPU -- that property is unobservable in this
+    harness (R301 SS3, R305 SS5) and no check here claims it."""
+
+    def entry_ly(pb):
+        return pb.memory[VIS_ENTRY_LY]
+
+    results_by_class = {}
+
+    # (a) idle -- no input at all, several frames, asserting on each rather than once. This is
+    # the baseline case, not a trivial one: the budget is spent on idle frames too.
+    pb = fresh_boot()
+    idle_values = []
+    for _ in range(5):
+        pb.tick()
+        idle_values.append(entry_ly(pb))
+    pb.stop(save=False)
+    results_by_class['idle'] = idle_values
+    check("T19.1 VIS_ENTRY_LY stays within VBlank (144-153) on idle frames (no input)",
+          all(144 <= v <= 153 for v in idle_values), f"got {idle_values}")
+
+    # (b) plain index step -- D-pad Up and B. Read VIS_ENTRY_LY on the exact press frame itself
+    # (press, single tick, release, read immediately) -- tap()'s own settle_frames would advance
+    # past the frame this check needs to measure, since VIS_ENTRY_LY is overwritten every frame.
+    pb2 = fresh_boot()
+    pb2.button_press('up')
+    pb2.tick()
+    pb2.button_release('up')
+    up_value = entry_ly(pb2)
+    pb2.tick(); pb2.tick()  # settle before the next button, matching tap()'s own convention
+    pb2.button_press('b')
+    pb2.tick()
+    pb2.button_release('b')
+    b_value = entry_ly(pb2)
+    pb2.stop(save=False)
+    results_by_class['plain index step (Up, B)'] = [up_value, b_value]
+    check("T19.2 VIS_ENTRY_LY stays within VBlank on a plain index-step frame (D-pad Up / B)",
+          144 <= up_value <= 153 and 144 <= b_value <= 153,
+          f"Up={up_value}, B={b_value}")
+
+    # (c) Start -- style application (IP-1080). Same exact-frame read as (b).
+    pb3 = fresh_boot()
+    pb3.button_press('start')
+    pb3.tick()
+    pb3.button_release('start')
+    start_value = entry_ly(pb3)
+    pb3.stop(save=False)
+    results_by_class['Start (style apply)'] = [start_value]
+    check("T19.3 VIS_ENTRY_LY stays within VBlank on a Start-press (style-apply) frame",
+          144 <= start_value <= 153, f"got {start_value}")
+
+    # (d) Select -- full init_engine reset. Same exact-frame read.
+    pb4 = fresh_boot()
+    pb4.button_press('select')
+    pb4.tick()
+    pb4.button_release('select')
+    select_value = entry_ly(pb4)
+    pb4.stop(save=False)
+    results_by_class['Select (init_engine reset)'] = [select_value]
+    check("T19.4 VIS_ENTRY_LY stays within VBlank on a Select-press (init_engine reset) frame",
+          144 <= select_value <= 153, f"got {select_value}")
+
+    # (e) song-form phase transition -- empirically derive the first transition frame from a
+    # plain, untapped boot (same method T17's (a)/(b) run uses), then read VIS_ENTRY_LY on that
+    # exact frame.
+    pb5 = fresh_boot()
+    prev_state = pb5.memory[SONG_STATE]
+    transition_frame = None
+    for frame in range(7000):
+        pb5.tick()
+        if pb5.memory[SONG_STATE] != prev_state:
+            transition_frame = frame
+            break
+        prev_state = pb5.memory[SONG_STATE]
+    pb5.stop(save=False)
+    check("T19.5.setup a song-form phase transition was observed for VIS_ENTRY_LY derivation",
+          transition_frame is not None, f"got {transition_frame}")
+
+    pb6 = fresh_boot()
+    for _ in range(transition_frame + 1):  # +1: lands exactly on the transition frame itself,
+        pb6.tick()                        # confirmed empirically against SONG_STATE's own change
+    transition_value = entry_ly(pb6)
+    pb6.stop(save=False)
+    results_by_class['song-form phase transition'] = [transition_value]
+    check("T19.5 VIS_ENTRY_LY stays within VBlank on a song-form phase-transition frame",
+          144 <= transition_value <= 153, f"got {transition_value}")
+
+    # (f) Head-room reporting: surface every class's observed value in one check's detail, not
+    # merely pass/fail, so a narrowing margin is visible in test output before it becomes a
+    # failure. Measured at authoring time (clean build): all five classes read LY=153 -- VBlank's
+    # last scanline. This check always passes if (a)-(e) did; its job is visibility, not a new
+    # assertion.
+    check("T19.6 VIS_ENTRY_LY head-room by frame class (informational -- see detail)",
+          all(144 <= v <= 153 for vals in results_by_class.values() for v in vals),
+          f"{results_by_class}")
 
 
 def main():
@@ -1021,6 +1161,7 @@ def main():
     t16_motif_recurrence_via_weighted_variant_selection()
     t17_song_form_via_autonomous_phase_cycling()
     t18_settings_and_control_visibility()
+    t19_vblank_budget_assertion()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

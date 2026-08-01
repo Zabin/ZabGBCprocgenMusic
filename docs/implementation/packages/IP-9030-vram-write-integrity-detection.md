@@ -52,8 +52,12 @@ since been shown not to exist. Three things have changed materially:
 Against that: the *intent* the user expressed — close the blind spot around per-frame timing —
 is better served by v2 than by v1, the cost is smaller, and none of it is irreversible. So this
 is not a case where proceeding would be unsafe; it is a case where the honest thing is to say the
-grant was given for something else and let the user decide. **Status: `READY`, authorization
-`NEEDS RE-CONFIRMATION` — not authorized to build.** Recorded on the Master Build Plan.
+grant was given for something else and let the user decide.
+
+**Resolved 2026-07-31.** The user's own words this turn — *"Continue to iterate on assuming pre
+authorization for everything this session"* — directly answer the flagged question, granted in
+response to this exact re-confirmation request. **Status: `READY`, authorization
+`RE-CONFIRMED 2026-07-31`.** Recorded on the Master Build Plan.
 
 ---
 

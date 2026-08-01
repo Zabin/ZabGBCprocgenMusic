@@ -23,7 +23,7 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers)
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 122 checks across T1-T18
+                    sound registers + WRAM engine state) — 129 checks across T1-T19
 ```
 
 ### Data layout, WRAM map
@@ -35,8 +35,11 @@ bad-zone state at
 `0xC005`-`0xC00B` (dissonance score, per-channel stale counts, onset-window counter/timer),
 per-channel generation state (note timers, scale degrees, LFSR states) at `0xC00C`+, joypad state
 at `0xC050`-`0xC052`, noise step index at `0xC019`, **arpeggio state (`IP-1060`) at `0xC01D`-
-`0xC01F`** (`ARP_STATE_PA`/`PB` — packed countdown+step byte — and a shared scratch byte). **No
-SRAM** — this project makes no save/battery commitment (MSTR-001 C2).
+`0xC01F`** (`ARP_STATE_PA`/`PB` — packed countdown+step byte — and a shared scratch byte),
+`VBLANK_FLAG` at `0xC060`, and **`VIS_ENTRY_LY` at `0xC061` (`IP-9030`, `BL-0069`)** — the `LY`
+register's value recorded at entry to `update_visuals`, a permanent diagnostic asserting the
+per-frame VBlank budget stays within `144`-`153` (`T19`; see the Known Good Behavior note below).
+**No SRAM** — this project makes no save/battery commitment (MSTR-001 C2).
 
 ### Input mapping (GDS-03 SS3)
 
@@ -208,7 +211,10 @@ fill level via `_emit_update_settings_row`, called once per frame from `update_v
 > `R308` §8.5, `R101` §8.5, `R102` §3c, `GDS-06` §2.2a. On real hardware, which does enforce
 > mode 3, that margin is a live and untested exposure (`GDS-02` §7, `BL-0058`) — the display
 > would still self-heal the next frame, since `update_visuals` reruns unconditionally
-> (`GDS-08` §3). `OCTAVE_IDX`/
+> (`GDS-08` §3). **`IP-9030` (`VIS_ENTRY_LY`, `T19`) now makes this margin measurable every
+> frame rather than merely believed** — see the Known Good Behavior entry below.
+
+`OCTAVE_IDX`/
 `SCALE_IDX` (4 possible values) share the same 8-level tile set as `TEMPO_IDX`/`DENSITY_IDX`/
 `CHMIX_IDX` (8 possible values) rather than a separate narrower set — those two bars simply never
 exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
@@ -269,16 +275,25 @@ exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
   phases (INTRO/BUILD/PEAK/BREAKDOWN, looping), overwriting `TEMPO_IDX`/`DENSITY_IDX` to that
   phase's target values on each transition, no input required, over a ~110-second full cycle.
   Entirely independent of bad-zone detection/recovery and Scheme-E motif-variant selection.
-- Settings & control visibility (`IP-1110`, `BL-0051`/`ADS-104`, **`VERIFIED` via `VR-1110`, not
-  yet part of the shipped baseline**): the visualizer displays 5 bar-height indicator tiles, one
-  per base control (tempo/octave/scale/density/channel-mix), each reflecting that parameter's
-  current index, updated every frame — purely additive to the existing channel-activity
-  tiles/palette, no new palette, no font/text rendering. A disclosed, self-healing one-frame
-  display lag exists specifically on the frame a Select reset is pressed (independently
-  reproduced by `VR-1110` across 3 distinct pre-Select sequences; see "Change settings-indicator
-  tile patterns" above).
+- Settings & control visibility (`IP-1110`, `BL-0051`/`ADS-104`, **`VERIFIED` via `VR-1110`, in
+  the shipped baseline as of the 2026-07-31 GO**): the visualizer displays 5 bar-height indicator
+  tiles, one per base control (tempo/octave/scale/density/channel-mix), each reflecting that
+  parameter's current index, updated every frame — purely additive to the existing
+  channel-activity tiles/palette, no new palette, no font/text rendering. A one-frame display lag
+  exists on **every** frame class, not specifically on a Select reset — it is a `pb.tick()`
+  harness sampling artifact, not a dropped write or a Select-specific behavior (corrected
+  2026-07-31, `BL-0069`; see "VBlank budget assertion" below).
+- VBlank budget assertion (`IP-9030`, `BL-0069`): a permanent diagnostic (`VIS_ENTRY_LY`) records
+  `LY` at entry to `update_visuals` every frame; `T19` asserts it stays within VBlank (`144`-`153`)
+  across five frame classes (idle, plain index step, Start, Select, song-form transition).
+  Measured: `HALT` wakes at `LY` 144 on every frame; `read_joypad`+`apply_input`+`engine_tick`
+  alone consume through `LY` 152-153, so `update_visuals` runs against roughly one remaining
+  scanline — on every frame, idle included, not only on heavy-input frames. Guards against a
+  regression silently spending that head-room; does not itself widen the budget. This superseded
+  an earlier, incorrect finding that VRAM writes were being dropped on specific frame classes —
+  see `R308` §8.5 for the full self-correction.
 
-**122/122 `test_rom.py` checks pass** (T1-T18). An 8000+ frame stress run with continuous input
+**129/129 `test_rom.py` checks pass** (T1-T19). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

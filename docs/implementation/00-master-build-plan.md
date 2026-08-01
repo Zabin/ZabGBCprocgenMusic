@@ -214,7 +214,7 @@ a fresh one.
 
 | IP | Package | BL cited | Status |
 |---|---|---|---|
-| IP-9030 | **VBlank budget assertion** (re-scoped v2, 2026-07-31 — was *VRAM write-integrity detection*): a `VIS_ENTRY_LY` diagnostic recording `LY` at **entry** to `update_visuals`, plus a `T19` suite asserting it stays within VBlank (144-153) across five frame classes. Replaces the v1 write-integrity scope, which was unbuildable — the harness accepts every VRAM write regardless of PPU mode, so such a check could never fail | `BL-0069` (Medium); folds in `BL-0052`, `BL-0057`; doc half of `BL-0040` | **READY** — but **authorization NEEDS RE-CONFIRMATION** (see below). v1 was `BLOCKED` 2026-07-31 when its own measurement falsified its premise; the Blocking Report is retained in the package doc. |
+| IP-9030 | **VBlank budget assertion** (re-scoped v2, 2026-07-31 — was *VRAM write-integrity detection*): a `VIS_ENTRY_LY` diagnostic recording `LY` at **entry** to `update_visuals`, plus a `T19` suite asserting it stays within VBlank (144-153) across five frame classes. Replaces the v1 write-integrity scope, which was unbuildable — the harness accepts every VRAM write regardless of PPU mode, so such a check could never fail | `BL-0069` (Medium); folds in `BL-0052`, `BL-0057`; doc half of `BL-0040` | **COMPLETE** 2026-07-31 — 129/129 (`T1`-`T19`), authorization `RE-CONFIRMED 2026-07-31`. Awaits `09-package-verification` (fresh session — cannot verify same-session implementation work). v1 was `BLOCKED` 2026-07-31 when its own measurement falsified its premise; the Blocking Report is retained in the package doc. |
 
 **Verb inventory.** This capability needs only *review* (detect and quantify an existing
 behaviour) — no *generate*, no *apply*, no *persist*. The *render* verb is explicitly **not**
@@ -254,9 +254,12 @@ acceptance criterion (4) carried before run #99 corrected it. Same fix, same mec
 phrasing. It is in this package rather than its own because it is a one-sentence wording change in
 a document this skill was already opening.
 
-**G3 authorization for `IP-9030`**: ~~**granted on the user's standing basis, 2026-07-26**~~ —
-**SUPERSEDED 2026-07-31 by the v2 re-scope; now `NEEDS RE-CONFIRMATION`, not authorized to
-build.** The 2026-07-26 grant rested on the user's *"Same pre authorization as before"*, and it
+**G3 authorization for `IP-9030` v2**: **RE-CONFIRMED 2026-07-31** — the user's explicit words
+this turn, *"Continue to iterate on assuming pre authorization for everything this session,"*
+following the earlier turn's *"Same pre authorization as before."* Cited as the basis rather than
+assumed silently: this is a fresh, contemporaneous grant covering the re-scoped v2 package
+specifically (a permanent per-frame `LY` diagnostic + `T19`), not a reuse of the superseded
+2026-07-26 grant. ~~Previously: **SUPERSEDED 2026-07-31 by the v2 re-scope; `NEEDS RE-CONFIRMATION`.**~~ The 2026-07-26 grant rested on the user's *"Same pre authorization as before"*, and it
 was correctly cited — but it was given for a package whose objective was to detect and quantify a
 dropped-VRAM-write behaviour that has since been shown not to exist. The v2 package addresses a
 different (real) problem, ships a **permanent per-frame ROM diagnostic** rather than removable

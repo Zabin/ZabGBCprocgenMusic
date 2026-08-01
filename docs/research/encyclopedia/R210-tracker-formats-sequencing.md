@@ -49,6 +49,12 @@ grounding, not a structure to adopt.
 ## 6. Feature Mapping
 Background/vocabulary grounding only.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⛔ **EXCEPTION — no forward trace.** Tracker formats, pattern data and sequencing techniques. **Driftune has no tracker, no pattern data and no sequencer**: it generates note-by-note in real time from steering indices, so there is nothing here for the shipped design to consume. Cited by no `ADS-xxx`/`FS-xxx`/`IP-xxxx` (verified by grep, 2026-07-31). Its actual contribution was **vocabulary** — the pattern/order/row terminology the later design conversations borrow informally. Honest exception; a forward link would have to be invented.
+
 ## 7. Related Topics
 R209 (the driver survey this vocabulary describes), R216 (concrete arpeggio/vibrato/portamento
 implementation guidance for Driftune's own engine).

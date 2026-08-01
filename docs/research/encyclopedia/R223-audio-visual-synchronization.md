@@ -105,6 +105,12 @@ R221 found for the emotional/energy mapping.
 No current `IP-xxxx`. Grounds `CAP-14` (Visual Engine)'s evolution tier and R9 alongside R222,
 once picked up by `03-architecture-design-synthesis`.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⚠️ **PARTIALLY TRACED — with one prior observation now corrected.** Audio-visual synchronization fed **[GDS-08](../../architecture/08-presentation-architecture.md)**, whose stateless re-render-every-frame contract is this topic's sync guidance made architectural, and it is one of the topics `ADS-104` drew on for `IP-1110`'s settings-indicator row (`VERIFIED`). Tempo-*synced motion* — a visual element whose timing follows the beat, the strongest form of the sync this topic describes — remains **unbuilt** and is recorded as Candidate Requirement `CR-0001` (`BL-0016`, `FR-1120`'s split). **Correction (2026-07-31, `BL-0069`):** this topic previously noted that `VR-0006`'s observed one-frame display lag sat comfortably inside the perceptual tolerance the literature describes. The *perceptual* claim stands and is unaffected — it is about human tolerance generally, not about this ROM. What has changed is that the one-frame lag this project kept observing was **not a real display lag at all**: it was a `pb.tick()` mid-frame sampling artifact in the harness (`R305` §3, `R308` §8.5). So the tolerance argument was sound but was being applied to a measurement that did not mean what it appeared to. Nothing in this topic's guidance changes; the example it was reassuring about was never real.
+
 ## 7. Related Topics
 
 R222 (visual evolution conventions — the sibling half of the same roadmap release), R104 (CGB

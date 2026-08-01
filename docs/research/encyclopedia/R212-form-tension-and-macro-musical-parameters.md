@@ -67,6 +67,12 @@ Confirms rather than changes shipped scope — no code implication.
 ## 6. Feature Mapping
 No current `IP-xxxx`; feeds a combined research-gap backlog entry for future scoping.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Form, tension and macro-musical parameters fed directly into `ADS-103`'s song-form state machine — the four-phase INTRO/BUILD/PEAK/BREAKDOWN cycle with per-phase `TEMPO_IDX`/`DENSITY_IDX` envelopes is this topic's macro-parameter-envelope idea made concrete. Shipped via `FS-110`/`IP-1100` (`VERIFIED`, 2026-07-26). Also cited by `ADS-100` and `ADS-102`. Requirements: `FR-1310`-`FR-1340`. Tests: `T17`.
+
 ## 7. Related Topics
 R201/R211 (note/phrase-level generation — the same gap from a lower altitude), R204 (bad-zone
 mechanic as Driftune's actual tension/release substitute), R206 (player-attributable-change

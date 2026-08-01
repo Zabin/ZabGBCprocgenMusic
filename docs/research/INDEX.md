@@ -83,13 +83,36 @@ uniquely cheap, Seasonal reclassified as a preset-rotation concern not a genre).
 > exception (a topic whose real job is grounding implementation *quality* or a decision *not* to
 > act). Rationale and the decision to keep this per-topic rather than in a central matrix:
 > [GDS-10 §4](../architecture/10-requirements-traceability-matrix.md).
-> **Status: R300 tier (R301-R309) done 2026-07-26; R100 tier (R101-R115) done 2026-07-26. R200
-> tier (R201-R223, 23 topics) still owed** — owner `02-research-game-design`.
-> Of the 24 topics traced so far, **7 carry honest exceptions rather than forward links**:
-> `R105` (no sprites/OAM used at all, by design), `R106` (grounds `ADR-0002`'s decision *not* to
-> adopt MBC/SRAM), `R111` (confirmed a non-risk — the erratum is DMG-only), `R112` (orientation
-> topic, exactly the case `MSTR-001` v1.3's changelog predicted), `R306`/`R308`/`R309`. That
-> ratio is itself the audit's value: none of these were visible before the convention existed.
+> **Status: COMPLETE 2026-07-31 — all 47 topics carry a forward-trace section.** R300
+> (R301-R309) done 2026-07-26; R100 (R101-R115) done 2026-07-26; **R200 (R201-R223, 23 topics)
+> done 2026-07-31**, closing `BL-0067`/`BL-0071` and the audit `MSTR-001` v1.3's own changelog
+> predicted would be owed.
+>
+> **Whole-encyclopedia tally: 47 topics — 33 traced, 14 carrying honest exceptions or recorded
+> partials.** The exceptions, by category:
+>
+> - **No forward trace at all, correctly** — `R105` (no sprites/OAM used by design), `R209` (the
+>   GB music-driver survey; Driftune adopted none of them and wrote its own engine), `R210`
+>   (tracker formats; there is no tracker, no pattern data, no sequencer).
+> - **Grounded a decision *not* to act** — `R106` (`ADR-0002`'s decision not to adopt MBC/SRAM),
+>   `R111` (confirmed a non-risk: the erratum is DMG-only), `R215` (constraint/scheduling
+>   approaches considered and set aside), `R306`, `R308`.
+> - **Orientation/history topics** — `R112` and `R218`, exactly the category `MSTR-001` v1.3
+>   predicted would turn up.
+> - **Confirms an existing non-goal** — `R217`.
+> - **Recommendation deliberately rejected, for a recorded reason** — `R213` (`DIV` boot seeding
+>   not adopted; the fixed `LFSR_SEED` is what makes every test run a fixed-seed regression run,
+>   `R305` §5).
+> - **Partial — design-level trace, feature half still owed** — `R208` (`BL-0021`'s accessibility
+>   finding accepted at design altitude, unbuilt), `R222` (palette-swap strategy adopted by
+>   `GDS-08`, no theme shipped), `R223` (sync contract in `GDS-08`, tempo-synced motion unbuilt,
+>   `CR-0001`), `R309`.
+>
+> **That ratio is the audit's value: none of it was visible before the convention existed**, and
+> two entries are findings in their own right — `R209` is the encyclopedia's weakest-traced topic
+> (cited by nothing anywhere in the tree), while `R214` is the strongest argument *for* the
+> discipline: its §8 talked the project out of an L-system derivation engine and into the fixed
+> weighted-variant table that actually shipped as `IP-1090`.
 
 ## R300 — Tooling, Emulation & Verification
 

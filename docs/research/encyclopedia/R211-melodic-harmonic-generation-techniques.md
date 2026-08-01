@@ -69,6 +69,12 @@ only (R201).
 ## 6. Feature Mapping
 No current `IP-xxxx` depends on this topic directly; informs future backlog scope only.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED**, via its addendum rather than its original body. The original melodic/harmonic survey fed no code directly. **§8 (2026-07-26, `BL-0037`) grounds `DELTA_TABLE`'s already-shipped weighting** — a lookup-table bias that had been in `music_engine.py` since `IP-0001` with *no* research behind it, which this topic supplied retroactively — and the topic then fed `ADS-100`/`ADS-102`/`FS-109` and shipped as `IP-1090`'s weighted variant selection (`VERIFIED`). Architecture: `GDS-04`. Tests: `T16`. Noted honestly: this is a trace earned by a later addendum, not by the topic as first authored.
+
 ## 7. Related Topics
 R201 (melody, already adopted technique), R202 (rhythm/percussion), R115 (noise channel), R212
 (song-structure/tension — the phrase-level gap this topic names is the same gap that section

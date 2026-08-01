@@ -105,6 +105,12 @@ No current `IP-xxxx`. Grounds a future `BL-0010`-successor feature (song-form + 
 parameter-envelope state machine) if/when `03-architecture-design-synthesis`/
 `04-requirements-engineering` pick it up, per MSTR-001 §9's routing.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Style evolution and song-form structure is the direct research ancestor of `ADS-103`'s four-phase state machine, shipped as `FS-110`/`IP-1100` (`VERIFIED`, roadmap R6). Also cited by `ADS-101`, `ADS-102`, `GDS-00` and `GDS-04`. Requirements: `FR-1310`-`FR-1340`, `NFR-1120`/`NFR-1130`. Tests: `T17`. **Honest partial**: the *style-drift* half of this topic — phases altering timbre/style rather than only tempo and density — was explicitly deferred past v1 by `ADS-103` and remains unbuilt.
+
 ## 7. Related Topics
 
 R201 (baseline generation algorithm this drives), R204 (bad-zone state machine — the closest

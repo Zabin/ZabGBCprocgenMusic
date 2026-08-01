@@ -57,6 +57,12 @@ determinism is for testing, not necessarily for listening-experience variety).
 `IP-0001` (shipped, fixed-seed choice confirmed intentional); a `DIV`-seeding upgrade is an
 unscheduled `feature`-type backlog candidate.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⚠️ **TRACED — as a recommendation deliberately NOT taken, which is the interesting case.** This topic recommended `DIV`-based boot seeding so each power-on differs. **It was not adopted**: `LFSR_SEED` remains a fixed constant in `music_engine.py`, and `IP-0001` confirmed that choice as intentional. The reason is recorded elsewhere and is load-bearing — `R305` §5 notes that the fixed seed is what makes every `test_rom.py` run a fixed-seed regression run *by construction*, and that adopting `DIV` seeding would require tests to overwrite `LFSR_STATE` post-boot to keep that property. So the topic's forward trace is real but inverted: it grounds a **standing, reasoned rejection** plus a named migration cost, cited by `ADS-100`, `FS-106`, `FS-107`, `GDS-03` and `GDS-04`. The `DIV`-seeding upgrade remains an unscheduled candidate, not an oversight.
+
 ## 7. Related Topics
 R201 (the algorithm this PRNG drives), R204 (repetition detection's interaction with LFSR period),
 R305 (test-design implications of any future non-fixed seeding).

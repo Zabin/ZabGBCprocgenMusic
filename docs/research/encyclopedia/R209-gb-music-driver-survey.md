@@ -57,6 +57,12 @@ routine. This survey is architectural precedent only.
 ## 6. Feature Mapping
 Background/precedent only — no direct `IP-xxxx` dependency.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⛔ **EXCEPTION — no forward trace, and correctly so.** This topic surveys the established GB music drivers (hUGEDriver, GBT Player, LSDJ, Nanoloop). **Driftune adopted none of them and wrote its own engine**, so no line of shipped code descends from it — and it is cited by no `ADS-xxx`, `FS-xxx`, or `IP-xxxx` in the tree (verified by grep, 2026-07-31). Its value was *decision support at the boundary*: it established that the existing drivers are all **sequenced-playback** systems, which is a different problem from real-time generation, and so grounded the implicit choice not to build on one. That is a legitimate `MSTR-001` C10 exception shape — the same "grounded a decision not to act" category `R106` and `R308` occupy — but unlike those it never even produced a recorded decision, so it is the weakest-traced topic in the encyclopedia. Recorded honestly rather than linked to `IP-0001` on the strength of both being about music engines.
+
 ## 7. Related Topics
 R210 (tracker formats/sequencing techniques these drivers implement), R216 (sound-design
 techniques these drivers all support, some applicable to Driftune's own generation).

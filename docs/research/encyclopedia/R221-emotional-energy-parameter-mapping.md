@@ -90,6 +90,12 @@ cheapest of the three §9 research threads to eventually implement.
 No current `IP-xxxx`. Grounds a future `03-architecture-design-synthesis`/
 `04-requirements-engineering` pass on an emotional/energy read-layer, per MSTR-001 §9's routing.
 
+## 5b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⚠️ **EXCEPTION — vision-layer only, no code descends from it.** Emotional/energy parameter mapping was promoted by `MSTR-001` v1.4 from a §9 research thread to a "groundable architecture candidate," and it is cited in **`GDS-00` (Vision) and nowhere else** — no `ADS-xxx`, no `FS-xxx`, no `IP-xxxx` (verified by grep, 2026-07-31). Its nearest shipped relative is `IP-1100`'s song-form phase envelope, which manipulates the same steering indices this topic discusses, but `ADS-103` grounds that in `R212`/`R220`, not here. Recorded as an exception rather than claiming `IP-1100` on adjacency. The topic remains a live candidate for a future emotional/energy steering pass; it is not stale, merely unconsumed.
+
 ## 6. Related Topics
 
 R204 (bad-zone detection — `DISSONANCE_SCORE`'s existing source), R205/R208 (visualizer

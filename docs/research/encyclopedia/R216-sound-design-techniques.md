@@ -66,6 +66,12 @@ implemented yet.
 `IP-0002`+ (arpeggio, duty-cycle variation — unscheduled `feature`-type backlog candidates),
 R115 (percussion envelope, already recommended there, now double-confirmed).
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** The tier's most direct research→feature chain. Sound-design techniques (arpeggio, duty-cycle variation, vibrato, portamento) became `FEAT-1060`/`FS-106` and shipped as **two** packages — `IP-1060` (arpeggio + duty cycle) and `IP-1061` (vibrato + portamento), both `VERIFIED`. Also cited by `ADS-100`, `ADS-101` and `GDS-04`. Requirements: `FR-1130`-`FR-1170`, `NFR-1040`/`NFR-1050`. Tests: `T10`-`T12`.
+
 ## 7. Related Topics
 R108 (duty-cycle/envelope registers), R113 (envelope timing), R115 (noise percussion), R211
 (the chord-progression gap arpeggio partially answers without new architecture).

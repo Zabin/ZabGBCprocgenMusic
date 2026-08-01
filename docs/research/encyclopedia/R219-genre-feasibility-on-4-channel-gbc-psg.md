@@ -115,6 +115,12 @@ No current `IP-xxxx`. This topic grounds a future `04-requirements-engineering`/
 `03-architecture-design-synthesis` pass on musical-identity scope, per MSTR-001 §9's routing — not
 scheduled here.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Genre feasibility on 4-channel GBC PSG fed `ADS-101` directly and shipped as `FEAT-1080`/`FS-108`/`IP-1080`'s genre-aware style presets (`VERIFIED`) — the topic's per-genre feasibility tiering is what made a three-style v1 `STYLE_TABLE` a defensible scope rather than a guess. Its §8 addendum (2026-07-26, `BL-0036`) added Celtic to the Folk/World tier and reclassified Seasonal as a preset-rotation concern routed to `R220`. Requirements: `FR-1230`-`FR-1260`. Tests: `T14`.
+
 ## 7. Related Topics
 
 R201 (algorithmic composition baseline), R207 (GB-era chiptune channel-usage idioms, the existing

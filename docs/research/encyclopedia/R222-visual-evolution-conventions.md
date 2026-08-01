@@ -103,6 +103,12 @@ once `02-research-gbc-hardware` supplies the VRAM/palette-budget half (`BL-0034`
 scope) and this topic's own palette-swap approach is carried into
 `03-architecture-design-synthesis`.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⚠️ **PARTIALLY TRACED.** Visual-evolution conventions fed **[GDS-08](../../architecture/08-presentation-architecture.md)**, which adopted this topic's palette-swap-only approach as the visualizer's standing extension strategy (~8 bytes per theme, grounded against `R104` §7's budget half). That is a real forward trace *into the architecture baseline*. **But no palette theme has shipped**: `visuals.py` still carries exactly the two palettes `IP-0006` authored, and the day/night/seasonal theming this topic grounds is roadmap **R9**, unscheduled. So the honest verdict is a design-level trace with the feature-level half still owed — recorded as partial rather than claimed as complete on the strength of `GDS-08`'s adoption.
+
 ## 7. Related Topics
 
 R104 (CGB palette system — the hardware mechanism this topic reuses), R205/R208 (existing

@@ -66,6 +66,12 @@ baseline only.
 No current `IP-xxxx`; both CA-rhythm and L-system-phrase ideas are unscheduled `feature`-type
 backlog candidates for post-v1 consideration.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED**, and it is the tier's clearest example of research earning its keep by saying *no*. The original grammar/cellular-automata survey had no consumer. **§8 (2026-07-26) deep-evaluated L-systems for `BL-0010`'s motif-recurrence gap and concluded against a derivation engine**, on a load-bearing constraint from the literature (melody quality degrades at *longer* derivations — Worth & Stepney), recommending instead a small fixed-depth weighted-rule table. **That is exactly what shipped**: `ADS-102`/`FS-109`/`IP-1090`'s `MOTIF_TABLE` variant selection (`VERIFIED`). Also cited by `ADS-100`/`ADS-103`. So this topic both *prevented* an expensive wrong design and *shaped* the right one — a stronger outcome than a plain feature trace. Its CA-rhythm half remains an unscheduled candidate.
+
 ## 7. Related Topics
 R201 (the Markov/random-walk baseline these are alternatives to), R202 (Euclidean rhythm, the CA
 alternative's point of comparison), R211 (the phrase/motif gap the L-system idea addresses).

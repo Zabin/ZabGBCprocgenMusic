@@ -63,6 +63,12 @@ is exactly the grounding `IP-0003`'s implementation package should cite when it 
 FR-1050 (D-pad/B density stepping, shipped), `IP-0003` (noise channel + density consumer, not yet
 authored), `BL-0005` (tuning deferral).
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds `music_engine.py`'s `TEMPO_TABLE` (BPM→frames at the ~60fps frame-driven clock this topic analyses) and the density-stepping behaviour behind `DENSITY_IDX`. Shipped via `IP-0001`/`IP-0003` (`VERIFIED`); the frame-driven-clock constraint it names is the same one `R110` measures from the hardware side. Requirements: `FR-1030`/`FR-1050`. Tests: `T4` button-driven tempo/density stepping. Its groove/swing half remains unbuilt — a real partial, tracked by `BL-0005`'s standing tuning deferral rather than claimed as shipped.
+
 ## 7. Related Topics
 
 R201 (pitch-generation half), R108 (noise channel has no pitch register — onset timing is its

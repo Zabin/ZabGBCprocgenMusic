@@ -64,6 +64,12 @@ GAs and general constraint solving are correctly unused and should stay that way
 ## 6. Feature Mapping
 No current `IP-xxxx`; informs future backlog scope for R211/R212's named gaps.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⛔ **EXCEPTION — grounded a decision not to act.** Constraint-satisfaction and scheduling approaches to generation. Cited once, by `ADS-100`, and only to record that these approaches were **considered and set aside** as disproportionate for a 4-channel real-time engine on an ~4MHz CPU with no allocator. Nothing in `music_engine.py` descends from it. This is the same legitimate exception shape as `R106`'s MBC analysis and `R308`'s original budgeting call — the research bounded a design space and the bound held. Recorded as an exception rather than forward-linked to `ADS-100` as though it had shaped the shipped scheme, which it did not.
+
 ## 7. Related Topics
 R211 (chord-progression generation, the GA/constraint-checking application), R212 (song-structure
 gap, the state-machine application), R307 (event-scheduling architecture, detailed there).

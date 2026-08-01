@@ -75,6 +75,12 @@ to the platform's real constraints.
 FR-1010, FR-1080 (dissonance scoring depends on what this topic's algorithm produces), `IP-0001`
 (shipped), `IP-0002` (pulse B/wave — not yet authored).
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds the generation core itself — the scale/mode and motif machinery in `music_engine.py` that every later scheme builds on. Shipped via `IP-0001`-`IP-0003` (`FEAT-1000`, `VERIFIED`) and extended by `IP-1070`'s combinable schemes (`ADS-100`/`FS-107`). Requirements: `FR-1000`/`FR-1010`. Tests: `T3`-`T5` liveness and note-progression checks. Its Markov/L-system survey half is *not* what shipped — that thread was re-examined in `R214` §8 and resolved against a derivation engine; see `R214`'s own trace.
+
 ## 7. Related Topics
 
 R202 (rhythm/tempo — the *timing* half of generation, this topic covers *pitch*), R203

@@ -213,7 +213,7 @@ fill level via `_emit_update_settings_row`, called once per frame from `update_v
 `CHMIX_IDX` (8 possible values) rather than a separate narrower set — those two bars simply never
 exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
 
-## Known Good Behavior (v1.5 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation + Genre-Aware Style Presets + Motif Recurrence via Weighted Variant Selection + Song-Form via Autonomous Phase Cycling + Settings & Control Visibility, `IP-1110` `VERIFIED` 2026-07-26 via `VR-1110`, not yet part of the shipped baseline pending `11-release-readiness` GO)
+## Known Good Behavior (v1.5 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation + Genre-Aware Style Presets + Motif Recurrence via Weighted Variant Selection + Song-Form via Autonomous Phase Cycling + Settings & Control Visibility, **SHIPPED BASELINE — full R1-R6 + `IP-1090` + `IP-1110` GO confirmed by the user 2026-07-31**)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
 - Boots within ~90 frames (GBC boot-ROM logo animation time) to: all 3 pitched channels (pulse
@@ -265,7 +265,7 @@ exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
   the engine autonomously draws which variant plays next via a retention-biased weighted lookup,
   no input required. Bad-zone detection/recovery and every other mechanism are unaffected.
 - Song-form via autonomous phase cycling (`IP-1100`, roadmap R6/`ADS-103`, **`VERIFIED` via
-  `VR-1100`, not yet part of the shipped baseline**): the engine autonomously cycles 4 named
+  `VR-1100`, **in the shipped baseline as of the 2026-07-31 GO**): the engine autonomously cycles 4 named
   phases (INTRO/BUILD/PEAK/BREAKDOWN, looping), overwriting `TEMPO_IDX`/`DENSITY_IDX` to that
   phase's target values on each transition, no input required, over a ~110-second full cycle.
   Entirely independent of bad-zone detection/recovery and Scheme-E motif-variant selection.

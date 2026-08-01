@@ -6,7 +6,7 @@
   no epic/phase split yet at this project's size.
 - **Release status: ✅ SHIPPED — GO confirmed 2026-07-25 (R1-R4); GO confirmed 2026-07-26 (R5
   addition); GO confirmed 2026-07-26 (`IP-1090`/`BL-0010` addition).** Every feature `FEAT-1000`
-  through `FEAT-1090` is `VERIFIED` and integration-reviewed as part of the consolidated
+  through **`FEAT-1110`** is `VERIFIED` and integration-reviewed as part of the consolidated
   R1 (Foundation) + R2 (Sound Design) + R3 (Integrity Remediation) + R4 (Multi-Scheme Foundation)
   + R5 (Genre-Aware Style Presets) + Motif Recurrence via Weighted Variant Selection release — see
   [`docs/reviews/release-assessment-r1-r2-r3.md`](../reviews/release-assessment-r1-r2-r3.md)

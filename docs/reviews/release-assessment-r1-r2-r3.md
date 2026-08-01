@@ -576,7 +576,9 @@ assumed silently.
 | `BL-0048` — no shipped `CHMIX_IDX` preset exercises `IP-1090`'s motif-variant selection together with a muted Scheme-E channel or a named style (pre-existing, carried forward, unrelated to this addition) | Low | `SCHEDULED`, non-blocking |
 | `BL-0040` — `FS-108`'s acceptance criterion (4) states the bad-zone-independence invariant in absolute terms (pre-existing, carried forward, unrelated to this addition) | Medium | `SCHEDULED`, non-blocking — requirements-wording precision only |
 | `BL-0044`/`BL-0045` — `VR-1090`'s own two test-strength findings (pre-existing, carried forward, unrelated to this addition) | Medium | `SCHEDULED`, non-blocking — test-strength only |
-| `IP-1110`'s disclosed self-healing Select-frame display-lag (not a `BL-xxxx` finding — a documented, tested, accepted characteristic of the shipped behavior, not residual risk in the usual sense) | Low (cosmetic, self-corrects the very next frame) | Accepted as shipped behavior, per `IP-1110`'s own Definition of Done and `T18.9`/`T18.10` |
+| ~~`IP-1110`'s disclosed self-healing Select-frame display-lag~~ **— WITHDRAWN 2026-07-31 (`BL-0069`), see the G4 section below. The finding was false; there is no display lag and no dropped write.** | ~~Low~~ **n/a** | **Removed from the risk table — it never existed.** `IP-1110`'s behaviour is and always was correct. |
+| **`BL-0069` (replaces the row above) — the per-frame VBlank budget is ~exhausted on *every* frame.** Measured 2026-07-31: `HALT` wakes at `LY` 144, `read_joypad`+`apply_input`+`engine_tick` consume ~9 of VBlank's 10 scanlines, and `update_visuals` finishes at `LY` 153 — the window's last line. Head-room is a handful of instructions and **nothing in the build or the suite guards it** | Medium (no observable defect, no requirement violated; the risk is *regression*, not current behaviour) | **Accepted, non-blocking.** Pre-existing and not introduced by `IP-1100`/`IP-1110`. `IP-9030` v2 is the planned guard (a runtime `LY` budget assertion, `T19`); it is `READY` but awaiting its own G3 re-confirmation (`BL-0072`) |
+| **Live, untested hardware exposure (`R102` §3c, `BL-0058`).** Real CGB silicon enforces mode-3 VRAM inaccessibility; PyBoy does not model it at all (`R301` §3). With a margin of ~one scanline, a visualizer write *could* genuinely be discarded on hardware — and no test on this project can rule it out | Low (cosmetic and self-healing via `GDS-08` §3's stateless re-render contract; audio unaffected — APU writes are not VRAM writes) | **Accepted, non-blocking.** Named rather than glossed: this is a property of **every release already shipped**, not something this addition introduced. `GDS-06` §2.3 recommends a mode-accurate-emulator cross-check (SameBoy/BGB, `R309`) as the cheap first step |
 
 ### Assessment
 
@@ -607,3 +609,85 @@ this GO recommendation is not itself authorization to flip `ROADMAP.md`, the Fea
 `Claude.md`'s status line, or any other tracker to reflect either addition as shipped — that flip
 happens only after the user's separate, explicit confirmation of this GO decision (G4). This
 assessment's job ends at the recommendation.
+
+---
+
+## G4 — User confirmation (R6/`IP-1100` + `BL-0051`/`IP-1110` addition)
+
+**The user gave explicit GO confirmation on 2026-07-31**: *"Confirm all releases as approved."*
+
+### Reading of that instruction, stated explicitly rather than left implicit
+
+"All releases" resolves to **exactly one pending scope**, and the reading matters enough to record:
+
+- **R1, R2, R3, R4, R5 and `IP-1090` were already `CONFIRMED GO`** in earlier sessions — their own
+  G4 sections are on record above (2026-07-25 ×2, 2026-07-26 ×2). Nothing about them changes here.
+- **The only scope that had a written GO recommendation and no G4 decision** was this document's
+  2026-07-26 re-assessment: R6/`IP-1100` + `BL-0051`/`IP-1110`. That is what this confirmation
+  approves.
+- **Roadmap releases R7 and beyond are *not* approved by this, because there is nothing there to
+  approve.** None of their packages has been planned, built or verified; no assessment exists for
+  any of them. A release cannot be confirmed into a baseline it has never entered, and reading the
+  instruction to cover them would manufacture a shipped record for work that does not exist.
+- **This is G4 only, not G3.** The user approved *releases*, not *builds*. `IP-9030` v2 still
+  needs its own G3 re-confirmation (`BL-0072`), and the `BL-0064`/`BL-0065` refactoring packages
+  still require fresh per-package go-aheads under the project's standing no-bootstrap-carve-out
+  rule. Nothing in this confirmation authorizes any stage-08 run.
+
+### One residual-risk item was falsified between the recommendation and the confirmation
+
+The 2026-07-26 recommendation accepted, as a documented characteristic of the shipped behaviour,
+*"`IP-1110`'s disclosed self-healing Select-frame display lag."* **That finding is false and was
+withdrawn on 2026-07-31 (`BL-0069`)**, and the baseline is deliberately *not* being flipped on a
+statement now known to be untrue.
+
+No VRAM write is dropped, on any frame. PyBoy 2.7.0 applies no PPU-mode gating to VRAM writes at
+all (`R301` §3, `mb.py:502-511`), so the harness could never have observed a drop; and a WRAM
+mirror of each write, taken at the instant of the write, matches the VRAM byte on every frame of
+every class. The observed one-frame lag was a **`pb.tick()` mid-frame sampling artifact** —
+uniform across every frame class including idle frames with no input. Full account: `R308` §8.5,
+`R101` §8.5, `GDS-06` §2.2a, and `IP-9030`'s own Blocking Report.
+
+**This strengthens the GO rather than weakening it**, and that is worth saying plainly: a
+behavioural blemish this release was preparing to accept turns out not to exist. `IP-1110`'s
+behaviour is correct and always was. `VR-1110`'s Pass verdicts stand and `IP-1110` remains
+`VERIFIED` — only the causal account was withdrawn (see that report's own correction notice).
+
+**But two things replace it in the risk table above rather than the row simply vanishing**, since
+a release record that quietly deleted a risk would be worse than one that never listed it:
+
+1. **The real finding is broader** — the per-frame VBlank budget is ~exhausted on *every* frame,
+   not on one special frame class, and nothing guards the remaining head-room. Accepted as
+   non-blocking: no observable defect, no requirement violated, and it is pre-existing rather than
+   introduced by this addition. `IP-9030` v2 is the planned guard.
+2. **There is a live, untested hardware exposure.** On silicon, which does enforce mode 3, that
+   ~one-scanline margin could genuinely discard a visualizer write, and no test here can rule it
+   out. Cosmetic and self-healing if it occurs. Named explicitly because it is the most
+   consequential thing the project learned this week, and because it is a property of **every
+   release already shipped** — approving this addition does not create it and withholding the
+   approval would not avoid it.
+
+### Evidence at the moment of confirmation
+
+Re-verified immediately before the baseline flip, not carried over from the 2026-07-26 run:
+
+- ROM builds: **32768 bytes**, valid header. Commit `65a9324`, ROM md5 `008b32a5ca6b7b6ecef647769b2110e5`.
+- Full suite: **122 PASS, 0 FAIL out of 122** (`T1`-`T18`).
+- Both packages `VERIFIED` with real independent VRs (`VR-1100`, `VR-1110`); both covered by clean
+  `10-integration-review` passes; zero Critical/High findings anywhere in the tree.
+
+### Decision
+
+**Release: CONFIRMED GO, 2026-07-31 — R6 (`FEAT-1100`/`IP-1100`, Song-Form via Autonomous Phase
+Cycling) and `FEAT-1110`/`IP-1110` (Settings & Control Visibility, `BL-0051`) added to the shipped
+baseline alongside R1+R2+R3+R4+R5+`IP-1090`.**
+
+Baseline records updated as this skill's own final step: `ROADMAP.md` (stage-11 row),
+`docs/feature-planning/01-feature-catalog.md` + its `INDEX.md` (`FEAT-1100`/`FEAT-1110` rows),
+`Claude.md` (Known Good Behavior heading — the "not yet part of the shipped baseline pending
+`11-release-readiness` GO" caveat removed), and `docs/features/INDEX.md` where affected. See each
+file's own diff for exact wording; this assessment is the authoritative record of the decision.
+
+**Still open after this confirmation, and deliberately not touched by it:** `BL-0052`, `BL-0057`
+(both `SCHEDULED`, non-blocking, now riding `IP-9030` v2), `BL-0053`, `BL-0048`, `BL-0040`,
+`BL-0044`/`BL-0045`, plus `BL-0069`/`BL-0058` as recorded above.

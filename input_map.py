@@ -22,9 +22,7 @@ J_A, J_B, J_SELECT, J_START = 0, 1, 2, 3
 J_RIGHT, J_LEFT, J_UP, J_DOWN = 4, 5, 6, 7
 
 
-def build_input_asm(rom: ROM) -> dict:
-    patches = {}
-
+def build_input_asm(rom: ROM):
     # ── read_joypad: same two-nibble-read + CPL convention as the reference project's
     # asm_game.py:read_joypad, reused near-verbatim (it is already fully generic hardware
     # access, not game-specific) ──
@@ -82,8 +80,6 @@ def build_input_asm(rom: ROM) -> dict:
     rom.label('ai_no_select')
 
     rom.RET()
-
-    return patches
 
 
 def _step_on_bit(rom, bit, addr, delta, mask, skip_label):

@@ -1120,10 +1120,8 @@ def _emit_song_tick(rom):
     rom.RET()
 
 
-def build_engine_asm(rom: ROM) -> dict:
-    """Emits data tables + init/tick/reset routines. Returns a patch dict (unused for now,
-    kept for parity with the reference project's build_game_asm return-shape convention)."""
-    patches = {}
+def build_engine_asm(rom: ROM):
+    """Emits data tables + init/tick/reset routines."""
 
     # ── init_engine (boot init AND Select-reset target, GDS-03 SS5) ──
     rom.label('init_engine')
@@ -1283,5 +1281,3 @@ def build_engine_asm(rom: ROM) -> dict:
     rom.label('ptr_table')
     for lbl in note_table_labels:
         rom._abs(lbl)  # 2-byte pointer, fixed up in rom.resolve()
-
-    return patches

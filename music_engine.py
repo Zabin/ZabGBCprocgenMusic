@@ -15,13 +15,11 @@ a couple of table lookups (R100/R110's cycle-budget note).
 
 from gbc_lib import ROM
 import math
+from wram_constants import (TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX_IDX,
+                             BAD_ZONE_FLAGS, PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX,
+                             PRESET_SCALE_IDX, PRESET_DENSITY_IDX, PRESET_CHMIX_IDX)
 
 # ── WRAM addresses (GDS-07) ──────────────────────────────────────────
-TEMPO_IDX = 0xC000
-OCTAVE_IDX = 0xC001
-SCALE_IDX = 0xC002
-DENSITY_IDX = 0xC003
-CHMIX_IDX = 0xC004
 NOTE_TIMER_PA = 0xC00C
 NOTE_TIMER_PB = 0xC00D
 NOTE_TIMER_WV = 0xC00E
@@ -34,8 +32,7 @@ LFSR_STATE_WV = 0xC018   # IP-0002: wave channel's independent LFSR
 NOISE_STEP_IDX = 0xC019  # IP-0003: 0-15, position in the 16-step Euclidean pattern
 NOTE_TIMER_NZ = 0xC00F   # reserved by GDS-07 SS3; IP-0003's noise-hit countdown
 
-# IP-0004: bad-zone state (GDS-07 SS2)
-BAD_ZONE_FLAGS = 0xC005      # bit0 DISSONANT, bit1 STUCK, bit2 OVERLOAD, bit3 COMBINED
+# IP-0004: bad-zone state (GDS-07 SS2) — BAD_ZONE_FLAGS imported above (IP-8020, BL-0065)
 DISSONANCE_SCORE = 0xC006
 STALE_COUNT_PA = 0xC007
 STALE_COUNT_PB = 0xC008
@@ -155,11 +152,7 @@ DISSONANCE_WEIGHT_BY_IC = [0, 15, 11, 3, 2, 1, 13]
 # Reset-to-preset known-good state (GDS-03 SS5): major scale, mid tempo, mid octave, sparse
 # density/minimal channel-mix (density/channel-mix indices reset even though IP-0001/0002 don't
 # yet consume them for behavior, so later packages' presets are already correct).
-PRESET_TEMPO_IDX = 4
-PRESET_OCTAVE_IDX = 1
-PRESET_SCALE_IDX = 0
-PRESET_DENSITY_IDX = 0
-PRESET_CHMIX_IDX = 0
+# PRESET_* values imported above (IP-8020, BL-0065).
 
 # Small signed scale-degree deltas the LFSR-driven walk picks from (R201's "scale-constrained
 # random walk" — weighted toward staying/small steps, indexed by the LFSR's low 2 bits).

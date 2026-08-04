@@ -8,7 +8,8 @@ surface (GDS-03 SS1).
 """
 
 from gbc_lib import ROM
-from music_engine import TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX_IDX, _emit_apply_style
+from music_engine import _emit_apply_style
+from wram_constants import TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX_IDX
 
 # ── WRAM addresses (GDS-07 SS5) ───────────────────────────────────────
 JOY_PREV = 0xC050

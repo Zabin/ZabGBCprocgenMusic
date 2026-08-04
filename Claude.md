@@ -16,6 +16,9 @@ Each file has ONE job. Edit only what you need.
 ```
 gbc_lib.py       — ROM class (assembler opcodes) + color math + header writing (reused verbatim
                     from the reference project — nothing game/music-specific lives here)
+wram_constants.py — shared WRAM constants (5 param indices, 5 PRESET_* values, BAD_ZONE_FLAGS),
+                    dependency-free by design (IP-8020, BL-0065) so music_engine.py and
+                    visuals.py can both import it without an import cycle
 music_engine.py  — all sound-channel generation logic (4 channels), bad-zone detection,
                     preset/table data, PSG register writes
 input_map.py     — joypad edge detection + the input->parameter mapping (never writes PSG regs)

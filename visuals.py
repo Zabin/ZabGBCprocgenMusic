@@ -11,6 +11,9 @@ hardware.
 """
 
 from gbc_lib import ROM, rgb15
+from wram_constants import (TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX_IDX,
+                             BAD_ZONE_FLAGS, PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX,
+                             PRESET_SCALE_IDX, PRESET_DENSITY_IDX, PRESET_CHMIX_IDX)
 
 LCDC = 0x40
 BCPS = 0x68
@@ -34,28 +37,17 @@ TILE_ON = 1   # filled tile index
 TILE_BAR_BASE = 2  # IP-1110: tile indices 2-9 are bar-height glyphs, fill levels 0-7
 
 # IP-1110: the 5 settings-indicator source WRAM fields, read-only, same fixed order as
-# SETTINGS_CELLS. Kept as plain ints (music_engine.TEMPO_IDX etc.) to avoid a circular import,
-# the same convention BAD_ZONE_FLAGS below already uses.
-TEMPO_IDX = 0xC000
-OCTAVE_IDX = 0xC001
-SCALE_IDX = 0xC002
-DENSITY_IDX = 0xC003
-CHMIX_IDX = 0xC004
+# SETTINGS_CELLS. Imported from wram_constants (IP-8020, BL-0065) rather than duplicated —
+# visuals.py stays a read-only consumer with no import of music_engine.py (GDS-03 SS1);
+# wram_constants.py is dependency-free, so importing it doesn't reintroduce that cycle.
 SETTINGS_SOURCES = [TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX_IDX]
 
-# IP-1110: boot-preset values for each of the 5 settings sources (music_engine.PRESET_*),
-# used to pre-initialize SETTINGS_CELLS so the very first rendered frame is already correct
-# (FS-111's Implementation Task 3), not left blank until the first update_visuals call.
-PRESET_TEMPO_IDX = 4
-PRESET_OCTAVE_IDX = 1
-PRESET_SCALE_IDX = 0
-PRESET_DENSITY_IDX = 0
-PRESET_CHMIX_IDX = 0
+# IP-1110: boot-preset values for each of the 5 settings sources, used to pre-initialize
+# SETTINGS_CELLS so the very first rendered frame is already correct (FS-111's Implementation
+# Task 3), not left blank until the first update_visuals call.
 SETTINGS_PRESETS = [PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX, PRESET_SCALE_IDX, PRESET_DENSITY_IDX,
                     PRESET_CHMIX_IDX]
 
-BAD_ZONE_FLAGS = 0xC005  # music_engine.BAD_ZONE_FLAGS (kept as a plain int to avoid a circular
-                          # import — visuals.py is a read-only consumer, GDS-03 SS1)
 NR52 = 0xFF26
 LY = 0xFF44   # PPU current-scanline register; 144-153 is VBlank (R102)
 

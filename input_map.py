@@ -51,12 +51,15 @@ def build_input_asm(rom: ROM):
     # ── apply_input: one control -> one parameter step, edge-triggered (FR-1020..1070) ──
     rom.label('apply_input')
 
-    _step_on_bit(rom, J_UP, TEMPO_IDX, +1, 0x07, 'ai_up')
-    _step_on_bit(rom, J_DOWN, TEMPO_IDX, -1, 0x07, 'ai_down')
+    # IP-1120 (roadmap R7): the 4 calls below pass extra_call='mood_update' -- TEMPO_IDX/
+    # DENSITY_IDX/SCALE_IDX each feed AROUSAL/VALENCE (ADS-105/FS-112). OCTAVE_IDX (Right/Left)
+    # does not feed either formula, so those two calls omit extra_call.
+    _step_on_bit(rom, J_UP, TEMPO_IDX, +1, 0x07, 'ai_up', extra_call='mood_update')
+    _step_on_bit(rom, J_DOWN, TEMPO_IDX, -1, 0x07, 'ai_down', extra_call='mood_update')
     _step_on_bit(rom, J_RIGHT, OCTAVE_IDX, +1, 0x03, 'ai_right')
     _step_on_bit(rom, J_LEFT, OCTAVE_IDX, -1, 0x03, 'ai_left')
-    _step_on_bit(rom, J_A, SCALE_IDX, +1, 0x03, 'ai_a')
-    _step_on_bit(rom, J_B, DENSITY_IDX, +1, 0x07, 'ai_b')
+    _step_on_bit(rom, J_A, SCALE_IDX, +1, 0x03, 'ai_a', extra_call='mood_update')
+    _step_on_bit(rom, J_B, DENSITY_IDX, +1, 0x07, 'ai_b', extra_call='mood_update')
 
     # Start: step CHMIX_IDX (FR-1060), then immediately apply the newly-selected preset's style
     # (IP-1080, FR-1240 — tempo/density/scale/duty-bias applied the same frame, not gated to the
@@ -83,9 +86,14 @@ def build_input_asm(rom: ROM):
     rom.RET()
 
 
-def _step_on_bit(rom, bit, addr, delta, mask, skip_label):
+def _step_on_bit(rom, bit, addr, delta, mask, skip_label, extra_call=None):
     """If JOY_NEW's `bit` is set, step the byte at `addr` by +-1 and wrap to `mask`
-    (mask must be 2**n - 1 so INC/DEC + AND wraps correctly in both directions)."""
+    (mask must be 2**n - 1 so INC/DEC + AND wraps correctly in both directions).
+
+    IP-1120 (roadmap R7): `extra_call`, if given, is called strictly inside the edge-taken
+    branch (after the write, before `skip_label`) — never after the label, since apply_input
+    itself runs every frame and a call placed after the label would run unconditionally,
+    violating NFR-1170's zero-added-per-frame-cost contract."""
     rom.LD_A_nn(JOY_NEW)  # re-read each time since intervening ops clobber A
     rom.BIT_b_A(bit)
     rom.JR_Z(skip_label)
@@ -96,4 +104,6 @@ def _step_on_bit(rom, bit, addr, delta, mask, skip_label):
         rom.DEC_A()
     rom.AND_n(mask)
     rom.LD_nn_A(addr)
+    if extra_call is not None:
+        rom.CALL(extra_call)
     rom.label(skip_label)

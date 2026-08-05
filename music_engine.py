@@ -84,6 +84,20 @@ SONG_STATE = 0xC03D
 SONG_STATE_TIMER_LO = 0xC03E
 SONG_STATE_TIMER_HI = 0xC03F
 
+# IP-1120 (roadmap R7, ADS-105/FS-112): derived valence-arousal mood pair, recomputed only at the
+# 6 write sites that can change TEMPO_IDX/DENSITY_IDX/SCALE_IDX (never per-frame -- NFR-1170's
+# zero-added-per-frame-cost contract, a direct response to IP-9030's VBlank-budget measurement).
+# No visualizer/input consumer yet -- groundwork for roadmap R9, separately blocked.
+AROUSAL = 0xC068
+VALENCE = 0xC069
+
+# IP-1120: VALENCE is a fixed lookup keyed by SCALE_IDX (0-3) -- a lookup table is definitionally
+# a fixed one-to-one mapping (FR-1400). Illustrative first-guess placement values, not tuned by
+# ear (BL-0005-class deferral, same as every other untuned preset/threshold this project has
+# shipped) -- a future 09-content-review pass, once R9 gives this a real consumer, is the right
+# place to retune.
+VALENCE_TABLE = [10, 6, 12, 4]
+
 # IP-0004 thresholds (GDS-03 SS4, R204 SS5) — first-guess placeholders, per BL-0005's own
 # deferred-tuning convention; the dissonance weight table itself is literature-grounded (R204),
 # these threshold *numbers* are not yet tuned by ear.
@@ -1109,7 +1123,37 @@ def _emit_song_tick(rom):
     rom.LD_A_HLI(); rom.LD_nn_A(SONG_STATE_TIMER_LO)
     rom.LD_A_HL();  rom.LD_nn_A(SONG_STATE_TIMER_HI)
 
+    # IP-1120 (roadmap R7): recompute AROUSAL/VALENCE after this transition's TEMPO_IDX/
+    # DENSITY_IDX overwrite -- strictly inside the transition branch, never on the no-transition
+    # path, since song_tick itself runs every frame (called unconditionally from engine_tick) and
+    # an unconditional recompute here would violate NFR-1170's zero-added-per-frame-cost contract.
+    rom.CALL('mood_update')
+
     rom.label('st_no_transition')
+    rom.RET()
+
+
+def _emit_mood_update(rom):
+    """IP-1120 (roadmap R7, ADS-105/FS-112): recomputes AROUSAL/VALENCE from the current
+    TEMPO_IDX/DENSITY_IDX/SCALE_IDX values. Called only from the 6 write sites that can change
+    those inputs (never per-frame — NFR-1170) — see music_engine.py's and input_map.py's own call
+    sites for the full enumeration."""
+    rom.label('mood_update')
+    # AROUSAL = TEMPO_IDX + DENSITY_IDX (max 7+7=14, fits the required 0-15 range, no overflow).
+    rom.LD_A_nn(TEMPO_IDX)
+    rom.LD_B_A()
+    rom.LD_A_nn(DENSITY_IDX)
+    rom.ADD_A_B()
+    rom.LD_nn_A(AROUSAL)
+
+    # VALENCE = VALENCE_TABLE[SCALE_IDX] — same indexed-lookup idiom as delta_table/
+    # chmix_masks_table (LD index into C, zero B, load HL with the table's base, ADD_HL_BC, read).
+    rom.LD_A_nn(SCALE_IDX)
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'valence_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HL()
+    rom.LD_nn_A(VALENCE)
     rom.RET()
 
 
@@ -1143,6 +1187,14 @@ def build_engine_asm(rom: ROM):
     rom.LD_A_n(SONG_TABLE[0][1]); rom.LD_nn_A(DENSITY_IDX)
     rom.LD_A_n(SONG_TABLE[0][2]); rom.LD_nn_A(SONG_STATE_TIMER_LO)
     rom.LD_A_n(SONG_TABLE[0][3]); rom.LD_nn_A(SONG_STATE_TIMER_HI)
+
+    # IP-1120 (roadmap R7): recompute AROUSAL/VALENCE from the now-final TEMPO_IDX/DENSITY_IDX/
+    # SCALE_IDX values -- placed here because every write to those three addresses in this
+    # routine has already landed (SCALE_IDX at PRESET_SCALE_IDX above; TEMPO_IDX/DENSITY_IDX at
+    # their final SONG_TABLE[0] overwrite just above, not the earlier PRESET_* write). Serves
+    # both the boot path and the Select-reset path, since both call this same label.
+    rom.CALL('mood_update')
+
     for (suffix, note_timer, cur_degree, lfsr_state, lfsr_seed, *_rest, duty_reg,
          arp_state, _dac_reg, _dac_on, _bit_index, _scheme_bit, scheme_state) in CHANNELS:
         rom.XOR_A(); rom.LD_nn_A(cur_degree)
@@ -1216,10 +1268,13 @@ def build_engine_asm(rom: ROM):
     _emit_noise_gen(rom)
     _emit_badzone_tick(rom)
     _emit_song_tick(rom)
+    _emit_mood_update(rom)
 
     # ── Data tables ───────────────────────────────────────────────────
     rom.label('delta_table')
     rom.emit(*DELTA_TABLE)
+    rom.label('valence_table')
+    rom.emit(*VALENCE_TABLE)
 
     rom.label('tempo_table')
     rom.emit(*TEMPO_TABLE)

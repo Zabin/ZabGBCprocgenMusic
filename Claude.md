@@ -26,7 +26,7 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers)
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 129 checks across T1-T19
+                    sound registers + WRAM engine state) — 142 checks across T1-T20
 ```
 
 ### Data layout, WRAM map
@@ -42,6 +42,10 @@ at `0xC050`-`0xC052`, noise step index at `0xC019`, **arpeggio state (`IP-1060`)
 `VBLANK_FLAG` at `0xC060`, and **`VIS_ENTRY_LY` at `0xC061` (`IP-9030`, `BL-0069`)** — the `LY`
 register's value recorded at entry to `update_visuals`, a permanent diagnostic asserting the
 per-frame VBlank budget stays within `144`-`153` (`T19`; see the Known Good Behavior note below).
+**`AROUSAL`/`VALENCE` at `0xC068`-`0xC069` (`IP-1120`, roadmap R7)** — derived mood bytes
+(`TEMPO_IDX+DENSITY_IDX`, `VALENCE_TABLE[SCALE_IDX]`), recomputed only at the 6 write sites that
+can change their inputs, never per-frame; no visualizer/input consumer yet (groundwork for
+roadmap R9, separately blocked); see `T20`.
 **No SRAM** — this project makes no save/battery commitment (MSTR-001 C2).
 
 ### Input mapping (GDS-03 SS3)
@@ -295,8 +299,15 @@ exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
   regression silently spending that head-room; does not itself widen the budget. This superseded
   an earlier, incorrect finding that VRAM writes were being dropped on specific frame classes —
   see `R308` §8.5 for the full self-correction.
+- Emotional/Energy Layer (`IP-1120`, roadmap R7/`ADS-105`/`FS-112`): two derived WRAM bytes,
+  `AROUSAL` (`TEMPO_IDX+DENSITY_IDX`) and `VALENCE` (`VALENCE_TABLE[SCALE_IDX]`), recomputed only
+  at the 6 write sites that can change those inputs — never per-frame (`NFR-1170`, a direct
+  response to `IP-9030`'s VBlank-budget finding). Infrastructure-only: zero audible/visible
+  change, `visuals.py` untouched; groundwork for roadmap R9's future mood-reactive visualizer
+  work, which remains separately blocked. `VALENCE_TABLE`'s 4 entries are illustrative
+  first-guess values, not tuned by ear (`BL-0005`-class deferral).
 
-**129/129 `test_rom.py` checks pass** (T1-T19). An 8000+ frame stress run with continuous input
+**142/142 `test_rom.py` checks pass** (T1-T20). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

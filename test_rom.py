@@ -43,6 +43,12 @@ Suites:
   T19 VBlank budget assertion (IP-9030, BL-0069): VIS_ENTRY_LY, recorded at entry to
       update_visuals, stays within VBlank (LY 144-153) on every frame class -- idle, plain
       index step, Start, Select, and a song-form phase transition
+  T20 Emotional/Energy Layer (IP-1120, roadmap R7): derived AROUSAL/VALENCE bytes recomputed
+      only at the 6 write sites that can change TEMPO_IDX/DENSITY_IDX/SCALE_IDX -- monotonicity,
+      fixed VALENCE_TABLE mapping, all 6 trigger sites independently, boot-correctness, and
+      Select-reset correctness. Named coverage limit (IP-1120's own Tests to Add field): every
+      check here computes its expected value via the same formula the implementation uses --
+      there is no independent consumer yet to check against.
 
 Run from the repo root: python3 test_rom.py
 Requires: pyboy (pinned 2.7.0, matching the reference project), numpy.
@@ -70,6 +76,7 @@ MOTIF_STEP_PA = 0xC038; MOTIF_STEP_PB = 0xC039; MOTIF_STEP_WV = 0xC03A
 MOTIF_VARIANT_IDX = 0xC03C
 SONG_STATE = 0xC03D; SONG_STATE_TIMER_LO = 0xC03E; SONG_STATE_TIMER_HI = 0xC03F
 VIS_ENTRY_LY = 0xC061  # IP-9030 (BL-0069)
+AROUSAL = 0xC068; VALENCE = 0xC069  # IP-1120 (roadmap R7)
 LY = 0xFF44
 LCDC = 0xFF40
 CHANNEL_CELLS = [0x9800, 0x9801, 0x9802, 0x9803]
@@ -85,6 +92,7 @@ from music_engine import PRESET_DENSITY_IDX, PRESET_CHMIX_IDX
 from music_engine import STYLE_TABLE, DUTY_BIAS
 from music_engine import MOTIF_TABLE, N_VARIANTS
 from music_engine import SONG_TABLE, N_SONG_PHASES
+from music_engine import VALENCE_TABLE
 
 results = []
 PASS = 0
@@ -1142,6 +1150,142 @@ def t19_vblank_budget_assertion():
           f"{results_by_class}")
 
 
+# ── T20: Emotional/Energy Layer (IP-1120, roadmap R7) ─────────────────
+def t20_emotional_energy_layer():
+    """AROUSAL = TEMPO_IDX + DENSITY_IDX; VALENCE = VALENCE_TABLE[SCALE_IDX]. Recomputed only at
+    the 6 write sites that can change those three inputs -- never per-frame (NFR-1170). Named
+    coverage limit (IP-1120's own Tests to Add field, carried forward honestly): every check here
+    computes its expected value via the same formula the implementation uses -- there is no
+    independent consumer yet to check the derivation against."""
+
+    def expected_arousal(pb):
+        return pb.memory[TEMPO_IDX] + pb.memory[DENSITY_IDX]
+
+    def expected_valence(pb):
+        return VALENCE_TABLE[pb.memory[SCALE_IDX]]
+
+    # (a) AROUSAL monotonicity across TEMPO_IDX range (DENSITY_IDX fixed at boot value), then
+    # across DENSITY_IDX range (TEMPO_IDX fixed at boot value) (FR-1390). TEMPO_IDX/DENSITY_IDX
+    # each wrap mod 8 (0x07 mask), so "non-decreasing" is checked only across steps that don't
+    # wrap 7->0.
+    pb2 = fresh_boot()
+    tempo_trace = []
+    for _ in range(8):
+        tap(pb2, 'up')
+        tempo_trace.append((pb2.memory[TEMPO_IDX], pb2.memory[AROUSAL]))
+    pb2.stop(save=False)
+    tempo_mismatches = [(t, a) for (t, a) in tempo_trace if a != expected_arousal_from(t, PRESET_DENSITY_IDX)]
+    check("T20.1 AROUSAL == TEMPO_IDX+DENSITY_IDX at every step while driving TEMPO_IDX via D-pad Up",
+          not tempo_mismatches, f"trace={tempo_trace} mismatches={tempo_mismatches}")
+    non_decreasing = [(a, b) for (a, b) in zip([t for t, _ in tempo_trace], [t for t, _ in tempo_trace][1:])]
+    check("T20.2 AROUSAL is non-decreasing as TEMPO_IDX steps upward (wrap excluded)",
+          all(b_a >= a_a or a_t == 7 and b_t == 0
+              for (a_t, a_a), (b_t, b_a) in zip(
+                  [(t, a) for t, a in tempo_trace], [(t, a) for t, a in tempo_trace][1:])),
+          f"trace={tempo_trace}")
+
+    pb3 = fresh_boot()
+    density_trace = []
+    for _ in range(8):
+        tap(pb3, 'b')
+        density_trace.append((pb3.memory[DENSITY_IDX], pb3.memory[AROUSAL]))
+    pb3.stop(save=False)
+    density_mismatches = [(d, a) for (d, a) in density_trace
+                           if a != expected_arousal_from(PRESET_TEMPO_IDX, d)]
+    check("T20.3 AROUSAL == TEMPO_IDX+DENSITY_IDX at every step while driving DENSITY_IDX via B",
+          not density_mismatches, f"trace={density_trace} mismatches={density_mismatches}")
+    check("T20.4 AROUSAL is non-decreasing as DENSITY_IDX steps upward (wrap excluded)",
+          all(b_a >= a_a or a_d == 7 and b_d == 0
+              for (a_d, a_a), (b_d, b_a) in zip(
+                  [(d, a) for d, a in density_trace], [(d, a) for d, a in density_trace][1:])),
+          f"trace={density_trace}")
+
+    # (b) VALENCE matches VALENCE_TABLE[SCALE_IDX] at all 4 SCALE_IDX values (FR-1400).
+    pb4 = fresh_boot()
+    scale_trace = []
+    for _ in range(4):
+        tap(pb4, 'a')
+        scale_trace.append((pb4.memory[SCALE_IDX], pb4.memory[VALENCE]))
+    pb4.stop(save=False)
+    scale_mismatches = [(s, v) for (s, v) in scale_trace if v != VALENCE_TABLE[s]]
+    check("T20.5 VALENCE == VALENCE_TABLE[SCALE_IDX] at every SCALE_IDX value reached via A",
+          not scale_mismatches, f"trace={scale_trace} mismatches={scale_mismatches}")
+
+    # (c) All 6 trigger sites independently.
+    # Sites 1-4: the 4 input-step calls (Up/Down -> TEMPO_IDX, A -> SCALE_IDX, B -> DENSITY_IDX),
+    # each checked on the exact tap frame.
+    site_checks = [
+        ("up", "T20.6 site 1/6: D-pad Up recomputes AROUSAL/VALENCE on the same frame"),
+        ("down", "T20.7 site 2/6: D-pad Down recomputes AROUSAL/VALENCE on the same frame"),
+        ("a", "T20.8 site 3/6: A recomputes AROUSAL/VALENCE on the same frame"),
+        ("b", "T20.9 site 4/6: B recomputes AROUSAL/VALENCE on the same frame"),
+    ]
+    for button, label in site_checks:
+        pb5 = fresh_boot()
+        tap(pb5, button)
+        got = (pb5.memory[AROUSAL], pb5.memory[VALENCE])
+        want = (expected_arousal(pb5), expected_valence(pb5))
+        pb5.stop(save=False)
+        check(label, got == want, f"got={got} want={want}")
+
+    # Site 5: _emit_song_tick's transition branch -- empirically derive the first phase-
+    # transition frame from a plain, untapped boot (same method T17/T19 already use), then check
+    # AROUSAL/VALENCE on that exact frame.
+    pb6 = fresh_boot()
+    prev_state = pb6.memory[SONG_STATE]
+    transition_frame = None
+    for frame in range(7000):
+        pb6.tick()
+        if pb6.memory[SONG_STATE] != prev_state:
+            transition_frame = frame
+            break
+        prev_state = pb6.memory[SONG_STATE]
+    pb6.stop(save=False)
+    check("T20.10.setup a song-form phase transition was observed for site-5 derivation",
+          transition_frame is not None, f"got {transition_frame}")
+
+    pb7 = fresh_boot()
+    for _ in range(transition_frame + 1):
+        pb7.tick()
+    got = (pb7.memory[AROUSAL], pb7.memory[VALENCE])
+    want = (expected_arousal(pb7), expected_valence(pb7))
+    pb7.stop(save=False)
+    check("T20.10 site 5/6: song_tick's transition branch recomputes AROUSAL/VALENCE on the "
+          "transition frame itself", got == want, f"got={got} want={want}")
+
+    # Site 6: init_engine's Select-reset path -- drift the steering state first, then check the
+    # reset frame itself.
+    pb8 = fresh_boot()
+    for button in ("up", "up", "a", "b"):
+        tap(pb8, button)
+    pb8.button_press('select')
+    pb8.tick()
+    pb8.button_release('select')
+    got = (pb8.memory[AROUSAL], pb8.memory[VALENCE])
+    want = (expected_arousal(pb8), expected_valence(pb8))
+    reset_correct = (pb8.memory[TEMPO_IDX] == SONG_TABLE[0][0]
+                      and pb8.memory[DENSITY_IDX] == SONG_TABLE[0][1]
+                      and pb8.memory[SCALE_IDX] == PRESET_SCALE_IDX)
+    pb8.stop(save=False)
+    check("T20.11 site 6/6: init_engine's Select-reset path recomputes AROUSAL/VALENCE on the "
+          "reset frame itself", got == want and reset_correct,
+          f"got={got} want={want} reset_correct={reset_correct}")
+
+    # (d) Boot-correctness: AROUSAL/VALENCE already correct on the first tested frame, before any
+    # input (FR-1420, boot half) -- init_engine's own call, exercised via the boot path rather
+    # than the Select-reset path checked in T20.11 above.
+    pb9 = fresh_boot()
+    got = (pb9.memory[AROUSAL], pb9.memory[VALENCE])
+    want = (expected_arousal(pb9), expected_valence(pb9))
+    pb9.stop(save=False)
+    check("T20.12 AROUSAL/VALENCE are already correct on the first tested frame after boot, "
+          "before any input", got == want, f"got={got} want={want}")
+
+
+def expected_arousal_from(tempo_idx, density_idx):
+    return tempo_idx + density_idx
+
+
 def main():
     t1_header()
     t2_boot()
@@ -1162,6 +1306,7 @@ def main():
     t17_song_form_via_autonomous_phase_cycling()
     t18_settings_and_control_visibility()
     t19_vblank_budget_assertion()
+    t20_emotional_energy_layer()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

@@ -19,18 +19,8 @@
 
 ### Authorization (G3)
 
-**Status: `READY`, authorization `NOT GRANTED`.**
+**Status: `READY`, authorization `GRANTED 2026-07-31`.**
 
-This package has not been through any go-ahead conversation with the user. The session carries
-two earlier grants, both narrower than this package: *"Continue to iterate on assuming pre
-authorization for everything this session"* was the user's direct answer to a flagged
-re-confirmation question about `IP-9030` specifically, and *"Continue include refactoring"*
-extended that to `IP-8010`/`IP-8020` after both were flagged `NOT GRANTED`. Both were reactive —
-the user answered a question this pipeline had just put to them about already-named packages.
-
-`IP-1120` is new-feature work, authored fresh this run under a separate *"Iterate towards the next
-release"* instruction that asked for iteration through the planning stages, not for build
-authorization — and this project's standing rule is unambiguous that a fully-specified, `READY`
-package is not itself authorization to build it (`07-implementation-planning`'s own SHALL-NOT
-list states this explicitly: "Authorize coding (G3)... a package being fully specified — even
-`READY` — is not authorization to build"). Recorded here rather than assumed in either direction.
+The user's explicit words, in direct response to this package's own flagged gate: *"Yes
+proceed."* Recorded as the basis rather than assumed — this is a fresh, specific grant for
+`IP-1120`, not a reuse of either of the session's earlier, narrower reactive grants.

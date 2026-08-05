@@ -52,6 +52,7 @@ no hangs, bad-zone entry and self-recovery both observed.
 | `0xC050`-`0xC052` | `JOY_PREV`/`JOY_CUR`/`JOY_NEW` |
 | `0xC060` | `VBLANK_FLAG` |
 | `0xC061` | `VIS_ENTRY_LY` (`IP-9030`, `BL-0069`) — `LY` register recorded at entry to `update_visuals`, every frame; `T19` asserts it stays within VBlank (`144`-`153`) |
+| `0xC068`-`0xC069` | `AROUSAL`/`VALENCE` (`IP-1120`, roadmap R7) — derived mood bytes: `AROUSAL = TEMPO_IDX+DENSITY_IDX`, `VALENCE = VALENCE_TABLE[SCALE_IDX]`; recomputed only at the 6 write sites that can change those inputs (`mood_update` routine), never per-frame; no consumer yet (groundwork for roadmap R9) |
 
 Unused/reserved from GDS-07 but not yet consumed: `0xC013`-`0xC015` (history ring-buffer heads —
 superseded by the simpler period-1-only `STALE_COUNT_*` design, see `IP-0004`'s package doc),

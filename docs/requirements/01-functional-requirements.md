@@ -396,8 +396,13 @@ against the full existing baseline before closing.
   `NFR-1170` is a *design constraint on this specific package* (add zero unconditional per-frame
   cost, full stop) that would satisfy `NFR-1010`'s concern by construction rather than merely
   being tested against it. Complementary, not duplicate.
-- **Forward traceability (Module/FS/IP/Test):** all `UNASSIGNED` — correctly honest, no `FS-xxx`/
-  package/test exists yet for R7.
+- **Forward traceability (Module/FS/IP/Test), updated 2026-07-31 now that `IP-1120` is
+  `COMPLETE`:** `FR-1390`/`FR-1400`/`FR-1410`/`FR-1420`/`NFR-1170`/`NFR-1180` → Module
+  `music_engine.py` (`_emit_mood_update`, called from `_emit_song_tick` and `init_engine`) +
+  `input_map.py` (4 `_step_on_bit` call sites) · FS `FS-112` · IP `IP-1120` · Test `test_rom.py`
+  `T20` (`T20.1`-`T20.4` FR-1390, `T20.5` FR-1400, `T20.6`-`T20.11` FR-1410, `T20.11`-`T20.12`
+  FR-1420; `NFR-1170`/`NFR-1180` verified by call-graph inspection per their own Verification
+  Method, not solely `T20`). Awaiting `09-package-verification`.
 
 No Critical/High finding. This delta is ready for `05-feature-decomposition` to add a
 `FEAT-1120`-equivalent catalog row for roadmap R7.

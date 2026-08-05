@@ -343,3 +343,63 @@ refactoring — but the cost of asking is one round-trip, and the cost of procee
 mis-read of a rule this project has stated in unusually emphatic, repeated language ("never,"
 restated on both backlog entries, restated in `08-refactoring`'s own `SKILL.md` frontmatter) is
 higher. Recorded on the Master Build Plan; both packages are `READY` and blocked only on this.
+
+---
+
+## TWBS — `IP-1120` (2026-07-31, `FS-112`/`FEAT-1120`, roadmap R7)
+
+**No-split decision.** `FS-112`'s own Module Responsibilities already establish `music_engine.py`
+as sole owner of the new derivation routine and both new WRAM bytes; `input_map.py` and
+`music_engine.py` itself are callers at 6 total trigger sites (corrected from `ADS-105`'s original
+5 — `FS-112` found `TEMPO_IDX` has two writers, Up and Down, not one). One routine, six call
+additions, two WRAM bytes, one test suite: a single tightly-coupled unit with no natural split
+point, matching `05-feature-decomposition`'s own Feature Review reasoning verbatim (splitting the
+trigger sites across packages would risk exactly the "missed site, silent staleness" failure
+`FS-112`'s Risks field names).
+
+**Verb inventory.** This capability needs only *generate* (compute the derived values) — no
+*render* (confirmed: `visuals.py` untouched, no consumer exists yet), no *apply* (nothing is
+steered by this feature), no *persist* (WRAM only, no save), no *review* (no content to review —
+two numeric bytes, not art/music data). Three of four verbs are deliberately, explicitly absent
+because this feature's own scope is a pure backend read/interpret layer; recorded so the
+capability isn't mistaken for incompletely decomposed.
+
+**Supersession sweep.** Not applicable — this package introduces new state, it does not retire or
+generalize an existing model. Confirmed no existing code computes anything resembling
+"arousal"/"valence"/mood from steering state (grepped `music_engine.py`/`visuals.py` for
+`AROUSAL`/`VALENCE` and found nothing, as expected for a wholly new capability).
+
+**Formula decision — the concrete thing `FS-112` left for this pass.** Both formulas must avoid
+on-device division (SM83 has none) and stay cheap against the razor-thin per-frame budget
+`IP-9030` measured, even though none of the 6 trigger sites runs inside the exhausted VBlank
+window itself (they're all outside `update_visuals`'s own call, per `FS-112`'s Performance
+Considerations).
+
+- **`AROUSAL`**: `TEMPO_IDX` (0-7) + `DENSITY_IDX` (0-7) = 0-14, fits directly in the required
+  0-15 range with no scaling needed. Two `LD`+`ADD` instructions, no lookup table, no shift.
+  Satisfies `FR-1390`'s monotonicity requirement trivially (sum of two non-decreasing inputs is
+  non-decreasing in each, holding the other fixed).
+- **`VALENCE`**: a 4-entry lookup table indexed directly by `SCALE_IDX` (0-3), each entry a fixed
+  0-15 value — e.g. `VALENCE_TABLE = [10, 6, 12, 4]` (illustrative placement, not tuned by ear,
+  same `BL-0005`-class first-guess deferral as every other untuned preset value this project has
+  shipped; a future `09-content-review` pass can retune without touching the mechanism). Satisfies
+  `FR-1400`'s fixed-one-to-one-mapping requirement by construction — a lookup table is definitionally
+  a fixed mapping.
+
+Both are `07-implementation-planning`'s own proposal, per `FS-112`'s explicit hand-off — stage 08
+should implement exactly these unless it finds a concrete reason not to (Blocking Report, not a
+silent substitution).
+
+**Authorization — explicit judgment call, made and recorded, not assumed.** This package has not
+been through any go-ahead conversation with the user. The session's earlier "assuming pre
+authorization for everything this session" grant was given in a specific, narrower context — it
+was the user's direct answer to a flagged re-confirmation question about `IP-9030`, and separately
+extended to cover `IP-8010`/`IP-8020` when the user said "Continue include refactoring" in
+response to those two packages being flagged `NOT GRANTED`. Both grants were reactive: the user
+was answering a specific question this pipeline had just put to them about specific, already-named
+packages. `IP-1120` is new-feature work, authored fresh this session under a separate "iterate
+toward the next release" instruction that said nothing about authorizing implementation — it asked
+for iteration through planning stages, and this project's own standing rule is that authoring a
+package, however thoroughly, is never itself authorization to build it. **Recorded: authorization
+`NOT GRANTED`.** `IP-1120` is `READY` (fully specified, its two dependency Features both
+`VERIFIED`) but not authorized — the pipeline's next step is the G3 gate itself, not a build.

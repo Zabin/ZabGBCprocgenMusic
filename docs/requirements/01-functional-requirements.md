@@ -47,6 +47,10 @@
 | FR-1360 | Each of the 5 settings indicators updates within the same frame its underlying parameter changes, with no perceptible lag beyond the existing per-frame visualizer update cadence. | ADS-104 §5 (FR-candidate 2) |
 | FR-1370 | The 5 settings indicators do not alter the existing channel-activity tiles' or calm/bad-zone palette's behavior — their addition is purely additive to the visualizer's existing output. | ADS-104 §5 (FR-candidate 3) |
 | FR-1380 | At least one settings indicator demonstrably reflects a manual D-pad/A/B/Start-driven parameter change, confirmed by reading the relevant tilemap cell's pattern index after the corresponding button press. | ADS-104 §5 (FR-candidate 4) |
+| FR-1390 | The engine maintains a derived `AROUSAL` value (range 0-15) that is a deterministic, monotonically non-decreasing function of `TEMPO_IDX` and `DENSITY_IDX` — increasing either input never decreases `AROUSAL`, holding the other constant. | ADS-105 §5 (FR-candidate 1) |
+| FR-1400 | The engine maintains a derived `VALENCE` value (range 0-15) via a fixed, deterministic one-to-one mapping keyed by `SCALE_IDX` — each of the 4 scale/mode values maps to exactly one `VALENCE` output. | ADS-105 §5 (FR-candidate 2) |
+| FR-1410 | `AROUSAL`/`VALENCE` are recomputed on every write to any of `TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX`, such that no more than one frame after any such write, both values reflect the post-write inputs. | ADS-105 §5 (FR-candidate 1/2, §2 trigger-site enumeration) |
+| FR-1420 | `AROUSAL`/`VALENCE` hold correct values (matching the boot-preset steering indices) on the very first rendered/tested frame after boot, and hold correct values (matching the restored preset indices) on the same frame a Select-reset completes — neither is left stale pending a subsequent input edge. | ADS-105 §5 (FR-candidate 3/4) |
 
 ## Non-Functional Requirements
 
@@ -69,6 +73,8 @@
 | NFR-1140 | The 8 new bar-height tile patterns and the 5 new settings-indicator tilemap cells add bounded ROM/VRAM — the total addition stays within the current 32KB single-bank budget (GDS-07 §6's headroom) and the measured tile-slot/tilemap headroom (`R104` §7-8), with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5). | ADS-104 §6, MSTR-001 §4, GDS-07 §6, R104 §7-8 |
 | NFR-1150 | The settings-indicator update (5 reads + 5 tilemap writes per frame) is VBlank-gated the same way every existing visualizer write already is, and its per-frame cost is comparable to the existing channel-activity update's own cost — verified against the existing VBlank-timing budget (NFR-1010), not by static cycle analysis alone. | ADS-104 §6, NFR-1010 |
 | NFR-1160 | The settings-indicator feature introduces no new input control — it is a pure read-only display of existing tracked parameters, updated automatically as those parameters change under their own existing controls. | ADS-104 §6/§7 |
+| NFR-1170 | The `AROUSAL`/`VALENCE` derivation adds **zero unconditional per-frame CPU cost** — it is invoked only from the write sites that can change its inputs (button-edge input steps, song-form phase transitions, style application, boot/Select-reset), never from an unconditional per-frame call in `engine_tick`'s own main body. Verified by call-graph inspection (which routines call the derivation, and whether that call is itself conditional/edge-triggered), not solely by the extended-run stress method (`NFR-1010`'s own caveat, `GDS-06` §2.2a, applies with full force here — a per-frame call cheap enough not to trip a stress-test would still violate this NFR's intent). | ADS-105 §6 (NFR-candidate 1), GDS-06 §2.2a, R101 §8.5 |
+| NFR-1180 | `AROUSAL`/`VALENCE` (2 new WRAM bytes) add bounded WRAM — within the current 32KB single-bank budget's ample headroom (`GDS-07` §6), with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5); the derivation's added cost at each trigger site is small relative to that site's own existing cost. | ADS-105 §6 (NFR-candidate 2/3), GDS-07 §6, MSTR-001 §4 |
 
 ## Open items carried to feature decomposition
 
@@ -115,6 +121,7 @@ Untraceable-to-a-source or explicitly-unbuilt statements, **excluded from the nu
 | ID | Candidate requirement | Why it is not baselined |
 |---|---|---|
 | CR-0001 | The visualizer contains at least one element whose *motion or animation timing follows the generated beat* (tempo-synced motion), distinct from displaying the tempo setting as a static value. | **Never built, never scheduled.** Split out of `FR-1120` on 2026-07-26 (`BL-0016`) per [GDS-08 §7](../architecture/08-presentation-architecture.md)'s three-part resolution. `IP-0006`'s own package doc named "tempo-synced motion" as its explicit non-scope; nothing since has built it. Kept as a candidate rather than deleted because it is a real and reasonable future capability (`R223` treats pitch/rhythm-driven visual mapping as well-grounded) — it simply has never been required of the shipped system, and `FR-1120` should not have implied it was. |
+| CR-0002 | `AROUSAL`'s derivation additionally incorporates `CHMIX_IDX`-derived active-channel count as a third input (alongside `TEMPO_IDX`/`DENSITY_IDX`), per `R221`'s observation that active-channel count is itself a direct arousal-axis lever in the literature. | **Deliberately excluded from v1's baseline** (`BL-0080`, per `ADS-105` §9 OQ3). `FR-1390` is fully satisfiable, and citation-clean, from `TEMPO_IDX`/`DENSITY_IDX` alone — the same minimal-baseline discipline `ADS-105` already applied to excluding `DISSONANCE_SCORE` from `VALENCE`. Adding a third input widens the surface a v1 acceptance test must cover for a marginal, not-yet-requested richness gain. Kept as a candidate rather than dropped because `ADS-105` §2 confirms the architectural cost of adding it later is low — the trigger-site plumbing for a `CHMIX_IDX` change is already shared with `AROUSAL`/`VALENCE`'s other recompute triggers, so promoting this candidate later would not require new call sites, only a wider formula. |
 
 ## Changelog
 
@@ -127,6 +134,7 @@ Untraceable-to-a-source or explicitly-unbuilt statements, **excluded from the nu
 | 2026-07-26 | Added FR-1310 (autonomous 4-phase song-form cycle), FR-1320 (phase transition overwrites tempo/density immediately), FR-1330 (bad-zone/motif-variant mechanisms are phase-agnostic), FR-1340 (all 4 phases occur in cyclic order over a long run), NFR-1120 (ROM/WRAM budget), NFR-1130 (no new input control). Delta update formalizing `ADS-103` §5/§6's candidate FRs/NFRs for roadmap R6 (song-form half of `BL-0010`). No existing FR/NFR changed. | Roadmap R6, grounded in `ADS-103`. |
 | 2026-07-26 | **Corrective/precision pass — no new baseline IDs.** Reworded `FR-1120` to drop its tempo claim (`BL-0016`): the tempo *setting* display is real but owned by `FR-1350`, and tempo-*synced motion* was never built — split out as new `CR-0001` in a new **Candidate Requirements** section. Added a caveat to `NFR-1010` recording that its extended-run method is no longer sufficient alone for packages touching the Select-reset frame or `update_visuals` (`BL-0060`, per GDS-06 §2.2). Updated `FR-1120`'s Traces-to from "GDS-08 (pending)" to the now-authored GDS-08 §2/§3. Re-labelled `docs/requirements/INDEX.md`'s two `⛔ Planned` rows as deliberate deviations (`BL-0068`, per GDS-10 §3.1). **`BL-0040` investigated and found NOT to be a requirements defect** — see this pass's Delta Review. | `BL-0016`/`BL-0040`/`BL-0060`/`BL-0068`, grounded in the newly-authored GDS-06/GDS-08/GDS-10. |
 | 2026-07-26 | Added FR-1350 (5 settings indicators, bar-height glyph per parameter), FR-1360 (each indicator updates same-frame as its parameter), FR-1370 (purely additive, no change to existing channel-activity/palette behavior), FR-1380 (at least one indicator demonstrably live-reflects a manual button change), NFR-1140 (ROM/VRAM budget), NFR-1150 (VBlank-gated, comparable per-frame cost), NFR-1160 (no new input control). Delta update formalizing `ADS-104` §5/§6's candidate FRs/NFRs for `BL-0051` (settings & control visibility). No existing FR/NFR changed. | `BL-0051`, grounded in `ADS-104`. |
+| 2026-07-31 | Added FR-1390 (`AROUSAL` is a monotonic function of `TEMPO_IDX`/`DENSITY_IDX`), FR-1400 (`VALENCE` is a fixed one-to-one mapping keyed by `SCALE_IDX`), FR-1410 (both recomputed within one frame of any input write), FR-1420 (both correct on the first frame after boot and on a Select-reset's own frame), NFR-1170 (zero unconditional per-frame CPU cost — the load-bearing NFR, a direct response to `IP-9030`'s VBlank-budget measurement), NFR-1180 (bounded WRAM budget, bounded per-trigger-site cost). Delta update formalizing `ADS-105` §5/§6's candidate FRs/NFRs for roadmap R7 (Emotional/Energy Layer). Resolved `BL-0081` (exact derivation formulas) by keeping the baseline at the behavioral level — monotonicity and a fixed mapping, not literal lookup-table values, per this skill's own "no byte-level detail in requirements" rule; exact table contents are `07-implementation-planning`'s to propose. Resolved `BL-0080` (whether `AROUSAL` includes `CHMIX_IDX`-derived active-channel count) by explicitly scoping it out as new **`CR-0002`**, not baselined. No existing FR/NFR changed. | Roadmap R7, grounded in `ADS-105`. |
 
 ## Delta Review — 2026-07-25 (`FR-1180`-`FR-1220`, `NFR-1060`/`1070`)
 
@@ -338,3 +346,58 @@ Reviewed per the same "not a wholesale regeneration" convention as every prior d
   strengthens rather than relaxes it; `CR-0001` is explicitly non-baselined.
 
 No Critical/High finding. One item re-routed rather than resolved (`BL-0040` → `06`/`07`).
+
+## Delta Review — 2026-07-31 (`FR-1390`-`FR-1420`, `NFR-1170`/`1180`, `CR-0002`)
+
+New-feature formalization for roadmap R7 (Emotional/Energy Layer), same shape as every prior
+per-release delta. Reviewed the four new FRs, two new NFRs, and one new Candidate Requirement
+against the full existing baseline before closing.
+
+- **Every new ID traces to `ADS-105`'s own §5/§6 candidates**, restructured for atomicity where
+  the ADS's own wording conflated two properties. `ADS-105`'s FR-candidate 1 ("`AROUSAL` is a
+  function of X, Y, recomputed whenever either changes") was split into `FR-1390` (the functional
+  relationship) and `FR-1410` (the recompute-timing guarantee, covering both axes together since
+  `ADS-105` §2 establishes they share trigger sites — a single atomic requirement for a
+  single-mechanism guarantee, not two requirements that would always pass or fail together).
+  Same split for FR-candidate 2 into `FR-1400`/`FR-1410`. FR-candidates 3/4 (boot-init, reset)
+  merged into one `FR-1420` since both are the same "no stale-value grace period" property applied
+  to two trigger events already covered together in `ADS-105`'s own trigger-site enumeration.
+- **`BL-0081` resolved: acceptance criteria stay at the behavioral level, not literal formulas.**
+  `ADS-105` recommended concrete lookup-table-style formulas but explicitly left the decision to
+  this pass. Decided **against** baking in specific table values: `FR-1390` requires monotonicity
+  (a testable, implementation-independent property — many concrete tables satisfy it) and
+  `FR-1400` requires a fixed one-to-one mapping (also testable without committing to which mapping)
+  rather than "AROUSAL = (TEMPO_IDX + DENSITY_IDX) at these exact indices." This follows this
+  skill's own standing rule (a requirement naming byte-level detail has crossed into
+  implementation) and the same discipline `GDS-07`/`GDS-09` apply project-wide — exact table
+  contents are `07-implementation-planning`'s to propose against these acceptance criteria, not
+  this baseline's to fix in advance.
+- **`BL-0080` resolved: `CHMIX_IDX`-derived active-channel count excluded from v1, recorded as
+  `CR-0002`.** `FR-1390` is fully satisfiable and citation-clean from `TEMPO_IDX`/`DENSITY_IDX`
+  alone; adding a third input for marginal richness, with no current requester, would widen the
+  acceptance-test surface for no baselined benefit. Kept as a candidate rather than dropped
+  outright because `ADS-105` §2 confirms promoting it later costs little (the trigger-site
+  plumbing for `CHMIX_IDX` changes already exists for other reasons) — the same reversibility
+  reasoning `CR-0001` already established as this baseline's convention for "real future capability,
+  not currently required."
+- **No conflict with `FR-1120`/`CR-0001`, checked directly.** `FR-1120`/`CR-0001` concern the
+  *visualizer's* observable output (tile/palette content, including the deferred tempo-synced-
+  motion candidate); `FR-1390`-`FR-1420` concern a WRAM-resident derived value with **no
+  visualizer consumer in this release** (`ADS-105` §2 states `visuals.py` is explicitly untouched
+  — roadmap R9, separately blocked, owns the eventual visual consumption). Both requirement sets
+  reference `TEMPO_IDX`, but one is about how tempo is *displayed* and the other is about how
+  tempo *feeds a derived backend value* — adjacent territory, genuinely distinct claims, no
+  overlap or restatement.
+- **`NFR-1170` is this delta's load-bearing NFR and is cited to a live, in-session finding**
+  (`IP-9030`'s VBlank-budget measurement, `R101` §8.5, `GDS-06` §2.2a) rather than to `ADS-105`
+  alone — checked that this doesn't duplicate `NFR-1010`'s own caveat (added 2026-07-26, widened
+  2026-07-31 to cover any package adding per-frame work): it does not. `NFR-1010`'s caveat is
+  about the *verification method's* limits (a stress run cannot detect a narrowed margin);
+  `NFR-1170` is a *design constraint on this specific package* (add zero unconditional per-frame
+  cost, full stop) that would satisfy `NFR-1010`'s concern by construction rather than merely
+  being tested against it. Complementary, not duplicate.
+- **Forward traceability (Module/FS/IP/Test):** all `UNASSIGNED` — correctly honest, no `FS-xxx`/
+  package/test exists yet for R7.
+
+No Critical/High finding. This delta is ready for `05-feature-decomposition` to add a
+`FEAT-1120`-equivalent catalog row for roadmap R7.

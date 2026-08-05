@@ -2,33 +2,30 @@
 
 ## Position
 
-- **Updated:** 2026-07-31 (run #114) — user granted G3 for `IP-1120` ("Yes proceed"); `08-code-
-  implementation` built it to `COMPLETE` (142/142, `T1`-`T20`). Separately, `01-vision` cycled
-  R222/R223 findings into `MSTR-001` v1.5, promoting §9's fourth/final research thread and
-  revealing roadmap R9's own "prerequisite not yet satisfied" note is now stale. This run
-  reconciled the journal/backlog against both, then continued iterating.
-- **Increment:** roadmap R7 now `COMPLETE` (awaiting fresh-session verification); roadmap R9
-  unblocked at the vision layer, next candidate for `03-architecture-design-synthesis`. Baseline
+- **Updated:** 2026-07-31 (run #115) — `03-architecture-design-synthesis` authored `ADS-106`
+  (roadmap R9, Visual Evolution & Audio-Visual Synchronization), Workflow B. Iterate loop
+  continues; no gate hit yet this leg.
+- **Increment:** roadmap R7 `COMPLETE` (awaiting fresh-session verification). Roadmap R9 now
+  architecturally designed (`ADS-106`), next candidate `04-requirements-engineering`. Baseline
   unchanged (R1-R6+`IP-1090`+`IP-1110` `SHIPPED`).
-- **Pipeline state:** R7's full chain (`03`→`04`→`05`→`06`→`07`→`08`) closed; `IP-1120` `COMPLETE`,
-  joining three other `COMPLETE`-awaiting-verification packages (`IP-9030`/`IP-8010`/`IP-8020`) —
-  **four packages now parked on the same structural constraint** (fresh-session independence).
-  `01-vision` v1.5 confirms R9's grounding (`R222`/`R223`/`R104` §7-8) is complete; `03` has not
-  yet picked up R9.
-- **Backlog:** triaged this run. `BL-0052`/`BL-0057`/`BL-0059` confirmed already resolved in-tree
-  (flipped `DONE`, were stale `SCHEDULED`/`NEW` rows nobody had closed out). Two new entries:
-  `BL-0082` (`ROADMAP.md`'s stage-07 row stale — 4 packages `COMPLETE` not `VERIFIED`/`READY`),
-  `BL-0083` (`04-release-roadmap.md`'s R9 entry's prerequisite note stale, per `MSTR-001` v1.5) —
-  both `SCHEDULED` to ride the next stage that touches them. `BL-0058` remains the one standing
-  `NEEDS-USER`, unrelated, not ripe (a hardware-validation priority call, no automated work blocks
-  on it).
-- **Next step:** `03-architecture-design-synthesis`, Workflow B, for roadmap R9 (Visual Evolution
-  & Audio-Visual Synchronization) — its research grounding (`R222`/`R223`/`R104` §7-8) is complete
-  and its vision-layer prerequisite is satisfied (`MSTR-001` v1.5); correct `BL-0083`'s stale
-  roadmap note as part of that pass.
+- **Pipeline state:** `03` closed for R9 — `ADS-106` decides `THEME_TABLE` (style-keyed,
+  `CHMIX_IDX`-indexed, `visuals.py`-resident, `BAD_ZONE_FLAGS`-overridden), discrete-only v1,
+  mood-modulation (`IP-1120`'s first real consumer) explicitly deferred to `RM-9002`. No
+  Critical/High finding, no blocking Open Question. `04`-`07` not yet run for R9. Four packages
+  (`IP-9030`/`IP-8010`/`IP-8020`/`IP-1120`) remain `COMPLETE`, parked on the fresh-session
+  verification constraint.
+- **Backlog:** `BL-0083` confirmed still open — `ADS-106` correctly declined to edit the roadmap
+  itself (not this skill's write scope), re-flagged for whoever next touches R9's roadmap row.
+  Two new entries from `ADS-106`'s own Open Questions: `BL-0084` (`THEME_TABLE`'s color values,
+  content-authoring, `SCHEDULED` to ride `RM-9001`'s eventual package), `BL-0085` (`RM-9001`/
+  `RM-9002` one-or-two-packages sizing call, `SCHEDULED` to ride `05-feature-decomposition`).
+  `BL-0082` (`ROADMAP.md` stage-07 row stale) still `SCHEDULED`, unaddressed this leg. `BL-0058`
+  remains the one standing `NEEDS-USER`, unrelated, not ripe.
+- **Next step:** `04-requirements-engineering` — formalize `ADS-106`'s §5/§6 candidate FRs/NFRs
+  for roadmap R9, same delta-pass shape used for R5/R6/R7.
 - **Open gates:** none new this run. `BL-0058` remains open, unrelated, not ripe. Four packages
-  (`IP-9030`/`IP-8010`/`IP-8020`/`IP-1120`) await a fresh session for `09-package-verification` —
-  a structural constraint, not a gate needing user input.
+  await a fresh session for `09-package-verification` — a structural constraint, not a gate
+  needing user input.
 
 ## Run log
 
@@ -253,3 +250,4 @@ per-step journaling rather than treating run #1 as a precedent to repeat.
 | 112 | 2026-07-31 | run (iterate mode) | `06-feature-specification` | `FS-112` (`FEAT-1120`, roadmap R7) | Authored `FS-112`, full 20-field spec. **Found and corrected a real drift while verifying Interfaces Used against the tree** rather than trusting `ADS-105`'s own citations: `ADS-105` §2 states "3 input-step routines" as trigger sites; the tree actually has **4** — `TEMPO_IDX` has two writers (D-pad Up *and* Down), not one — so the corrected trigger-site count is **6 total** (4 input steps + song-tick + reset/boot-init), not 5. All six sites verified present at their exact current line numbers before being cited. System Behaviour worked through three edge cases the FRs imply but don't spell out: a same-frame song-form/D-pad collision (resolved by `GDS-09` §5's existing last-write-wins order), a Select-reset mid-drift (no stale pre-reset read), and boot (no `0x00` grace period). Acceptance Criteria deliberately kept at the behavioral level, matching `04`'s own judgment call — exact formulas remain `07`'s to propose. Verification Plan names the future `T20` suite and states the no-consumer-yet coverage limit honestly (per `ADS-105`'s own Risks field) rather than glossing it. Two Open Questions recorded, neither blocking (exact formulas, routine naming — both ordinary planning-grain decisions). `docs/features/INDEX.md` added; `FEAT-1120`'s catalog Spec field updated (metadata only). Link sweep clean. 129/129, no code touched. Committed (`b82b791`). | `Next: 07-implementation-planning — author IP-xxxx for FS-112/FEAT-1120, citing this spec's corrected 6-trigger-site count. This is the last automated stage before the G3 gate.` |
 | 113 | 2026-07-31 | run (iterate mode) | `07-implementation-planning` | `IP-1120` (`FS-112`/`FEAT-1120`, roadmap R7) | Authored `IP-1120`. No-split decision matches `05`'s own Feature Review reasoning (one tightly-coupled unit, no natural split point). Verb inventory: only *generate* applies, the other three verbs explicitly and deliberately absent for this pure backend layer. **Proposed the concrete formulas `FS-112` left open**: `AROUSAL = TEMPO_IDX + DENSITY_IDX` (trivially monotonic, no division, fits 0-15 with headroom); `VALENCE` via a 4-entry `SCALE_IDX`-keyed lookup table (a fixed mapping by construction). Both first-guess values, `BL-0005`-class deferral. Wired into all 6 corrected trigger sites, each placed after its own write per `GDS-09` §5. New `T20` suite planned, coverage limit stated in the package's own Risks field, not left implicit. **Authorization: `NOT GRANTED`, reasoning spelled out rather than assumed** — the session's two standing grants (`IP-9030`; `IP-8010`/`IP-8020`) were both reactive answers to specific flagged questions about already-named packages, neither extends to this fresh new-feature work. Master Build Plan / `packages/INDEX.md` updated. Link sweep clean. 129/129, no code touched. Committed (`3be38bd`). | `GATE: G3 authorization for IP-1120 — the pipeline has driven roadmap R7 through every automated stage (03/04/05/06/07) with no Critical/High finding and no blocking Open Question anywhere; the only remaining step is the user's explicit go-ahead to build. Iteration stops here per the manager's own rule.` |
 | 114 | 2026-07-31 | run (user-directed: "Yes proceed. Build vision and further research. Then drive more code iteration.") | `08-code-implementation` → `01-vision` → (reconciliation) | `IP-1120` → `MSTR-001` v1.5 → journal/backlog sync | **G3 answered** ("Yes proceed", cited on the package doc and Master Build Plan). `08-code-implementation` built `IP-1120`: `AROUSAL`/`VALENCE`/`VALENCE_TABLE` added to `music_engine.py`; new `mood_update` routine wired into all 6 trigger sites (`_step_on_bit`'s `extra_call` param added so the 4 input-step calls stay strictly inside their edge-taken branch, never unconditional — a real near-miss caught and fixed mid-implementation: an unconditional placement in `_emit_song_tick` would have violated `NFR-1170`). New `T20` suite (13 checks). Full suite 142/142 (`T1`-`T20`). `GDS-07`/`Claude.md`/`memory.md`/RTM updated. `visuals.py` untouched, confirmed by diff. `IP-1120` `COMPLETE`. Committed (`cded566`), pushed, existing draft PR #4 updated (no new PR needed). Separately, **`01-vision` cycled `R222`/`R223` into `MSTR-001`** (v1.4→v1.5): promoted "visual evolution & audio-visual sync" to the same "concretely groundable" tier as R7/R8's own threads; flagged roadmap R9's "prerequisite not yet satisfied" note as stale (`BL-0083`, new). Committed (`cf18d58`). Then reconciled journal/backlog against both changes: `BL-0052`/`BL-0057`/`BL-0059` confirmed already resolved in-tree (flipped `DONE`); filed `BL-0082` (`ROADMAP.md` stage-07 row stale — 4 packages `COMPLETE` not `VERIFIED`) and `BL-0083` (R9's stale prerequisite note), both `SCHEDULED`. | `Next: 03-architecture-design-synthesis, Workflow B, for roadmap R9 — its research grounding (R222/R223/R104 §7-8) and vision-layer prerequisite (MSTR-001 v1.5) are both now satisfied; correct BL-0083's stale roadmap note as part of that pass.` |
+| 115 | 2026-07-31 | iterate | `03-architecture-design-synthesis` | roadmap R9 (Visual Evolution & Audio-Visual Synchronization) | Authored `ADS-106`. **Central decision**: style (`CHMIX_IDX`/`STYLE_TABLE`) drives v1's palette selection, not mood or song-form — `GDS-08` §6 had already placed style as "the natural first palette theme." New `THEME_TABLE` (8 rows, `visuals.py`-resident, independent of `STYLE_TABLE` to preserve `GDS-03` §1's acyclic-import rule) replaces the flat `CALM_PALETTE` as the non-bad-zone color source; `BAD_ZONE_FLAGS` unconditionally overrides it (grounded in `GDS-08` §4.3's "never carry a state distinction by color alone" principle). Discrete-only for v1 (`R222`'s own staging recommendation honored literally); mood-modulation (`RM-9002`, `IP-1120`'s first real consumer) explicitly deferred rather than combined with style now, to avoid a style×mood cross-product taxonomy decision before either axis has shipped once. ROM cost bounded and cited to `R104` §7's actual measured headroom, not re-derived. No new WRAM state, no new per-frame cost (the palette-write routine already runs every frame; this changes what it reads, not how often). **Correctly declined to edit `docs/roadmap/04-release-roadmap.md`'s stale R9 prerequisite note** (`BL-0083`) — not this skill's write scope; re-flagged. Two new Open-Question-derived backlog entries (`BL-0084` content-authoring values, `BL-0085` `RM-9001`/`RM-9002` sizing call), both `SCHEDULED`. `docs/architecture/INDEX.md` §2 and `ROADMAP.md`'s stage-03 row updated in sync. No code, no requirements, no features touched. Committed (`4d7246e`). | `Next: 04-requirements-engineering -- formalize ADS-106's §5/§6 candidate FRs/NFRs for roadmap R9, same delta-pass shape used for R5/R6/R7.` |

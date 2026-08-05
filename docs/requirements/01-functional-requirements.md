@@ -51,6 +51,10 @@
 | FR-1400 | The engine maintains a derived `VALENCE` value (range 0-15) via a fixed, deterministic one-to-one mapping keyed by `SCALE_IDX` — each of the 4 scale/mode values maps to exactly one `VALENCE` output. | ADS-105 §5 (FR-candidate 2) |
 | FR-1410 | `AROUSAL`/`VALENCE` are recomputed on every write to any of `TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX`, such that no more than one frame after any such write, both values reflect the post-write inputs. | ADS-105 §5 (FR-candidate 1/2, §2 trigger-site enumeration) |
 | FR-1420 | `AROUSAL`/`VALENCE` hold correct values (matching the boot-preset steering indices) on the very first rendered/tested frame after boot, and hold correct values (matching the restored preset indices) on the same frame a Select-reset completes — neither is left stale pending a subsequent input edge. | ADS-105 §5 (FR-candidate 3/4) |
+| FR-1430 | The visualizer's non-bad-zone palette is selected by a table lookup keyed by `CHMIX_IDX`, applied every frame `BAD_ZONE_FLAGS` is clear — not only at the moment `CHMIX_IDX` changes. | ADS-106 §5 (FR-candidate 1) |
+| FR-1440 | The `CHMIX_IDX`=0 row of that lookup table produces a palette identical to the calm palette already shipped — selecting preset 0 introduces no visual change from current shipped behavior. | ADS-106 §5 (FR-candidate 2) |
+| FR-1450 | Whenever `BAD_ZONE_FLAGS` is non-zero, the visualizer's palette is the existing bad-zone warning palette unconditionally, regardless of the current style-theme selection — the bad-zone override is absolute, not a blend or a priority tie-break. | ADS-106 §5 (FR-candidate 3) |
+| FR-1460 | At least 3 non-default style-theme palettes each produce a color combination distinguishable, by content review, from the default theme and from each other. | ADS-106 §5 (FR-candidate 4) |
 
 ## Non-Functional Requirements
 
@@ -75,6 +79,8 @@
 | NFR-1160 | The settings-indicator feature introduces no new input control — it is a pure read-only display of existing tracked parameters, updated automatically as those parameters change under their own existing controls. | ADS-104 §6/§7 |
 | NFR-1170 | The `AROUSAL`/`VALENCE` derivation adds **zero unconditional per-frame CPU cost** — it is invoked only from the write sites that can change its inputs (button-edge input steps, song-form phase transitions, style application, boot/Select-reset), never from an unconditional per-frame call in `engine_tick`'s own main body. Verified by call-graph inspection (which routines call the derivation, and whether that call is itself conditional/edge-triggered), not solely by the extended-run stress method (`NFR-1010`'s own caveat, `GDS-06` §2.2a, applies with full force here — a per-frame call cheap enough not to trip a stress-test would still violate this NFR's intent). | ADS-105 §6 (NFR-candidate 1), GDS-06 §2.2a, R101 §8.5 |
 | NFR-1180 | `AROUSAL`/`VALENCE` (2 new WRAM bytes) add bounded WRAM — within the current 32KB single-bank budget's ample headroom (`GDS-07` §6), with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5); the derivation's added cost at each trigger site is small relative to that site's own existing cost. | ADS-105 §6 (NFR-candidate 2/3), GDS-07 §6, MSTR-001 §4 |
+| NFR-1190 | The style-theme palette lookup adds zero unconditional per-frame CPU cost beyond one indexed table read replacing one constant reference — the palette-write routine already runs every frame under the existing stateless re-render contract; this capability changes what it reads, not how often it runs or how much it does. | ADS-106 §6 (NFR-candidate 1), GDS-08 §5 |
+| NFR-1200 | The new style-theme palette table adds bounded ROM — at most a handful of 8-byte palette rows, negligible against the measured free-ROM headroom (`R104` §7), with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5). | ADS-106 §6 (NFR-candidate 2), R104 §7, MSTR-001 §4 |
 
 ## Open items carried to feature decomposition
 
@@ -135,6 +141,7 @@ Untraceable-to-a-source or explicitly-unbuilt statements, **excluded from the nu
 | 2026-07-26 | **Corrective/precision pass — no new baseline IDs.** Reworded `FR-1120` to drop its tempo claim (`BL-0016`): the tempo *setting* display is real but owned by `FR-1350`, and tempo-*synced motion* was never built — split out as new `CR-0001` in a new **Candidate Requirements** section. Added a caveat to `NFR-1010` recording that its extended-run method is no longer sufficient alone for packages touching the Select-reset frame or `update_visuals` (`BL-0060`, per GDS-06 §2.2). Updated `FR-1120`'s Traces-to from "GDS-08 (pending)" to the now-authored GDS-08 §2/§3. Re-labelled `docs/requirements/INDEX.md`'s two `⛔ Planned` rows as deliberate deviations (`BL-0068`, per GDS-10 §3.1). **`BL-0040` investigated and found NOT to be a requirements defect** — see this pass's Delta Review. | `BL-0016`/`BL-0040`/`BL-0060`/`BL-0068`, grounded in the newly-authored GDS-06/GDS-08/GDS-10. |
 | 2026-07-26 | Added FR-1350 (5 settings indicators, bar-height glyph per parameter), FR-1360 (each indicator updates same-frame as its parameter), FR-1370 (purely additive, no change to existing channel-activity/palette behavior), FR-1380 (at least one indicator demonstrably live-reflects a manual button change), NFR-1140 (ROM/VRAM budget), NFR-1150 (VBlank-gated, comparable per-frame cost), NFR-1160 (no new input control). Delta update formalizing `ADS-104` §5/§6's candidate FRs/NFRs for `BL-0051` (settings & control visibility). No existing FR/NFR changed. | `BL-0051`, grounded in `ADS-104`. |
 | 2026-07-31 | Added FR-1390 (`AROUSAL` is a monotonic function of `TEMPO_IDX`/`DENSITY_IDX`), FR-1400 (`VALENCE` is a fixed one-to-one mapping keyed by `SCALE_IDX`), FR-1410 (both recomputed within one frame of any input write), FR-1420 (both correct on the first frame after boot and on a Select-reset's own frame), NFR-1170 (zero unconditional per-frame CPU cost — the load-bearing NFR, a direct response to `IP-9030`'s VBlank-budget measurement), NFR-1180 (bounded WRAM budget, bounded per-trigger-site cost). Delta update formalizing `ADS-105` §5/§6's candidate FRs/NFRs for roadmap R7 (Emotional/Energy Layer). Resolved `BL-0081` (exact derivation formulas) by keeping the baseline at the behavioral level — monotonicity and a fixed mapping, not literal lookup-table values, per this skill's own "no byte-level detail in requirements" rule; exact table contents are `07-implementation-planning`'s to propose. Resolved `BL-0080` (whether `AROUSAL` includes `CHMIX_IDX`-derived active-channel count) by explicitly scoping it out as new **`CR-0002`**, not baselined. No existing FR/NFR changed. | Roadmap R7, grounded in `ADS-105`. |
+| 2026-07-31 | Added FR-1430 (style-theme palette selected by a `CHMIX_IDX`-keyed lookup, applied every frame `BAD_ZONE_FLAGS` is clear), FR-1440 (preset-0 theme matches the shipped calm palette exactly, no regression), FR-1450 (bad-zone palette unconditionally overrides the style theme), FR-1460 (at least 3 distinguishable non-default themes), NFR-1190 (zero unconditional per-frame CPU cost beyond one indexed read replacing one constant), NFR-1200 (bounded ROM budget, cited to `R104` §7's actual measured headroom). Delta update formalizing `ADS-106` §5/§6's candidate FRs/NFRs for roadmap R9 (Visual Evolution & Audio-Visual Synchronization), **scoped to `RM-9001` (style-reactive palette) only** — `RM-9002` (mood-reactive, `IP-1120`'s `AROUSAL`/`VALENCE` as first consumer) and `RM-9003` (accessibility) are explicitly out of scope for this pass, per `ADS-106`'s own deferral decisions, and carry no FR/NFR here. No existing FR/NFR changed. | Roadmap R9, grounded in `ADS-106`. |
 
 ## Delta Review — 2026-07-25 (`FR-1180`-`FR-1220`, `NFR-1060`/`1070`)
 
@@ -406,3 +413,33 @@ against the full existing baseline before closing.
 
 No Critical/High finding. This delta is ready for `05-feature-decomposition` to add a
 `FEAT-1120`-equivalent catalog row for roadmap R7.
+
+## Delta Review — 2026-07-31 (`FR-1430`-`FR-1460`, `NFR-1190`/`1200`)
+
+- **No duplicate or conflicting requirement.** `FR-1430`-`FR-1460` introduce a new visualizer
+  capability (style-keyed theme palette selection) that is genuinely additive: nothing in the
+  existing baseline states or implies a `CHMIX_IDX`-keyed palette lookup exists today.
+- **Checked against `FR-1120`'s own split (`BL-0016`) and `CR-0001`.** `FR-1120` (as reworded)
+  covers per-channel activity/bad-zone representation; `CR-0001` (not baselined) covers
+  tempo-*synced motion*. Neither overlaps this delta: `FR-1430`-`FR-1460` are about which
+  **palette** is active, not per-channel activity, tempo representation, or beat-synced motion.
+  A style theme changing color is a different claim from a tile pulsing on the beat.
+- **Checked against `FR-1370`** (`IP-1110`'s settings indicators are "purely additive... no change
+  to existing channel-activity tiles' or calm/bad-zone palette's behavior"). No conflict: `FR-1370`
+  is about the *indicator cells* not disturbing the *existing* calm/bad-zone swap; this delta
+  changes what "the calm palette" *is* (a lookup instead of a constant) without touching the
+  indicator cells at all, and `FR-1450` explicitly preserves the bad-zone swap's own priority.
+- **`FR-1440`'s no-regression contract is load-bearing and mirrors the project's own established
+  pattern** (`STYLE_TABLE`/`SONG_TABLE`/`MOTIF_TABLE` index-0 rows all carry the identical
+  guarantee) — checked that this delta follows the same discipline rather than inventing a new
+  one.
+- **Scope boundary confirmed**: this pass baselines `RM-9001` only. `RM-9002` (mood-reactive,
+  depending on `IP-1120`'s `AROUSAL`/`VALENCE`) and `RM-9003` (accessibility, `BL-0021`) are
+  named in `ADS-106` but deliberately carry no FR/NFR here — the same exclusion discipline the R7
+  delta applied to `CR-0002`. Both remain candidates for a future delta pass once their own
+  packages are scheduled.
+- **Forward traceability (Module/FS/IP/Test):** all `UNASSIGNED` — correctly honest, no `FS-xxx`/
+  package/test exists yet for R9.
+
+No Critical/High finding. This delta is ready for `05-feature-decomposition` to add an
+R9-equivalent catalog row.

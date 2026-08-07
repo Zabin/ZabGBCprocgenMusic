@@ -2,27 +2,30 @@
 
 ## Position
 
-- **Updated:** 2026-07-31 (run #116) — `04-requirements-engineering` formalized `ADS-106`'s
-  candidate FRs/NFRs (`FR-1430`-`FR-1460`, `NFR-1190`/`1200`), scoped to `RM-9001` only.
-- **Increment:** roadmap R7 `COMPLETE` (awaiting fresh-session verification). Roadmap R9 now has
-  architecture (`ADS-106`) and requirements (`FR-1430`-`1460`/`NFR-1190`/`1200`) closed; next
-  candidate `05-feature-decomposition`. Baseline unchanged (R1-R6+`IP-1090`+`IP-1110` `SHIPPED`).
-- **Pipeline state:** `03`/`04` closed for R9 (`RM-9001` slice) — no Critical/High finding, no
-  blocking Open Question, Delta Review checked clean against `FR-1120`/`CR-0001`/`FR-1370`. `05`-
-  `07` not yet run for R9. Four packages (`IP-9030`/`IP-8010`/`IP-8020`/`IP-1120`) remain
-  `COMPLETE`, parked on the fresh-session verification constraint (unchanged, unrelated to this
-  thread).
-- **Backlog:** no new entries this step. `BL-0083` (roadmap R9 stale note), `BL-0084`
-  (`THEME_TABLE` color values), `BL-0085` (`RM-9001`/`RM-9002` one-or-two-packages sizing call —
-  now directly relevant to `05`'s next run), `BL-0082` (`ROADMAP.md` stage-07 row stale) all
-  remain `SCHEDULED`, unaddressed this leg. `BL-0058` remains the one standing `NEEDS-USER`,
-  unrelated, not ripe.
-- **Next step:** `05-feature-decomposition` — add an R9-equivalent catalog row (`FEAT-11xx`)
-  covering `FR-1430`-`1460`, sourced from `ADS-106`; resolve `BL-0085`'s one-vs-two-packages
-  question as part of that pass.
-- **Open gates:** none new this run. `BL-0058` remains open, unrelated, not ripe. Four packages
-  await a fresh session for `09-package-verification` — a structural constraint, not a gate
-  needing user input.
+- **Updated:** 2026-08-07 (run #117) — read-only self-audit of this session's own output. No
+  stage skill invoked; no artifact outside `docs/pipeline/` written.
+- **Increment:** roadmap R7 `COMPLETE` (awaiting fresh-session verification). Roadmap R9 has
+  architecture (`ADS-106`) and requirements (`FR-1430`-`1460`/`NFR-1190`/`1200`) authored, but
+  **both now carry a High-severity factual defect** (`BL-0086`) and must not advance to `05` until
+  it is adjudicated. Baseline unchanged (R1-R6+`IP-1090`+`IP-1110` `SHIPPED`).
+- **Pipeline state:** shipped code and the R7 chain audited clean — ROM byte-identical to a fresh
+  build, 142/142 re-run, no WRAM collision, docs mutually consistent. R9's `03`/`04` output is
+  **not** clean: `ADS-106` §2/§6 and `NFR-1190` describe a mechanism `visuals.py` does not have.
+  Four packages (`IP-9030`/`IP-8010`/`IP-8020`/`IP-1120`) remain `COMPLETE`, parked on the
+  fresh-session verification constraint.
+- **Backlog:** three new entries, all from this audit. `BL-0086` (**High**, `NEEDS-USER`) —
+  `ADS-106`/`NFR-1190` mischaracterize the palette mechanism. `BL-0087` (Low-Med, `SCHEDULED`) —
+  `GDS-08` §0's own §5-vs-§3 misdirection, inherited by `ADS-106`/`NFR-1190`. `BL-0088` (Low,
+  `SCHEDULED`) — `T20` dead code + fragile hardcoded-preset helper. Still open and unaddressed:
+  `BL-0082`, `BL-0083`, `BL-0084`, `BL-0085`. `BL-0058` remains the standing unrelated
+  `NEEDS-USER`, not ripe.
+- **Next step:** gated — resolve `BL-0086` first (`03-architecture-design-synthesis` to correct
+  `ADS-106` §2/§6 + Decision Log against the real mechanism and re-decide the selection rule with
+  the branch-to-N-blocks option on the table, then `04-requirements-engineering` to re-word
+  `NFR-1190`). `05-feature-decomposition` on R9 is blocked behind that.
+- **Open gates:** **`BL-0086` (High, new)** — the user must choose: correct now, or accept and
+  correct at planning time. `BL-0058` remains open, unrelated, not ripe. Four packages await a
+  fresh session for `09-package-verification` — a structural constraint, not a gate.
 
 ## Run log
 
@@ -249,3 +252,4 @@ per-step journaling rather than treating run #1 as a precedent to repeat.
 | 114 | 2026-07-31 | run (user-directed: "Yes proceed. Build vision and further research. Then drive more code iteration.") | `08-code-implementation` → `01-vision` → (reconciliation) | `IP-1120` → `MSTR-001` v1.5 → journal/backlog sync | **G3 answered** ("Yes proceed", cited on the package doc and Master Build Plan). `08-code-implementation` built `IP-1120`: `AROUSAL`/`VALENCE`/`VALENCE_TABLE` added to `music_engine.py`; new `mood_update` routine wired into all 6 trigger sites (`_step_on_bit`'s `extra_call` param added so the 4 input-step calls stay strictly inside their edge-taken branch, never unconditional — a real near-miss caught and fixed mid-implementation: an unconditional placement in `_emit_song_tick` would have violated `NFR-1170`). New `T20` suite (13 checks). Full suite 142/142 (`T1`-`T20`). `GDS-07`/`Claude.md`/`memory.md`/RTM updated. `visuals.py` untouched, confirmed by diff. `IP-1120` `COMPLETE`. Committed (`cded566`), pushed, existing draft PR #4 updated (no new PR needed). Separately, **`01-vision` cycled `R222`/`R223` into `MSTR-001`** (v1.4→v1.5): promoted "visual evolution & audio-visual sync" to the same "concretely groundable" tier as R7/R8's own threads; flagged roadmap R9's "prerequisite not yet satisfied" note as stale (`BL-0083`, new). Committed (`cf18d58`). Then reconciled journal/backlog against both changes: `BL-0052`/`BL-0057`/`BL-0059` confirmed already resolved in-tree (flipped `DONE`); filed `BL-0082` (`ROADMAP.md` stage-07 row stale — 4 packages `COMPLETE` not `VERIFIED`) and `BL-0083` (R9's stale prerequisite note), both `SCHEDULED`. | `Next: 03-architecture-design-synthesis, Workflow B, for roadmap R9 — its research grounding (R222/R223/R104 §7-8) and vision-layer prerequisite (MSTR-001 v1.5) are both now satisfied; correct BL-0083's stale roadmap note as part of that pass.` |
 | 115 | 2026-07-31 | iterate | `03-architecture-design-synthesis` | roadmap R9 (Visual Evolution & Audio-Visual Synchronization) | Authored `ADS-106`. **Central decision**: style (`CHMIX_IDX`/`STYLE_TABLE`) drives v1's palette selection, not mood or song-form — `GDS-08` §6 had already placed style as "the natural first palette theme." New `THEME_TABLE` (8 rows, `visuals.py`-resident, independent of `STYLE_TABLE` to preserve `GDS-03` §1's acyclic-import rule) replaces the flat `CALM_PALETTE` as the non-bad-zone color source; `BAD_ZONE_FLAGS` unconditionally overrides it (grounded in `GDS-08` §4.3's "never carry a state distinction by color alone" principle). Discrete-only for v1 (`R222`'s own staging recommendation honored literally); mood-modulation (`RM-9002`, `IP-1120`'s first real consumer) explicitly deferred rather than combined with style now, to avoid a style×mood cross-product taxonomy decision before either axis has shipped once. ROM cost bounded and cited to `R104` §7's actual measured headroom, not re-derived. No new WRAM state, no new per-frame cost (the palette-write routine already runs every frame; this changes what it reads, not how often). **Correctly declined to edit `docs/roadmap/04-release-roadmap.md`'s stale R9 prerequisite note** (`BL-0083`) — not this skill's write scope; re-flagged. Two new Open-Question-derived backlog entries (`BL-0084` content-authoring values, `BL-0085` `RM-9001`/`RM-9002` sizing call), both `SCHEDULED`. `docs/architecture/INDEX.md` §2 and `ROADMAP.md`'s stage-03 row updated in sync. No code, no requirements, no features touched. Committed (`4d7246e`). | `Next: 04-requirements-engineering -- formalize ADS-106's §5/§6 candidate FRs/NFRs for roadmap R9, same delta-pass shape used for R5/R6/R7.` |
 | 116 | 2026-07-31 | iterate | `04-requirements-engineering` | roadmap R9 (`FR-1430`-`FR-1460`, `NFR-1190`/`1200`) | Formalized `ADS-106` §5/§6's candidate FRs/NFRs into the baseline, scoped to `RM-9001` (style-reactive palette) only per `ADS-106`'s own deferral of `RM-9002`/`RM-9003`. `FR-1430` (CHMIX_IDX-keyed theme lookup, applied every non-bad-zone frame), `FR-1440` (preset-0 no-regression), `FR-1450` (bad-zone override absolute), `FR-1460` (≥3 distinguishable themes); `NFR-1190` (zero added per-frame cost), `NFR-1200` (bounded ROM budget, cited to `R104` §7). Delta Review checked against `FR-1120`/`CR-0001`/`FR-1370` for conflicts — none found, each is a genuinely distinct claim. `docs/requirements/INDEX.md` updated. No Critical/High finding. Committed (`44a2ace`). | `Next: 05-feature-decomposition -- add an R9-equivalent catalog row (FEAT-11xx) covering FR-1430-1460, sourced from ADS-106; note BL-0085's own recommendation that RM-9001/RM-9002 are two features, not one.` |
+| 117 | 2026-08-07 | audit (user-directed: "Conduct audit") | — (no stage skill; read-only self-audit) | this session's own output (`IP-1120`, `MSTR-001` v1.5, `ADS-106`, `FR-1430`-`1460`/`NFR-1190`/`1200`) | **Independently re-verified every claim this session made, against the tree rather than against its own summaries.** Held up: committed `Driftune.gbc` byte-identical to a fresh build (`e7ddc142a7…`, 32768 bytes), tree clean; 142/142 re-run from scratch; `0xC068`/`0xC069` uniquely claimed tree-wide (no collision); `Claude.md`/`memory.md`/`GDS-07` mutually consistent at 142/`T20` and the new addresses; residual "129/129" strings confirmed to be *historical* facts on `IP-9030`/`IP-8010`/`IP-8020`'s own rows (correct as-is, must not be updated); `BL-0052`/`BL-0057` `DONE` flips justified by `git log -S` (commit `3de38c4`, `IP-9030` v2 — exactly matching their recorded "rides `IP-9030` v2" disposition); `visuals.py` genuinely untouched by `IP-1120`. **Three defects found, all in this session's own R9 planning output, none in shipped code:** `BL-0086` (**High**) — `ADS-106` §2 and the now-baselined `NFR-1190` both describe the palette write as "one constant reference" replaceable by "one indexed table read"; `visuals.py:91-95` shows it is 36 bytes of *inline immediates* with no ROM-resident palette table anywhere, and the palette path does not read `CHMIX_IDX` at all, so the real change is a per-frame **increase** on the path `IP-9030` measured at a handful of instructions of margin. `BL-0087` (Low-Med) — `GDS-08` §0 misdirects "stateless re-render contract (§5)" when the contract is verbatim in §3; `ADS-106`/`NFR-1190` inherited the bad citation by trusting the summary instead of checking. `BL-0088` (Low) — `T20` dead code (`non_decreasing`) plus two inconsistent expected-value helpers, one of which hardcodes presets and passes only because the first song-form transition is ~1740 frames away. Nothing fixed in-pass, per the standing no-out-of-stage-fixes rule. | `GATE: BL-0086 is High and NEEDS-USER — a baselined requirement (NFR-1190) is factually wrong about the mechanism it constrains. Decision: correct ADS-106 + NFR-1190 now via 03 then 04 (recommended — two document edits today versus a blocked package later), or accept and correct at planning time. R9 must not advance to 05/07 until this is answered.` |

@@ -275,6 +275,49 @@ refactoring package** — the "refactoring packages are never pre-authorized" ru
 `08-refactoring`) does not apply here. It *does* apply to `BL-0064`/`BL-0065`, which remain
 unplanned and would each need their own fresh go-ahead.
 
+## Technical Work Breakdown (TWBS) — Genre Blending (`FS-113`, roadmap R8)
+
+| IP | Package | FR/NFR cited | Status |
+|---|---|---|---|
+| IP-1130 | Genre Blending — interpolates `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` between `STYLE_TABLE` rows over 4 discrete steps on a Start press (`SCALE_IDX` hard-switches immediately, unchanged); 4 new independent WRAM bytes (`BLEND_SRC_TEMPO`/`DENSITY`/`DUTY`, `BLEND_STEP`); no new input control | `FS-113`/`FEAT-1130`, roadmap R8; `FR-1470`...`FR-1490`, `NFR-1210`...`NFR-1230`; amends `FR-1240` | **NOT STARTED** — `READY`, not authorized (see G3 authorization note below) |
+
+**Verb inventory.** *Generate* (the interpolation arithmetic itself) and *apply* (writing the
+result to `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS`/`SCALE_IDX`) are both covered by this one package
+— they are the same tight loop `FS-113`'s own no-split reasoning already established. *Persist*
+does not apply (no SRAM). *Review* is explicitly deferred to `09-content-review` per `NFR-1230`
+— named, not silently dropped: this package's own Acceptance Criteria are all WRAM-value
+assertions, and the roadmap's own stated risk (an audibly "in-between-and-bad" blend) is not
+something this package can or claims to resolve.
+
+**Supersession sweep.** `FR-1240`'s original instant-apply guarantee is genuinely superseded for
+3 of its 4 fields (§ above, `FS-113`'s own Requirements Implemented field). Swept the tree for
+every call site that still assumes the old shape: `input_map.py:64-74` is the **only** call site
+that invokes `_emit_apply_style`/steps `CHMIX_IDX` on a Start press — confirmed via `grep -n
+_emit_apply_style *.py`, one match, the definition itself plus the one call site this package
+already plans to change. No other `.py` file references `_emit_apply_style` or assumes
+same-frame landing of `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` after a Start press. **In
+`test_rom.py`**, the sweep is not clean and is not silent about it: `T15.1`-`T15.4` (the
+per-preset immediate-landing checks and the cycle-to-default check) assert exactly the behavior
+this package changes — both must be updated in this same package, per `BL-0099`/`FS-113`'s own
+Verification Plan, not discovered later. `T15.5`/`T15.6` were checked and do **not** need
+changes (`T15.5` only asserts bad-zone-flag non-interference; `T15.6` asserts Select's own direct
+write, unaffected by this package).
+
+**Right-sizing decision:** one package, matching `05-feature-decomposition`'s own no-split
+reasoning for `FEAT-1130` (one trigger, one per-frame tick, four bytes, no independently
+verifiable sub-piece) and `FS-113`'s own Module Responsibilities field, which already assigns
+both new routines to `music_engine.py` and the one call-site change to `input_map.py`.
+
+**G3 authorization for `IP-1130`: NOT GRANTED.** This package has not been through any go-ahead
+conversation with the user. The session's standing "iterate pipeline skill" instruction that
+produced this planning chain (`03`→`04`→`05`→`06`→`07`) authorizes running the *planning*
+pipeline — it is not itself a build go-ahead, and this project has no bootstrap carve-out that
+would make it one. No prior grant in this session (`IP-1120`'s "Yes proceed," the earlier
+`IP-9030`/`IP-8010`/`IP-8020` standing-basis grants) was given for or plausibly extends to this
+fresh new-feature work — each of those grants was cited to its own specific package at the time,
+not treated as a blanket authorization, and this package follows the identical discipline rather
+than assuming coverage.
+
 ## G5 gate (every stage-08 run)
 
 The ROM must build (`python3 build_rom.py <path>` -> fixed size, valid header) and the full

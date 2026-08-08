@@ -75,6 +75,13 @@ FR-1010 (register writes for all four channels), GDS-03 SS1/SS2 (module layout, 
 GDS-07 (WRAM mirror rationale), `IP-0002`/`IP-0003` (pulse B/wave/noise generation, not yet
 authored).
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED — the project's most load-bearing topic.** Grounds every PSG register write in `music_engine.py` and `build_rom.py`'s sound init: `NR10`-`NR52` layout, the four channels' control/frequency/envelope semantics, and the write-only frequency registers that are the direct reason GDS-07's WRAM state mirror exists as a first-class design artifact. Requirements: `FR-1000`/`FR-1010`. Tested across `T2`/`T3`/`T6`/`T7`/`T12`.
+
 ## 7. Related Topics
 
 R110 (interrupt-driven tick timing that gates when these registers get written), R204 (bad-zone

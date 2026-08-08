@@ -50,6 +50,13 @@ with `IP-0002`.
 ## 6. Feature Mapping
 `IP-0002` (wave channel, not yet authored) — a named, deliberate non-requirement.
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⚠️ **EXCEPTION — grounds a confirmed non-risk.** Its headline finding (the Channel-3 wave-RAM retrigger corruption erratum) is **confirmed DMG-only and absent on CGB**, so no shipped code needed a workaround. That is a genuine and useful result — it is the reason `music_engine.py`'s wave-channel handling needs no `NR30` power-cycle dance — but it produced no feature, so it is recorded as a C10 exception rather than a strained forward link. [GDS-02 §7](../../architecture/02-system-context.md) cites it as a reassurance, and separately notes the *unresearched* question this topic does not answer: whether PyBoy's APU emulation diverges from CGB silicon anywhere this engine would notice (`BL-0058`).
+
 ## 7. Related Topics
 R108 (Wave RAM's live-rewrite capability, the exact mechanism this erratum affects), R114 (wave
 channel programming guidance).

@@ -1,10 +1,10 @@
 # MSTR-001 — Program Vision: Driftune
 
-- **Document ID:** MSTR-001 · **Version:** 1.4 · **Status:** ✅ Authored (from-scratch increment
+- **Document ID:** MSTR-001 · **Version:** 1.5 · **Status:** ✅ Authored (from-scratch increment
   — no shipped ROM exists yet; this vision is the origin of the project, not a restatement of
   existing code)
 - **Date:** 2026-07-21 (v1.0); 2026-07-21 (v1.1 — see §8); 2026-07-22 (v1.2 — see §8); 2026-07-22
-  (v1.3 — see §8); 2026-07-22 (v1.4 — see §8) · **Owned by:** `01-vision` skill
+  (v1.3 — see §8); 2026-07-22 (v1.4 — see §8); 2026-07-31 (v1.5 — see §9) · **Owned by:** `01-vision` skill
 - **Derived from:** the project owner's initial instruction (2026-07-21): build a standalone GBC
   ROM whose primary purpose is real-time procedurally-generated chiptune music, with
   music-reactive visuals, player-steerable generation parameters, and a "bad zone" detection +
@@ -188,9 +188,33 @@ its own framing so it isn't read as a flat, undifferentiated wishlist anymore:
   state, not new generation logic — the cheapest of the three original threads to eventually
   build, and a natural driver for R220's state machine and for the still-open visual-evolution
   thread below.
-- **Visual evolution & audio-visual synchronization — still genuinely open, no research
-  cycled in yet.** Not part of this update; remains a named thread for a future
-  `02-research-game-design`/`02-research-gbc-hardware` pass.
+- **Visual evolution & audio-visual synchronization — promoted at v1.5, same shape as the
+  other two: a concretely groundable near-term architecture candidate, not an open question.**
+  [R222](../research/encyclopedia/R222-visual-evolution-conventions.md) found that the shipped
+  visualizer's existing palette-swap primitive (`_emit_write_palette`, `IP-0006`) is already the
+  standard, established mechanism for "visual evolution" on this class of hardware — palette
+  swapping, not new tile art, is how real GBC titles do this (Pokemon Gold/Silver's own
+  day/night cycle is a direct hardware precedent); evolution needs more palette rows and a
+  selection rule, not a new rendering path. Color-cycling is named as the follow-up technique
+  for a smooth, continuous mood drift once a discrete-state version ships.
+  [R223](../research/encyclopedia/R223-audio-visual-synchronization.md) found that every signal
+  a sync feature would need already lives in WRAM with no new generation logic required
+  (`CUR_DEGREE_*` for pitch, `ONSET_WINDOW_COUNT`/`TEMPO_IDX`/`DENSITY_IDX` for intensity,
+  `DISSONANCE_SCORE`/`BAD_ZONE_FLAGS` already driving the shipped calm/bad-zone swap) — pitch is
+  the most intuitive audio-to-visual mapping dimension in the cross-modal-perception literature,
+  amplitude/timbre-to-brightness is a well-supported convention, and CGB's green palette channel
+  should carry intensity preferentially (human perception is more sensitive to green contrast).
+  No real-time audio analysis (FFT, beat-detection) is needed or recommended — Driftune already
+  knows what it's about to play, one frame ahead, since it generates the audio itself. Both
+  topics explicitly defer one piece each: R222 leaves the VRAM/palette-budget quantification to
+  `02-research-gbc-hardware` (not yet run); the actual palette-selection/sync-mapping *design*
+  decision stays `03-architecture-design-synthesis`'s to make, same delegation discipline as the
+  other two promoted threads above. **This means `docs/roadmap/04-release-roadmap.md`'s R9 entry
+  — which currently reads "Prerequisite not yet satisfied: the visual-evolution research thread
+  (MSTR-001 §9) has not been run" — is now stale.** That prerequisite is satisfied (R222/R223 both
+  exist); the vision layer does not edit the roadmap itself, so this is recorded here as a finding
+  for whichever skill next touches R9 (`03-architecture-design-synthesis` picking it up, or
+  `00-pipeline-manager`'s own reconciliation step) to correct.
 - **Cart shape & persistence — facts now exist, adoption still undecided.** [R106](../research/encyclopedia/R106-mbc-and-sram.md)
   (extended) names MBC5 (or MBC5+RAM+BATTERY for save) as the concrete recommendation *if*
   either is ever adopted, and confirms PyBoy natively supports bank-switched/battery-RAM
@@ -241,3 +265,4 @@ radius enumerated (artifact → owning skill).
 | 2026-07-22 | 1.2 | Amended C1/C2: removed the "single-bank at present"/"no SRAM save" framing as fixed non-goals, reopened both as explicit research questions (§9 added). Recorded a large (22-section) future-direction topic list the project owner supplied, spanning musical identity/diversity, style evolution, song structure, emotional/energy model, visual evolution, and longer-arc listener relationship (favorites/collection) — not adopted as binding commitments, but named as standing research threads for the owning `02-research-*` skills. | Project owner, verbatim: "This is exactly why this type of research is needed, arbitrary decisions have been mistaken for firm decisions... It should educate the vision through research in these areas. Do not limit to a single bank ceiling. Do not discount saves." Direct correction of the v1.0/v1.1 framing, which had closed off cart-shape and save-behavior questions without a research basis for doing so. | GDS-00 (matching update to its own non-goal framing, this run), `strategic-assumptions-register.md` A5 (single-32KB-bank assumption reopened, no longer treated as comfortably confirmed), new research topics owed to `02-research-game-design`/`02-research-gbc-hardware`/`02-research-tooling-and-testing` per §9's own routing (none authored yet — this amendment only opens the threads), `03-architecture-design-synthesis` (must not assume single-bank/no-save when it eventually reaches cart-shape/persistence design — wait for the research this amendment commissions). |
 | 2026-07-22 | 1.3 | Added C10 (new scope commitment): every authored research topic (`R1xx`/`R2xx`/`R3xx`) must be directly traceable forward to a design feature actually implemented in code, or carry an honestly-named exception (grounds implementation quality, not a feature). Folded the same discipline into §5's "done" quality bar. | Project owner, verbatim: "Add a vision goal of having every research topic directly traceable to a design feature implemented in code." | `04-requirements-engineering`'s traceability matrix (`docs/requirements/04-requirements-traceability-matrix.md`) already tracks each requirement's backward *Research Source* — the new obligation runs the other direction (topic → shipped code) and has no existing forward-audit artifact; a full forward-trace audit across all 39 authored `R1xx`/`R2xx`/`R3xx` topics is owed (not run in this vision-tier pass — auditing is downstream work, likely `04-requirements-engineering` or `10-integration-review`'s traceability-coherence dimension, not `01-vision`'s to perform). Likely near-term finding: several orientation/history topics (e.g. `R112`, `R218`) and some `BL-0010`/`BL-0011`-deferred findings may currently have no forward trace and will need either a real forward link or a recorded C10 exception. |
 | 2026-07-22 | 1.4 | Cycled in findings from all three §9 research threads (R219-R221 musical identity/style-evolution/emotional-energy; R106 extended, MBC/save hardware facts; R302 §8-9 addendum, bank-switching tooling cost) — no new commitments added, §9's own text updated so it reads as tiered/found-facts rather than a flat wishlist: genre feasibility is now known to be uneven (rhythm/timbre-led high-confidence, harmony-density-led low-confidence); style-evolution/song-form and the emotional/energy model are promoted from "open question" to "concretely groundable near-term architecture candidate" (both found cheap — a parameter-envelope state machine over already-tracked state); cart-shape/persistence facts recorded (MBC5 the concrete recommendation if ever adopted, PyBoy not a blocker, bank-switching itself real assembler-architecture work not a patch) without deciding adoption. Visual-evolution thread remains untouched — no research cycled in for it yet. | User: "Iterate pipeline on the research thread. Cycle in updates to the vision." Direct instruction to close the loop this session's research opened. | `03-architecture-design-synthesis` (two of §9's threads — style-evolution/song-form and emotional/energy — are now concretely groundable candidates it could pick up without further research; cart-shape/persistence still needs an adoption decision, not just facts, before requirements work); `02-research-game-design`/`02-research-gbc-hardware` (visual-evolution thread still owed); no code/requirements/architecture actually authored by this amendment itself. |
+| 2026-07-31 | 1.5 | Cycled in findings from the fourth and final §9 thread (R222 visual-evolution conventions, R223 audio-visual-synchronization conventions — both authored 2026-07-26, after v1.4 was written) — promoted "visual evolution & audio-visual synchronization" from "still genuinely open" to "concretely groundable near-term architecture candidate," the same tier the other three threads reached at v1.4: the shipped palette-swap primitive (`IP-0006`) is already the right mechanism for visual evolution (no new rendering path needed), and every audio-visual sync signal a future feature would need already exists in WRAM (`CUR_DEGREE_*`, `ONSET_WINDOW_COUNT`/`TEMPO_IDX`/`DENSITY_IDX`, `DISSONANCE_SCORE`/`BAD_ZONE_FLAGS`) — no real-time audio analysis needed. Named a stale downstream artifact this amendment does not itself fix: `docs/roadmap/04-release-roadmap.md`'s R9 entry still states its research prerequisite "has not been run," which is no longer true. No new commitments added; the adoption/design decision remains `03-architecture-design-synthesis`'s to make. | User: "Yes proceed. Build vision and further research." Direct instruction to continue driving standing research/vision threads forward — this is the one §9 thread v1.4 left untouched because its research hadn't been authored yet at that time. | `03-architecture-design-synthesis` (all four §9 threads are now concretely groundable — R7 already picked up emotional/energy this session; R9's visual-evolution/audio-visual-sync pair is next in roadmap order once R8 lands, per the roadmap's own dependency graph); the roadmap's R9 entry itself needs its stale prerequisite note corrected (owner: whichever skill next touches it, or `00-pipeline-manager`'s reconciliation step); no code/requirements/architecture authored by this amendment itself. |

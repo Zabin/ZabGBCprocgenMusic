@@ -53,6 +53,13 @@ today.
 GDS-07 (the WRAM map this topic's §3 orients against), MSTR-001 C2 (32KB/no-MBC scope
 commitment).
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⚠️ **EXCEPTION — orientation topic, no direct forward trace.** This is a survey of the GBC address space rather than grounding for any specific shipped behaviour; the concrete regions the project actually uses are grounded by their own topics (`R108` for the APU register block, `R102`/`R104` for VRAM and palette RAM, `R106` for the cart/SRAM region) and mapped for this ROM specifically by [GDS-07](../../architecture/07-data-model.md). `MSTR-001` v1.3's own changelog predicted "several orientation/history topics... may currently have no forward trace" — **this is one of them**, recorded honestly rather than given a strained link. Its real value is as a reading entry point for an agent new to the platform.
+
 ## 7. Related Topics
 R101 (instruction/cycle costs — irrelevant to banking but the sibling "no gap yet, simple design"
 topic), R104 (VRAM banking), R105 (OAM — unused region), R106 (MBC/SRAM — the banking mechanism

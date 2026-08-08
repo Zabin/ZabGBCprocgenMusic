@@ -62,6 +62,12 @@ yet. This topic's guidance is forward-looking for `IP-0002` (two more channels j
 `IP-0002`/`IP-0003` (channel role assignment), `IP-0004` (overload threshold derivation), GDS-03
 SS4c.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds the per-channel role assignment across pulse A/B, wave and noise (`music_engine.py`) and, concretely, the *overload* limb of the bad-zone detector — `IP-0004`'s channel-overload threshold derives from this topic's concurrent-onset analysis, and `IP-9020` later recalibrated that exact threshold (`BL-0017`). Architecture: `GDS-03` §4c, `GDS-04` §2. Requirements: `FR-1090`. Tests: `T7` overload checks.
+
 ## 7. Related Topics
 
 R207 (the role-differentiation mechanism this topic recommends as primary), R204 (the overload

@@ -52,6 +52,13 @@ cross-emulator check has been performed on any shipped package yet.
 ## 6. Feature Mapping
 No current `IP-xxxx` — a process/tooling recommendation for `09-package-verification`.
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⚠️ **EXCEPTION (process grounding, not a feature).** Grounds `09-package-verification`'s and `10-integration-review`'s own live-drive methodology and the `run-driftune` utility skill, rather than any `IP-xxxx`. A legitimate `MSTR-001` C10 exception — recorded explicitly. One sub-thread is genuinely untraced: `BL-0015`'s uncharacterized PyBoy `tick()`/interrupt-timing semantics remain open, and [GDS-02 §9](../../architecture/02-system-context.md) re-flagged it.
+
 ## 7. Related Topics
 R301 (PyBoy, the primary automated tool this topic's tools would cross-check against), R305 (test
 design — the sibling topic covering audio verification/regression/long-duration/hardware-

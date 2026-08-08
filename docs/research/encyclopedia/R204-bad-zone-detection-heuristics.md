@@ -85,6 +85,12 @@ unison intervals.
 FR-1080 (`DISSONANCE_SCORE` computation, GDS-03 SS4a), `IP-0004` (bad-zone implementation, not
 yet authored), `BL-0005` (tuning deferral — now has a concrete starting table to tune from).
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** The tier's strongest trace. Grounds all three limbs of the shipped bad-zone detector — `DISSONANCE_SCORE`, `STALE_COUNT_*` repetition detection, and channel overload — in `music_engine.py`'s `_emit_badzone_tick`. Shipped via `IP-0004` (`VERIFIED`), extended by `IP-0007`'s autonomous avoidance/recovery and recalibrated by `IP-9020`. Architecture: `GDS-03` §4a, `GDS-04` §5. Requirements: `FR-1080`-`FR-1110`. Tests: `T6`-`T8`.
+
 ## 7. Related Topics
 
 R201 (the generation algorithm whose output this topic scores), R108 (only the three pitched

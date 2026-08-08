@@ -65,6 +65,13 @@ this hardware/design doesn't have.
 ## 6. Feature Mapping
 Confirms existing `IP-0001` architecture; no new `IP-xxxx` implication.
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED (confirmation shape).** This topic confirmed the already-shipped `IP-0001` architecture rather than prescribing a change — a legitimate `MSTR-001` C10 exception shape ("grounds implementation *quality* rather than producing a standalone feature"), recorded explicitly here rather than left implicit. It is also the named grounding for the `08-refactoring` skill's own discipline.
+
 ## 7. Related Topics
 R110 (the tick/ISR mechanism), R203 (fixed channel-role assignment, the "voice allocation"
 answer), R213 (seed architecture), R308 (the performance-budgeting half of this same concern).

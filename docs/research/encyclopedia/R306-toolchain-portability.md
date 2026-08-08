@@ -60,6 +60,13 @@ requirement explicitly; this finding suggests one could be worth adding), the st
 independent-verification workflow (`09-package-verification`'s own rules) this friction repeatedly
 affects.
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⚠️ **PARTIALLY TRACED — one half is a recorded C10 exception, the other is an open recommendation.** The *path-portability* half traced forward and was confirmed already-satisfied by shipped code (`test_rom.py`'s `Path(__file__).resolve().parent`, `build_rom.py`'s `sys.argv[1]`) — a legitimate "grounds implementation quality, confirms rather than prescribes" exception under `MSTR-001` C10. The *dependency-manifest* half has **not** traced forward: §5's concrete `requirements.txt` recommendation remains unbuilt, tracked as **`BL-0023`** (open since 2026-07-22) and re-surfaced by [GDS-02 §6](../../architecture/02-system-context.md). This is a genuine untraced recommendation, not an exception — recorded honestly rather than counted as landed.
+
 ## 7. Related Topics
 R301 (PyBoy headless API — the dependency this topic's finding is about), R305 (emulator-based
 test design — the workflow this friction affects every time it runs in a fresh session).

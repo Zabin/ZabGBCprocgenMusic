@@ -16,6 +16,9 @@ Each file has ONE job. Edit only what you need.
 ```
 gbc_lib.py       — ROM class (assembler opcodes) + color math + header writing (reused verbatim
                     from the reference project — nothing game/music-specific lives here)
+wram_constants.py — shared WRAM constants (5 param indices, 5 PRESET_* values, BAD_ZONE_FLAGS),
+                    dependency-free by design (IP-8020, BL-0065) so music_engine.py and
+                    visuals.py can both import it without an import cycle
 music_engine.py  — all sound-channel generation logic (4 channels), bad-zone detection,
                     preset/table data, PSG register writes
 input_map.py     — joypad edge detection + the input->parameter mapping (never writes PSG regs)
@@ -23,7 +26,7 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers)
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 85 checks across T1-T14
+                    sound registers + WRAM engine state) — 142 checks across T1-T20
 ```
 
 ### Data layout, WRAM map
@@ -35,8 +38,15 @@ bad-zone state at
 `0xC005`-`0xC00B` (dissonance score, per-channel stale counts, onset-window counter/timer),
 per-channel generation state (note timers, scale degrees, LFSR states) at `0xC00C`+, joypad state
 at `0xC050`-`0xC052`, noise step index at `0xC019`, **arpeggio state (`IP-1060`) at `0xC01D`-
-`0xC01F`** (`ARP_STATE_PA`/`PB` — packed countdown+step byte — and a shared scratch byte). **No
-SRAM** — this project makes no save/battery commitment (MSTR-001 C2).
+`0xC01F`** (`ARP_STATE_PA`/`PB` — packed countdown+step byte — and a shared scratch byte),
+`VBLANK_FLAG` at `0xC060`, and **`VIS_ENTRY_LY` at `0xC061` (`IP-9030`, `BL-0069`)** — the `LY`
+register's value recorded at entry to `update_visuals`, a permanent diagnostic asserting the
+per-frame VBlank budget stays within `144`-`153` (`T19`; see the Known Good Behavior note below).
+**`AROUSAL`/`VALENCE` at `0xC068`-`0xC069` (`IP-1120`, roadmap R7)** — derived mood bytes
+(`TEMPO_IDX+DENSITY_IDX`, `VALENCE_TABLE[SCALE_IDX]`), recomputed only at the 6 write sites that
+can change their inputs, never per-frame; no visualizer/input consumer yet (groundwork for
+roadmap R9, separately blocked); see `T20`.
+**No SRAM** — this project makes no save/battery commitment (MSTR-001 C2).
 
 ### Input mapping (GDS-03 SS3)
 
@@ -152,7 +162,71 @@ default). Scheme E's onset-timing/pitch-selection logic itself lives in `_emit_c
 note-selection step (`IP-1070`/`BL-0020`) — extending it to a new scheme means adding another
 branch there, keyed off a new bit in the same spare-bit range (`ADR-0001`).
 
-## Known Good Behavior (v1.1 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation, GO 2026-07-25)
+### Change style-preset values
+`STYLE_TABLE` in `music_engine.py` (8 rows, one per `CHMIX_IDX` preset — independent of
+`CHMIX_MASKS`, `ADS-101` SS2 — each `(tempo_idx, density_idx, scale_idx, duty_bias)`) — first-guess
+placeholder values, not tuned by ear (`BL-0005`). Index 0 must stay identical to
+`PRESET_TEMPO_IDX`/`PRESET_DENSITY_IDX`/`PRESET_SCALE_IDX`/`duty_bias=0` (no regression to the
+shipped default, `FR-1260`). Applying a style is `_emit_apply_style` (`music_engine.py`), called
+from `input_map.py`'s Start-press handler immediately after `CHMIX_IDX` steps — unlike
+`CHMIX_MASKS`'s channel-mix/scheme half, style values apply the same frame, not at next onset.
+
+### Change motif variants
+`MOTIF_TABLE` in `music_engine.py` (now `N_VARIANTS=4` rows of 8 bytes each — variant 0 must stay
+byte-identical to the original shipped sequence, `FR-1300`) and `MOTIF_VARIANT_SELECTOR` (4
+signed-delta entries, LFSR-indexed, shaped like `DELTA_TABLE`, first-guess retention-biased
+weighting, not tuned by ear — `BL-0042`). Variant selection happens only at a motif-cycle
+boundary (motif step wraps 7→0) inside `_emit_channel_gen`'s Scheme-E branch (`IP-1090`/`BL-0010`)
+— never mid-cycle, and never for a channel running Scheme W. The selection draw reuses that
+channel's own LFSR (otherwise idle while running Scheme E), introducing no new randomness source.
+
+### Change song-form phases
+`SONG_TABLE` in `music_engine.py` (4 rows of 4 bytes — `tempo_idx`, `density_idx`, `duration_lo`,
+`duration_hi`, duration in frames — first-guess placeholder values/durations, not tuned by ear,
+`BL-0005`). Phase 0 (INTRO) must stay identical to `PRESET_TEMPO_IDX`/`PRESET_DENSITY_IDX` (no
+regression to boot/Select-reset behavior — this was a real regression caught and fixed during
+`IP-1100`'s own implementation, not merely a design guideline). The state machine
+(`SONG_STATE`/`SONG_STATE_TIMER_LO`/`SONG_STATE_TIMER_HI`) autonomously cycles all 4 phases via
+`_emit_song_tick` (`IP-1100`/roadmap R6), called once per frame from `engine_tick` alongside
+`_emit_badzone_tick` — entirely independent of bad-zone recovery and Scheme-E motif-variant
+selection (disjoint WRAM fields). No new input control.
+
+### Change settings-indicator tile patterns
+`_bar_tile_bytes(n)` in `visuals.py` (8 fill levels, 0-7, one bar-height glyph each — first-guess
+pixel design, not tuned by eye, same `BL-0005`-class deferral as every other visual/preset-value
+decision). `SETTINGS_CELLS` (5 tilemap cells, immediately after `CHANNEL_CELLS`) each display one
+base control's current index (`TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX`) as a
+fill level via `_emit_update_settings_row`, called once per frame from `update_visuals`
+(`IP-1110`/`BL-0051`/`ADS-104`), positioned last in that routine.
+
+> **Corrected 2026-07-31 (`BL-0069`).** This paragraph previously stated that on the exact frame
+> Select is pressed, `apply_input`'s `init_engine` reset costs enough extra CPU that the
+> settings-row VRAM writes for that frame are **silently dropped**. **That finding is false and is
+> withdrawn.** No VRAM write is dropped, on any frame. PyBoy 2.7.0 applies no PPU-mode gating to
+> VRAM writes at all (`R301` §3, `mb.py:502-511`), so the harness could never have observed a
+> drop; and a WRAM mirror taken at the instant of each write matches the VRAM byte on every frame
+> of every class. What was actually seen is a **`pb.tick()` mid-frame sampling artifact**: `tick`
+> returns after `apply_input` has updated the index but before `update_visuals` has re-rendered
+> from it, so any test reading a WRAM field and its derived tilemap cell after the same `tick`
+> reports a one-frame lag — **uniformly, on every frame class including idle frames with no
+> input**. The Select-vs-`Up` asymmetry that made it look like a real drop does not exist.
+>
+> **The real finding, which is broader and worse:** `HALT` wakes at `LY` 144, but
+> `read_joypad`+`apply_input`+`engine_tick` consume roughly **9 of VBlank's 10 scanlines**, so
+> `update_visuals` finishes at `LY` 153 — the window's last line — on *every* frame. Head-room is
+> a handful of instructions and nothing in the build or the suite guards it. Full account:
+> `R308` §8.5, `R101` §8.5, `R102` §3c, `GDS-06` §2.2a. On real hardware, which does enforce
+> mode 3, that margin is a live and untested exposure (`GDS-02` §7, `BL-0058`) — the display
+> would still self-heal the next frame, since `update_visuals` reruns unconditionally
+> (`GDS-08` §3). **`IP-9030` (`VIS_ENTRY_LY`, `T19`) now makes this margin measurable every
+> frame rather than merely believed** — see the Known Good Behavior entry below.
+
+`OCTAVE_IDX`/
+`SCALE_IDX` (4 possible values) share the same 8-level tile set as `TEMPO_IDX`/`DENSITY_IDX`/
+`CHMIX_IDX` (8 possible values) rather than a separate narrower set — those two bars simply never
+exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
+
+## Known Good Behavior (v1.5 — Foundation + Sound Design + Integrity Remediation + Multi-Scheme Foundation + Genre-Aware Style Presets + Motif Recurrence via Weighted Variant Selection + Song-Form via Autonomous Phase Cycling + Settings & Control Visibility, **SHIPPED BASELINE — full R1-R6 + `IP-1090` + `IP-1110` GO confirmed by the user 2026-07-31**)
 
 - ROM builds to exactly 32768 bytes, valid GBC header, cart type ROM-only (no battery)
 - Boots within ~90 frames (GBC boot-ROM logo animation time) to: all 3 pitched channels (pulse
@@ -194,8 +268,46 @@ branch there, keyed off a new bit in the same spare-bit range (`ADR-0001`).
   fixed 8-step motif), selected per `CHMIX_IDX` preset (preset 6 assigns Scheme E to the wave
   channel, per `ADS-100`'s own worked example — a recognizable repeating bass motif against pulse
   A/B's freer drift). Bad-zone detection/recovery applies identically regardless of scheme.
+- Genre-aware style presets (`IP-1080`, roadmap R5/`ADS-101`): pressing Start now applies a
+  coordinated tempo/density/scale/duty-bias combination immediately (same frame), not just a
+  channel-mix/scheme change — 3 named v1 styles (Techno/Chiptune-Driving, Ambient/Lo-Fi, Holiday)
+  plus the shipped default at preset 0. Bad-zone state (`DISSONANCE_SCORE`/`BAD_ZONE_FLAGS`/
+  `STALE_COUNT_*`/`ONSET_WINDOW_COUNT`) is untouched by a style change.
+- Motif recurrence via weighted variant selection (`IP-1090`, `BL-0010`/`ADS-102`): a Scheme-E channel's motif data is now 4 pre-composed
+  variants (variant 0 identical to the original shipped sequence); at each motif-cycle boundary
+  the engine autonomously draws which variant plays next via a retention-biased weighted lookup,
+  no input required. Bad-zone detection/recovery and every other mechanism are unaffected.
+- Song-form via autonomous phase cycling (`IP-1100`, roadmap R6/`ADS-103`, **`VERIFIED` via
+  `VR-1100`, **in the shipped baseline as of the 2026-07-31 GO**): the engine autonomously cycles 4 named
+  phases (INTRO/BUILD/PEAK/BREAKDOWN, looping), overwriting `TEMPO_IDX`/`DENSITY_IDX` to that
+  phase's target values on each transition, no input required, over a ~110-second full cycle.
+  Entirely independent of bad-zone detection/recovery and Scheme-E motif-variant selection.
+- Settings & control visibility (`IP-1110`, `BL-0051`/`ADS-104`, **`VERIFIED` via `VR-1110`, in
+  the shipped baseline as of the 2026-07-31 GO**): the visualizer displays 5 bar-height indicator
+  tiles, one per base control (tempo/octave/scale/density/channel-mix), each reflecting that
+  parameter's current index, updated every frame — purely additive to the existing
+  channel-activity tiles/palette, no new palette, no font/text rendering. A one-frame display lag
+  exists on **every** frame class, not specifically on a Select reset — it is a `pb.tick()`
+  harness sampling artifact, not a dropped write or a Select-specific behavior (corrected
+  2026-07-31, `BL-0069`; see "VBlank budget assertion" below).
+- VBlank budget assertion (`IP-9030`, `BL-0069`): a permanent diagnostic (`VIS_ENTRY_LY`) records
+  `LY` at entry to `update_visuals` every frame; `T19` asserts it stays within VBlank (`144`-`153`)
+  across five frame classes (idle, plain index step, Start, Select, song-form transition).
+  Measured: `HALT` wakes at `LY` 144 on every frame; `read_joypad`+`apply_input`+`engine_tick`
+  alone consume through `LY` 152-153, so `update_visuals` runs against roughly one remaining
+  scanline — on every frame, idle included, not only on heavy-input frames. Guards against a
+  regression silently spending that head-room; does not itself widen the budget. This superseded
+  an earlier, incorrect finding that VRAM writes were being dropped on specific frame classes —
+  see `R308` §8.5 for the full self-correction.
+- Emotional/Energy Layer (`IP-1120`, roadmap R7/`ADS-105`/`FS-112`): two derived WRAM bytes,
+  `AROUSAL` (`TEMPO_IDX+DENSITY_IDX`) and `VALENCE` (`VALENCE_TABLE[SCALE_IDX]`), recomputed only
+  at the 6 write sites that can change those inputs — never per-frame (`NFR-1170`, a direct
+  response to `IP-9030`'s VBlank-budget finding). Infrastructure-only: zero audible/visible
+  change, `visuals.py` untouched; groundwork for roadmap R9's future mood-reactive visualizer
+  work, which remains separately blocked. `VALENCE_TABLE`'s 4 entries are illustrative
+  first-guess values, not tuned by ear (`BL-0005`-class deferral).
 
-**85/85 `test_rom.py` checks pass** (T1-T14). An 8000+ frame stress run with continuous input
+**142/142 `test_rom.py` checks pass** (T1-T20). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

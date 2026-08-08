@@ -59,6 +59,10 @@ project's own convention.
 | `0xC038` | `MOTIF_STEP_PA` | **Added `IP-1070` (2026-07-25, `BL-0020`)** — pulse A's packed Scheme-E state: bits0-3 this channel's own Euclidean-pattern step (0-15, independent of the noise channel's `NOISE_STEP_IDX`), bits4-6 its current motif step (0-7); bit7 unused. Only advances when this channel's `CHMIX_MASKS` scheme-select bit (bit4) is set; stays at 0 while running Scheme W. |
 | `0xC039` | `MOTIF_STEP_PB` | **Added `IP-1070`** — same packing/role as `MOTIF_STEP_PA`, pulse B's scheme-select bit is bit5 |
 | `0xC03A` | `MOTIF_STEP_WV` | **Added `IP-1070`** — same packing/role, wave channel's scheme-select bit is bit6 |
+| `0xC03B` | `DUTY_BIAS` | **Added `IP-1080` (2026-07-26, roadmap R5)** — a per-style duty-cycle timbre offset (`ADS-101`), added to the existing degree-derived duty-table index (`cur_degree & 0x03`) at `_emit_channel_gen`'s duty-write site, then re-masked (`AND 0x03`, wrap not clamp) — reuses the same masking idiom the index already used. Independent of `STYLE_TABLE`'s other 3 fields, which write directly to the already-existing `TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX` addresses rather than a new one. 0 for the default style/preset 0 (`FR-1260`'s non-regression). |
+| `0xC03C` | `MOTIF_VARIANT_IDX` | **Added `IP-1090` (2026-07-26, `BL-0010`/`ADS-102`)** — which row of the now-`N_VARIANTS=4`-row `MOTIF_TABLE` (`motif_table_base + MOTIF_VARIANT_IDX*8 + motif_step`) is active for a Scheme-E channel's motif lookup. Single shared byte across channels (v1 scope, per `ADS-102` §9 — today's only shipped Scheme-E-assigning preset activates the scheme on exactly one channel at a time). Drawn via `MOTIF_VARIANT_SELECTOR` (a `DELTA_TABLE`-shaped weighted lookup) only on the exact frame a channel's motif-step counter wraps 7→0 — never mid-cycle. 0 (variant 0, byte-identical to the pre-`IP-1090` shipped sequence) on boot/Select-reset, alongside the existing `scheme_state` zeroing. |
+| `0xC03D` | `SONG_STATE` | **Added `IP-1100` (2026-07-26, roadmap R6/`ADS-103`)** — which of `SONG_TABLE`'s 4 song-form phases (INTRO/BUILD/PEAK/BREAKDOWN) is active. Autonomously advanced (wrap mod `N_SONG_PHASES=4`) by `_emit_song_tick` when `SONG_STATE_TIMER_LO`/`HI` reaches 0, entirely independent of bad-zone recovery (`IP-0007`) and Scheme-E motif-variant selection (`IP-1090`) — disjoint WRAM fields, confirmed by `ADS-103` §2. 0 (INTRO) on boot/Select-reset; `SONG_TABLE[0]` matches `PRESET_TEMPO_IDX`/`PRESET_DENSITY_IDX` exactly (no regression). |
+| `0xC03E`-`0xC03F` | `SONG_STATE_TIMER_LO`/`SONG_STATE_TIMER_HI` | **Added `IP-1100` (2026-07-26, roadmap R6/`ADS-103`)** — 16-bit (low/high byte pair) frames-remaining countdown in the current song-form phase; a 16-bit counter (not 1 byte) was needed to reach genuinely multi-minute phase durations per R6's own framing, a small disclosed deviation from `ADS-103`'s original 1-byte estimate. Reloaded from `SONG_TABLE`'s `duration_lo`/`duration_hi` fields on every phase transition. |
 
 ## §4 Repetition-detection history buffers (§4b's "last 8 notes")
 
@@ -96,6 +100,9 @@ mechanism the reference project already uses for its own menu-navigation edge-tr
 |---|---|---|
 | `0xC016` | `LFSR_STATE` | 8-bit Galois LFSR state driving pseudo-random note-walk deltas (§4a below references its consumer). **Updated 2026-07-22, drift fix**: originally seeded to a fixed non-zero value at boot/reset (this row's own text used to say so, framing `DIV`-based seed variation as an undecided future backlog item) — `IP-0007` has since implemented exactly that: each channel's LFSR (this one and its `0xC017`/`0xC018` siblings) is reseeded from the `DIV` register XORed with a fixed per-channel constant on both boot and Select, zero-guarded (`music_engine.py:514-523`), independently verified `VR-0007`. The "same seed each boot" simplification this row described is **no longer true** — this was a stale statement this consistency pass caught, not a new decision. |
 | `0xC060` | `VBLANK_FLAG` | Set to 1 by the VBlank ISR, cleared by the main loop after processing one frame — the reference project's own main-loop-synchronization convention, reused verbatim. |
+| `0xC061` | `VIS_ENTRY_LY` | Added `IP-9030` (`BL-0069`), 2026-07-31. `LY` register value recorded at entry to `update_visuals` (`visuals.py`), every frame — a permanent diagnostic making the per-frame VBlank budget measurable. `test_rom.py`'s `T19` asserts it stays within `144`-`153` across five frame classes. Measured: consistently `152`-`153` in the shipped build (`R101` §8.5) — `read_joypad`+`apply_input`+`engine_tick` alone consume roughly 9 of VBlank's 10 scanlines before this value is recorded. |
+| `0xC068` | `AROUSAL` | Added `IP-1120` (roadmap R7, `ADS-105`/`FS-112`), 2026-07-31. Derived mood byte: `TEMPO_IDX + DENSITY_IDX` (0-14, fits the required 0-15 range). Recomputed only at the 6 write sites that can change `TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX` (`music_engine.py`'s `mood_update` routine) — never as an unconditional per-frame call, per `NFR-1170`'s zero-added-per-frame-cost contract (a direct response to `IP-9030`'s VBlank-budget measurement). No visualizer/input consumer yet — groundwork for roadmap R9, separately blocked. `test_rom.py`'s `T20` covers monotonicity and all 6 trigger sites. |
+| `0xC069` | `VALENCE` | Added `IP-1120` (roadmap R7, `ADS-105`/`FS-112`), 2026-07-31. Derived mood byte: `VALENCE_TABLE[SCALE_IDX]`, a 4-entry ROM-resident lookup (`[10, 6, 12, 4]`, illustrative first-guess placement values, not tuned by ear — `BL-0005`-class deferral). Recomputed at the same 6 sites as `AROUSAL`, by the same `mood_update` call. |
 
 This section is appended rather than renumbered so `IP-0001`'s own commit diff against this file
 stays a clean addition — a live doc, corrected in place per the pipeline's own discipline (`GDS-07`
@@ -103,9 +110,9 @@ must match the shipped bytes, not drift the way the reference project's `Claude.
 
 ## §6 Headroom
 
-Fields span `0xC000`-`0xC050` (81 bytes used of the block) with the next free 8-aligned address
-at `0xC060` — ample headroom before any bank-switching question (a non-goal per MSTR-001 §4)
-becomes relevant.
+Fields span `0xC000`-`0xC069` (84 bytes used of the block, updated 2026-07-31 for `AROUSAL`/
+`VALENCE`) with the next free 8-aligned address at `0xC070` — ample headroom before any
+bank-switching question (a non-goal per MSTR-001 §4) becomes relevant.
 
 ## §7 Reset-to-preset constants (GDS-03 §5)
 
@@ -116,3 +123,16 @@ exact values are a `04-requirements-engineering`/`06-feature-specification` data
 reset routine copies from.
 
 **Gate:** closed 2026-07-21.
+
+## §9 Visualizer VRAM/tile layout (`IP-0006`, extended `IP-1110`)
+
+BG tile pattern indices (`VRAM_TILE_DATA = 0x8000`, unsigned addressing): 0 = off (blank), 1 = on
+(filled, channel-activity), 2-9 = **added `IP-1110` (2026-07-26, `BL-0051`/`ADS-104`)** — 8
+bar-height glyphs (fill levels 0-7), 16 bytes each (128 bytes total), reused across all 5 settings
+indicators regardless of each source parameter's own actual value range.
+
+BG tilemap cells (`TILEMAP_BASE = 0x9800`): `0x9800`-`0x9803` = `CHANNEL_CELLS` (per-channel
+activity, `IP-0006`); `0x9804`-`0x9808` = **`SETTINGS_CELLS`, added `IP-1110`** — one cell each
+for `TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX`, confirmed free (no other
+module writes or reads any other tilemap address). No new WRAM address — `IP-1110` is a pure
+read-and-render feature.

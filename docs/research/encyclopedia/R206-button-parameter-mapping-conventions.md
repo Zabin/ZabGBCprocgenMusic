@@ -58,6 +58,12 @@ confirmatory grounding for a decision already made and shipped.
 
 FR-1020–FR-1070 (shipped), GDS-03 SS3.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds `input_map.py`'s entire button→parameter mapping — which control steps which index, and the one-step-per-edge discipline that makes steering feel controllable rather than chaotic. Shipped via `IP-0001` (`VERIFIED`). Architecture: `GDS-03` §3, `GDS-09` §5. Requirements: `FR-1020`-`FR-1070`. Tests: `T4`, `T5`, `T18`.
+
 ## 7. Related Topics
 
 R205 (visualizer — the "no display to label controls" constraint this topic leans on), R107

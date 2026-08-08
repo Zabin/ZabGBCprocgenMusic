@@ -15,13 +15,11 @@ a couple of table lookups (R100/R110's cycle-budget note).
 
 from gbc_lib import ROM
 import math
+from wram_constants import (TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX_IDX,
+                             BAD_ZONE_FLAGS, PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX,
+                             PRESET_SCALE_IDX, PRESET_DENSITY_IDX, PRESET_CHMIX_IDX)
 
 # ── WRAM addresses (GDS-07) ──────────────────────────────────────────
-TEMPO_IDX = 0xC000
-OCTAVE_IDX = 0xC001
-SCALE_IDX = 0xC002
-DENSITY_IDX = 0xC003
-CHMIX_IDX = 0xC004
 NOTE_TIMER_PA = 0xC00C
 NOTE_TIMER_PB = 0xC00D
 NOTE_TIMER_WV = 0xC00E
@@ -34,8 +32,7 @@ LFSR_STATE_WV = 0xC018   # IP-0002: wave channel's independent LFSR
 NOISE_STEP_IDX = 0xC019  # IP-0003: 0-15, position in the 16-step Euclidean pattern
 NOTE_TIMER_NZ = 0xC00F   # reserved by GDS-07 SS3; IP-0003's noise-hit countdown
 
-# IP-0004: bad-zone state (GDS-07 SS2)
-BAD_ZONE_FLAGS = 0xC005      # bit0 DISSONANT, bit1 STUCK, bit2 OVERLOAD, bit3 COMBINED
+# IP-0004: bad-zone state (GDS-07 SS2) — BAD_ZONE_FLAGS imported above (IP-8020, BL-0065)
 DISSONANCE_SCORE = 0xC006
 STALE_COUNT_PA = 0xC007
 STALE_COUNT_PB = 0xC008
@@ -64,6 +61,55 @@ ARP_DEGREE_SCRATCH = 0xC01F
 MOTIF_STEP_PA = 0xC038
 MOTIF_STEP_PB = 0xC039
 MOTIF_STEP_WV = 0xC03A
+
+# IP-1080: Genre-aware style presets (roadmap R5, ADS-101) — a per-style duty-cycle timbre
+# offset, added to the existing (cur_degree & 0x03) duty-table index at the duty-write site
+# below, then re-masked (wrap, not clamp). Placed at 0xC03B: 0xC038-0xC03A is IP-1070's
+# MOTIF_STEP_PA/PB/WV; 0xC03B-0xC04F remains genuine unused headroom before JOY_PREV at 0xC050.
+DUTY_BIAS = 0xC03B
+
+# IP-1090 (BL-0010, ADS-102): which row of the now-multi-variant MOTIF_TABLE is currently active
+# for Scheme E's motif lookup — a single shared byte (v1 scope: today's only shipped Scheme-E-
+# assigning preset activates the scheme on exactly one channel at a time, ADS-102 SS9). Placed at
+# 0xC03C: 0xC03B is IP-1080's DUTY_BIAS; 0xC03C-0xC04F remains genuine unused headroom before
+# JOY_PREV at 0xC050.
+MOTIF_VARIANT_IDX = 0xC03C
+
+# IP-1100 (roadmap R6, ADS-103): autonomous song-form phase-cycling state — which of SONG_TABLE's
+# 4 phases is active, and how many frames remain in it (16-bit, to reach genuinely multi-minute
+# phase durations without an awkward sub-frame-counting workaround). Placed at 0xC03D-0xC03F:
+# 0xC03C is IP-1090's MOTIF_VARIANT_IDX; 0xC03D-0xC04F remains genuine unused headroom before
+# JOY_PREV at 0xC050.
+SONG_STATE = 0xC03D
+SONG_STATE_TIMER_LO = 0xC03E
+SONG_STATE_TIMER_HI = 0xC03F
+
+# IP-1120 (roadmap R7, ADS-105/FS-112): derived valence-arousal mood pair, recomputed only at the
+# 6 write sites that can change TEMPO_IDX/DENSITY_IDX/SCALE_IDX (never per-frame -- NFR-1170's
+# zero-added-per-frame-cost contract, a direct response to IP-9030's VBlank-budget measurement).
+# No visualizer/input consumer yet -- groundwork for roadmap R9, separately blocked.
+AROUSAL = 0xC068
+VALENCE = 0xC069
+
+# IP-1120: VALENCE is a fixed lookup keyed by SCALE_IDX (0-3) -- a lookup table is definitionally
+# a fixed one-to-one mapping (FR-1400). Illustrative first-guess placement values, not tuned by
+# ear (BL-0005-class deferral, same as every other untuned preset/threshold this project has
+# shipped) -- a future 09-content-review pass, once R9 gives this a real consumer, is the right
+# place to retune.
+VALENCE_TABLE = [10, 6, 12, 4]
+
+# IP-1130 (roadmap R8, ADS-107/FS-113): genre blending -- TEMPO_IDX/DENSITY_IDX/DUTY_BIAS glide
+# over 4 discrete steps toward a newly-selected STYLE_TABLE row instead of landing instantly
+# (supersedes FR-1240's original instant-apply guarantee for these 3 fields; SCALE_IDX keeps it,
+# categorical fields cannot interpolate). BLEND_SRC_* is a snapshot of the pre-blend values,
+# captured unconditionally on every Start press -- this is what makes a mid-blend restart
+# (FR-1490) correct with no special-casing: the capture always reads whatever the engine
+# currently holds, settled or mid-blend. BLEND_STEP doubles as progress index and completion
+# flag (0 = just begun, 4 = complete/terminal).
+BLEND_SRC_TEMPO = 0xC070
+BLEND_SRC_DENSITY = 0xC071
+BLEND_SRC_DUTY = 0xC072
+BLEND_STEP = 0xC073
 
 # IP-0004 thresholds (GDS-03 SS4, R204 SS5) — first-guess placeholders, per BL-0005's own
 # deferred-tuning convention; the dissonance weight table itself is literature-grounded (R204),
@@ -133,11 +179,7 @@ DISSONANCE_WEIGHT_BY_IC = [0, 15, 11, 3, 2, 1, 13]
 # Reset-to-preset known-good state (GDS-03 SS5): major scale, mid tempo, mid octave, sparse
 # density/minimal channel-mix (density/channel-mix indices reset even though IP-0001/0002 don't
 # yet consume them for behavior, so later packages' presets are already correct).
-PRESET_TEMPO_IDX = 4
-PRESET_OCTAVE_IDX = 1
-PRESET_SCALE_IDX = 0
-PRESET_DENSITY_IDX = 0
-PRESET_CHMIX_IDX = 0
+# PRESET_* values imported above (IP-8020, BL-0065).
 
 # Small signed scale-degree deltas the LFSR-driven walk picks from (R201's "scale-constrained
 # random walk" — weighted toward staying/small steps, indexed by the LFSR's low 2 bits).
@@ -214,6 +256,51 @@ CHMIX_MASKS = [
     0b1011,  # 7: pulse A + pulse B + noise (no wave)
 ]
 
+# IP-1080: Genre-aware style presets (roadmap R5, ADS-101/FS-108) — a second table, independent
+# of CHMIX_MASKS above (ADS-101 SS2's "two tables stay independent" design), keyed by the same
+# CHMIX_IDX index. Each row: (tempo_idx, density_idx, scale_idx, duty_bias). Applied immediately
+# (not gated to next onset, unlike CHMIX_MASKS's channel-mix/scheme half — FR-1240) by
+# _emit_apply_style, called right after CHMIX_IDX is stepped on a Start press.
+# Index 0 MUST match the shipped default preset exactly (PRESET_TEMPO_IDX/PRESET_SCALE_IDX/
+# PRESET_DENSITY_IDX, duty_bias=0) — FR-1260, no regression to current boot/reset behavior.
+# Indices 1-3 carry the three named v1 styles (FR-1250, ADS-101 SS3, first-guess placeholder
+# values per this project's standing untuned-preset convention, BL-0005):
+#   1: Techno/Chiptune-Driving — fast tempo, dense Euclidean percussion, dorian mode, bright duty.
+#   2: Ambient/Lo-Fi — slow tempo, sparse density, pentatonic mode, soft duty (the "anchor" style,
+#      deliberately closest to the shipped default's overall character).
+#   3: Holiday — moderate tempo, moderate-steady density, major mode, bright duty (R219 SS8's
+#      "cheapest genre-style addition" finding: major/moderate-tempo/steady-density/bright-timbre
+#      all map directly onto these four fields).
+# Indices 4-7 default to index 0's row until a future content-authoring pass assigns a 4th+ style
+# (BL-0039) — every index has a defined, non-arbitrary row, not an unreviewed combination.
+STYLE_TABLE = [
+    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 0: default
+    (6, 6, 2, 0x01),                                                 # 1: Techno/Chiptune-Driving
+    (1, 0, 3, 0xFF),                                                 # 2: Ambient/Lo-Fi
+    (3, 3, 0, 0x01),                                                 # 3: Holiday
+    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 4: default (unassigned)
+    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 5: default (unassigned)
+    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 6: default (unassigned)
+    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 7: default (unassigned)
+]
+
+# IP-1100 (roadmap R6, ADS-103): autonomous song-form phase table — 4 rows of (tempo_idx,
+# density_idx, duration_lo, duration_hi), duration in frames (16-bit, ~60fps) so a full cycle
+# genuinely spans multiple minutes per R6's own framing. First-guess placeholder values/durations,
+# not tuned by ear (BL-0005's standing disposition). IP-1100's own explicit decision (package
+# Implementation Task 5), REVISED from this package's own initial draft after discovering it broke
+# 10 pre-existing tests that assume boot/Select-reset lands exactly on PRESET_TEMPO_IDX/
+# PRESET_DENSITY_IDX: phase 0 (INTRO) DOES match the shipped default preset exactly — the same
+# no-regression discipline STYLE_TABLE/MOTIF_TABLE's own index-0 rows already established, applied
+# here too rather than treated as an exception.
+SONG_TABLE = [
+    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, 1800 & 0xFF, (1800 >> 8) & 0xFF),  # 0: INTRO (matches shipped default) - ~30s
+    (4, 4, 1800 & 0xFF, (1800 >> 8) & 0xFF),  # 1: BUILD - 120 BPM, k=6, ~30s
+    (6, 6, 1200 & 0xFF, (1200 >> 8) & 0xFF),  # 2: PEAK  - 160 BPM, k=10, ~20s
+    (3, 2, 1800 & 0xFF, (1800 >> 8) & 0xFF),  # 3: BREAKDOWN - 105 BPM, k=4, ~30s
+]
+N_SONG_PHASES = 4
+
 # IP-1060: arpeggio-as-polyphony (R216) — a period-4 up/down offset pattern (root, third, fifth,
 # third, within the active scale's 8-degree table) avoids needing a mod-3 counter (SM83 has no
 # division; a period-4 cycle wraps with a plain AND, R302). First-guess placeholder rate/shape,
@@ -233,7 +320,29 @@ DUTY_BY_DEGREE = [0x00, 0x40, 0x80, 0xC0]  # 12.5% / 25% / 50% / 75%
 # table for all 3 pitched channels (not per-channel/per-scale-degree-set) — FR-1210 requires only
 # "a fixed... motif," not multiple selectable ones; a right-sized first version, not a ceiling.
 # First-guess placeholder shape, not tuned by ear (BL-0005's existing disposition covers this).
-MOTIF_TABLE = [0, 2, 4, 5, 4, 2, 0, 7]
+#
+# IP-1090 (BL-0010, ADS-102): extended from a single 8-entry row into N_VARIANTS=4 rows of 8
+# bytes each (variant index * 8 + motif_step). Row 0 is byte-identical to the original shipped
+# sequence (FR-1300's no-regression requirement); rows 1-3 are new hand-composed variants sharing
+# row 0's start/end degree (0...7) with differing middle contour, so a variant switch reads as
+# development of the same phrase rather than an unrelated new one (IP-1090's own Risks section) —
+# first-guess placeholder shapes, not tuned by ear, same BL-0005 disposition as row 0.
+MOTIF_TABLE = [
+    0, 2, 4, 5, 4, 2, 0, 7,   # variant 0: original shipped sequence (unchanged)
+    0, 2, 4, 5, 4, 3, 0, 7,   # variant 1: softer descent (5->3 instead of 5->2 at step 5)
+    0, 2, 5, 5, 4, 2, 0, 7,   # variant 2: reaches the 5th one step earlier (step 2, not 3)
+    0, 3, 4, 5, 4, 2, 0, 7,   # variant 3: steps to the 4th via the 3rd instead of direct 2->4
+]
+N_VARIANTS = 4
+
+# IP-1090 (BL-0010, ADS-102, R211 SS8): weighted selection of the next motif variant, drawn only
+# at motif-cycle-boundary frames (the motif-step counter wrapping 7->0). Shaped exactly like
+# DELTA_TABLE — signed deltas *relative to the current variant index*, indexed by 2 LFSR-derived
+# bits, most entries 0 (retain the current variant) with one entry +1 (advance to the next
+# variant, wrapped mod N_VARIANTS) — directly implementing R214 SS8's "short but interesting,
+# recurrence dominates, switches are occasional" constraint. First-guess placeholder weighting
+# (3-in-4 retain), not tuned by ear (BL-0042, same BL-0005-style disposition).
+MOTIF_VARIANT_SELECTOR = [0x00, 0x00, 0x00, 0x01]
 
 # ── Noise/density (IP-0003, R202/R115) ───────────────────────────────
 # 8 density steps: k onsets distributed across a fixed n=16-step grid (a 16th-note bar at the
@@ -290,6 +399,107 @@ def _ld_hl_label(rom, label):
     16-bit fixup, the same mechanism ROM._abs() uses for CALL/JP targets."""
     rom.emit(0x21, 0, 0)
     rom.fixups.append((rom.pos - 2, label, 'abs16'))
+
+
+def _emit_begin_blend(rom):
+    """IP-1130 (roadmap R8, ADS-107/FS-113): supersedes IP-1080's _emit_apply_style. Called from
+    input_map.py's Start-press handler immediately after CHMIX_IDX is stepped. Unconditionally
+    captures the engine's CURRENT TEMPO_IDX/DENSITY_IDX/DUTY_BIAS as the blend's source — this is
+    what makes a mid-blend restart (FR-1490) correct with no special-casing: the capture always
+    reads whatever the engine currently holds, whether settled (BLEND_STEP==4) or partway through
+    an earlier blend. SCALE_IDX still applies immediately (FR-1240's surviving half, categorical
+    -- cannot interpolate). BLEND_STEP resets to 0; _emit_blend_tick (engine_tick) carries the
+    other 3 fields the rest of the way over the following frames."""
+    rom.LD_A_nn(TEMPO_IDX);   rom.LD_nn_A(BLEND_SRC_TEMPO)
+    rom.LD_A_nn(DENSITY_IDX); rom.LD_nn_A(BLEND_SRC_DENSITY)
+    rom.LD_A_nn(DUTY_BIAS);   rom.LD_nn_A(BLEND_SRC_DUTY)
+
+    rom.LD_A_nn(CHMIX_IDX)
+    rom.ADD_A_A(); rom.ADD_A_A()   # *4 (row width)
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'style_table')
+    rom.ADD_HL_BC()
+    rom.INC_HL(); rom.INC_HL()     # skip tempo_idx, density_idx -> HL at scale_idx (row offset 2)
+    rom.LD_A_HL(); rom.LD_nn_A(SCALE_IDX)
+
+    rom.XOR_A(); rom.LD_nn_A(BLEND_STEP)
+
+
+# IP-1130: (BLEND_SRC WRAM addr, STYLE_TABLE row offset, destination WRAM addr, label suffix) for
+# each of the 3 fields _emit_blend_tick interpolates. scale_idx (row offset 2) is deliberately
+# absent -- it is not a blend field, _emit_begin_blend applies it immediately and it is never
+# touched again until the next Start press.
+_BLEND_FIELDS = [
+    (BLEND_SRC_TEMPO, 0, TEMPO_IDX, 'tempo'),
+    (BLEND_SRC_DENSITY, 1, DENSITY_IDX, 'density'),
+    (BLEND_SRC_DUTY, 3, DUTY_BIAS, 'duty'),
+]
+
+
+def _emit_blend_tick(rom):
+    """IP-1130 (roadmap R8, ADS-107/FS-113): called once per frame from engine_tick, alongside
+    song_tick. Steady state (BLEND_STEP already 4, the overwhelming majority of frames) is one
+    comparison and a return -- NFR-1210's negligible-per-frame-cost contract. During an active
+    blend (at most N=16 frames per Start press -- BL-0005-class first guess, not tuned by ear),
+    increments BLEND_STEP then recomputes each of TEMPO_IDX/DENSITY_IDX/DUTY_BIAS as
+    BLEND_SRC_* + ((STYLE_TABLE[CHMIX_IDX].field - BLEND_SRC_*) * BLEND_STEP) >> 2 -- multiply
+    before divide (not divide-then-multiply) so the result is exact at BLEND_STEP==4 regardless
+    of rounding at the intermediate steps (FR-1480's no-overshoot/no-stall-short guarantee).
+    SM83 has neither a multiply nor an arithmetic-shift-right opcode: the product is built via a
+    bounded repeated-addition loop (BLEND_STEP is always 1-4), and the signed divide-by-4 is done
+    by negating a negative operand, shifting the now-nonnegative magnitude with the existing
+    unsigned SRL_A (safe -- every magnitude here is well under 128), then negating back."""
+    rom.label('blend_tick')
+    rom.LD_A_nn(BLEND_STEP)
+    rom.CP_n(4)
+    # IP-1130: JP not JR -- the 3-field interpolation loop below is too long for JR's signed
+    # 8-bit relative range (same reason IP-1090's Scheme-E block already needed JP over JR).
+    rom.JP_NC('bt_done')           # BLEND_STEP >= 4: blend already complete, cheapest exit
+    rom.INC_A()
+    rom.LD_nn_A(BLEND_STEP)
+
+    for src_addr, offset, dst_addr, suffix in _BLEND_FIELDS:
+        # delta = STYLE_TABLE[CHMIX_IDX][offset] - BLEND_SRC_* (signed)
+        rom.LD_A_nn(CHMIX_IDX)
+        rom.ADD_A_A(); rom.ADD_A_A()    # *4 (row width)
+        rom.ADD_A_n(offset)
+        rom.LD_C_A(); rom.LD_B_n(0)
+        _ld_hl_label(rom, 'style_table')
+        rom.ADD_HL_BC()
+        rom.LD_A_HL()                    # A = target byte
+        rom.LD_D_A()                     # D = target
+        rom.LD_A_nn(src_addr)            # A = source
+        rom.LD_E_A()                     # E = source (kept for the final add)
+        rom.LD_A_D()                     # A = target
+        rom.SUB_E()                      # A = target - source = delta
+
+        # numerator = delta * BLEND_STEP (BLEND_STEP already re-incremented, 1-4; bounded loop)
+        rom.LD_C_A()                     # C = delta (repeatedly added)
+        rom.LD_A_nn(BLEND_STEP)
+        rom.LD_B_A()                     # B = loop counter (1-4)
+        rom.XOR_A()                      # A = 0 (accumulator)
+        rom.label(f'bt_mul_{suffix}')
+        rom.ADD_A_C()
+        rom.DEC_B()
+        rom.JR_NZ(f'bt_mul_{suffix}')
+        # A = delta * BLEND_STEP, magnitude at most 7*4=28 -- safe for the signed-divide trick
+
+        # increment = numerator / 4, signed (magnitude-negate-shift-renegate for negatives)
+        rom.BIT_b_A(7)
+        rom.JR_Z(f'bt_pos_{suffix}')
+        rom.CPL(); rom.INC_A()           # A = -numerator (positive magnitude)
+        rom.SRL_A(); rom.SRL_A()         # A = magnitude / 4
+        rom.CPL(); rom.INC_A()           # A = -(magnitude / 4)
+        rom.JR(f'bt_divdone_{suffix}')
+        rom.label(f'bt_pos_{suffix}')
+        rom.SRL_A(); rom.SRL_A()         # A = numerator / 4 (non-negative, safe)
+        rom.label(f'bt_divdone_{suffix}')
+
+        rom.ADD_A_E()                    # A = increment + source
+        rom.LD_nn_A(dst_addr)
+
+    rom.label('bt_done')
+    rom.RET()
 
 
 def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_lo, nr_freq_hi,
@@ -365,7 +575,9 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
     rom.LD_B_A()                       # B = signed delta
 
     if scheme_bit is not None:
-        rom.JR(f'gt_delta_ready_{suffix}')
+        # IP-1090: JP not JR — the Scheme-E block below (extended with variant-selection logic)
+        # is now too long for JR's signed 8-bit relative range.
+        rom.JP(f'gt_delta_ready_{suffix}')
 
         # IP-1070: Scheme E — advance this channel's own Euclidean-pattern step (bits0-3 of
         # scheme_state), independent of the noise channel's own NOISE_STEP_IDX (each Scheme-E
@@ -408,9 +620,52 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
         rom.OR_B()
         rom.LD_nn_A(scheme_state)      # write back: motif step advanced too
 
+        # IP-1090 (BL-0010, ADS-102): cycle-boundary check — B still holds the new motif-step
+        # bits, shifted into position (0x00, 0x10, ..., 0x70); zero means the step just wrapped
+        # from 7 back to 0, a full motif cycle just completed. Only on that exact frame, draw a
+        # new MOTIF_VARIANT_IDX; every other frame this block is a no-op (FR-1280).
+        rom.PUSH_BC()
+        rom.LD_A_B()
+        rom.OR_A()
+        rom.JR_NZ(f'gt_e_novariant_{suffix}')
+
+        # Cycle boundary: step this channel's own LFSR once (otherwise idle while running
+        # Scheme E — the LFSR-step code above is skipped entirely via this branch's own
+        # JR_NZ to gt_schemee_{suffix}), so this introduces no new randomness source, only a
+        # new use of the existing one (NFR-1110). 2 bits index MOTIF_VARIANT_SELECTOR; the
+        # resulting signed delta is added to MOTIF_VARIANT_IDX and wrapped mod N_VARIANTS via
+        # AND 0x03 — the same signed-delta/wrap idiom DELTA_TABLE's own consumer already uses.
+        rom.LD_A_nn(lfsr_state)
+        rom.SRL_A()
+        rom.JR_NC(f'gt_e_novariant_noxor_{suffix}')
+        rom.XOR_n(LFSR_POLY)
+        rom.label(f'gt_e_novariant_noxor_{suffix}')
+        rom.LD_nn_A(lfsr_state)
+        rom.AND_n(0x03)
+        rom.LD_C_A(); rom.LD_B_n(0)
+        _ld_hl_label(rom, 'motif_variant_selector')
+        rom.ADD_HL_BC()
+        rom.LD_A_HL()                  # A = signed variant delta (0x00 retain, 0x01 advance)
+        rom.LD_C_A()
+        rom.LD_A_nn(MOTIF_VARIANT_IDX)
+        rom.ADD_A_C()
+        rom.AND_n(0x03)                # wrap mod N_VARIANTS=4
+        rom.LD_nn_A(MOTIF_VARIANT_IDX)
+
+        rom.label(f'gt_e_novariant_{suffix}')
+        rom.POP_BC()                   # restore B = new motif-step bits, shifted (unclobbered)
+
         rom.LD_A_B()
         rom.SRL_A(); rom.SRL_A(); rom.SRL_A(); rom.SRL_A()   # A = motif_step (0-7)
         rom.LD_C_A(); rom.LD_B_n(0)
+        # IP-1090: variant-relative offset — motif_table_base + MOTIF_VARIANT_IDX*8 + motif_step,
+        # replacing the old fixed-base lookup (variant 0 == the pre-IP-1090 base, so this reduces
+        # to the original lookup exactly when MOTIF_VARIANT_IDX is 0 — FR-1300's no-regression
+        # guarantee).
+        rom.LD_A_nn(MOTIF_VARIANT_IDX)
+        rom.SLA_A(); rom.SLA_A(); rom.SLA_A()   # *8 (row width)
+        rom.ADD_A_C()
+        rom.LD_C_A()
         _ld_hl_label(rom, 'motif_table')
         rom.ADD_HL_BC()
         rom.LD_A_HL()                  # A = target absolute degree (0-7)
@@ -537,8 +792,16 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
     # channel, which has no duty concept). Re-reads cur_degree fresh rather than reusing the
     # value already consumed above, since it was not preserved in a register across the
     # intervening table-lookup arithmetic.
+    # IP-1080 (roadmap R5): the style-driven DUTY_BIAS is added to the degree-derived index
+    # before the table lookup, then re-masked with the same AND 0x03 wrap the index already
+    # used — DUTY_BIAS is 0 for the default style/preset 0, so this is a no-op until a
+    # non-default style is selected (FR-1260's non-regression, satisfied by construction).
     if duty_reg is not None:
         rom.LD_A_nn(cur_degree)
+        rom.AND_n(0x03)
+        rom.LD_B_A()
+        rom.LD_A_nn(DUTY_BIAS)
+        rom.ADD_A_B()
         rom.AND_n(0x03)
         rom.LD_C_A(); rom.LD_B_n(0)
         _ld_hl_label(rom, 'duty_table')
@@ -912,10 +1175,87 @@ def _emit_badzone_tick(rom):
     rom.RET()
 
 
-def build_engine_asm(rom: ROM) -> dict:
-    """Emits data tables + init/tick/reset routines. Returns a patch dict (unused for now,
-    kept for parity with the reference project's build_game_asm return-shape convention)."""
-    patches = {}
+def _emit_song_tick(rom):
+    """IP-1100 (roadmap R6, ADS-103): autonomous song-form phase cycling, entirely independent of
+    bad-zone recovery (IP-0007) and Scheme-E motif-variant selection (IP-1090) — this routine
+    never reads or writes BAD_ZONE_FLAGS/DISSONANCE_SCORE/STALE_COUNT_*/ONSET_WINDOW_COUNT/
+    CUR_DEGREE_*/MOTIF_VARIANT_IDX/scheme_state, so no ordering dependency with either mechanism
+    exists (ADS-103 SS2). Decrements a 16-bit frame counter each tick (standard decrement-with-
+    borrow: if the low byte is 0 before decrementing, the high byte is decremented first); on the
+    counter reaching zero, advances SONG_STATE (wrap mod N_SONG_PHASES) and overwrites
+    TEMPO_IDX/DENSITY_IDX to the new phase's target values — the same coordinated-overwrite
+    contract IP-1080's _emit_apply_style already established for those two fields, just
+    autonomously triggered by this countdown rather than a Start press."""
+    rom.label('song_tick')
+    rom.LD_A_nn(SONG_STATE_TIMER_LO)
+    rom.OR_A()
+    rom.JR_NZ('st_dec_lo_only')
+    rom.LD_A_nn(SONG_STATE_TIMER_HI)
+    rom.DEC_A()
+    rom.LD_nn_A(SONG_STATE_TIMER_HI)
+    rom.label('st_dec_lo_only')
+    rom.LD_A_nn(SONG_STATE_TIMER_LO)
+    rom.DEC_A()
+    rom.LD_nn_A(SONG_STATE_TIMER_LO)
+
+    # Transition only when both bytes have reached zero.
+    rom.OR_A()
+    rom.JR_NZ('st_no_transition')
+    rom.LD_A_nn(SONG_STATE_TIMER_HI)
+    rom.OR_A()
+    rom.JR_NZ('st_no_transition')
+
+    rom.LD_A_nn(SONG_STATE)
+    rom.INC_A()
+    rom.AND_n(N_SONG_PHASES - 1)
+    rom.LD_nn_A(SONG_STATE)
+
+    rom.LD_A_nn(SONG_STATE)
+    rom.SLA_A(); rom.SLA_A()   # *4 (row width)
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'song_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HLI(); rom.LD_nn_A(TEMPO_IDX)
+    rom.LD_A_HLI(); rom.LD_nn_A(DENSITY_IDX)
+    rom.LD_A_HLI(); rom.LD_nn_A(SONG_STATE_TIMER_LO)
+    rom.LD_A_HL();  rom.LD_nn_A(SONG_STATE_TIMER_HI)
+
+    # IP-1120 (roadmap R7): recompute AROUSAL/VALENCE after this transition's TEMPO_IDX/
+    # DENSITY_IDX overwrite -- strictly inside the transition branch, never on the no-transition
+    # path, since song_tick itself runs every frame (called unconditionally from engine_tick) and
+    # an unconditional recompute here would violate NFR-1170's zero-added-per-frame-cost contract.
+    rom.CALL('mood_update')
+
+    rom.label('st_no_transition')
+    rom.RET()
+
+
+def _emit_mood_update(rom):
+    """IP-1120 (roadmap R7, ADS-105/FS-112): recomputes AROUSAL/VALENCE from the current
+    TEMPO_IDX/DENSITY_IDX/SCALE_IDX values. Called only from the 6 write sites that can change
+    those inputs (never per-frame — NFR-1170) — see music_engine.py's and input_map.py's own call
+    sites for the full enumeration."""
+    rom.label('mood_update')
+    # AROUSAL = TEMPO_IDX + DENSITY_IDX (max 7+7=14, fits the required 0-15 range, no overflow).
+    rom.LD_A_nn(TEMPO_IDX)
+    rom.LD_B_A()
+    rom.LD_A_nn(DENSITY_IDX)
+    rom.ADD_A_B()
+    rom.LD_nn_A(AROUSAL)
+
+    # VALENCE = VALENCE_TABLE[SCALE_IDX] — same indexed-lookup idiom as delta_table/
+    # chmix_masks_table (LD index into C, zero B, load HL with the table's base, ADD_HL_BC, read).
+    rom.LD_A_nn(SCALE_IDX)
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'valence_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HL()
+    rom.LD_nn_A(VALENCE)
+    rom.RET()
+
+
+def build_engine_asm(rom: ROM):
+    """Emits data tables + init/tick/reset routines."""
 
     # ── init_engine (boot init AND Select-reset target, GDS-03 SS5) ──
     rom.label('init_engine')
@@ -924,6 +1264,34 @@ def build_engine_asm(rom: ROM) -> dict:
     rom.LD_A_n(PRESET_SCALE_IDX); rom.LD_nn_A(SCALE_IDX)
     rom.LD_A_n(PRESET_DENSITY_IDX); rom.LD_nn_A(DENSITY_IDX)
     rom.LD_A_n(PRESET_CHMIX_IDX); rom.LD_nn_A(CHMIX_IDX)
+    # IP-1080: DUTY_BIAS resets to 0 (STYLE_TABLE[0]'s own value, FR-1260) — TEMPO_IDX/
+    # DENSITY_IDX/SCALE_IDX are already set to STYLE_TABLE[0]'s exact values by the three
+    # PRESET_* writes just above, so no separate _emit_apply_style call is needed here.
+    rom.XOR_A(); rom.LD_nn_A(DUTY_BIAS)
+    # IP-1090 (BL-0010, ADS-102): MOTIF_VARIANT_IDX resets to 0 (variant 0, the pre-IP-1090
+    # shipped sequence) on both boot and Select-reset — the same reset trigger that already
+    # zeroes each channel's scheme_state below (which resets the motif-step counter to 0 too),
+    # keeping a reset fully deterministic: variant 0, step 0 (FS-109's own Open Question 4).
+    rom.XOR_A(); rom.LD_nn_A(MOTIF_VARIANT_IDX)
+    # IP-1100 (roadmap R6, ADS-103): SONG_STATE resets to phase 0 (INTRO) on both boot and
+    # Select-reset, with SONG_STATE_TIMER reloaded from SONG_TABLE[0]'s own duration.
+    # SONG_TABLE[0]'s tempo_idx/density_idx match PRESET_TEMPO_IDX/PRESET_DENSITY_IDX exactly (see
+    # SONG_TABLE's own comment), so the TEMPO_IDX/DENSITY_IDX writes just above are not disturbed
+    # — a reset always returns to a deterministic, known-good starting phase with no regression to
+    # existing boot/reset behavior.
+    rom.XOR_A(); rom.LD_nn_A(SONG_STATE)
+    rom.LD_A_n(SONG_TABLE[0][0]); rom.LD_nn_A(TEMPO_IDX)
+    rom.LD_A_n(SONG_TABLE[0][1]); rom.LD_nn_A(DENSITY_IDX)
+    rom.LD_A_n(SONG_TABLE[0][2]); rom.LD_nn_A(SONG_STATE_TIMER_LO)
+    rom.LD_A_n(SONG_TABLE[0][3]); rom.LD_nn_A(SONG_STATE_TIMER_HI)
+
+    # IP-1120 (roadmap R7): recompute AROUSAL/VALENCE from the now-final TEMPO_IDX/DENSITY_IDX/
+    # SCALE_IDX values -- placed here because every write to those three addresses in this
+    # routine has already landed (SCALE_IDX at PRESET_SCALE_IDX above; TEMPO_IDX/DENSITY_IDX at
+    # their final SONG_TABLE[0] overwrite just above, not the earlier PRESET_* write). Serves
+    # both the boot path and the Select-reset path, since both call this same label.
+    rom.CALL('mood_update')
+
     for (suffix, note_timer, cur_degree, lfsr_state, lfsr_seed, *_rest, duty_reg,
          arp_state, _dac_reg, _dac_on, _bit_index, _scheme_bit, scheme_state) in CHANNELS:
         rom.XOR_A(); rom.LD_nn_A(cur_degree)
@@ -981,6 +1349,8 @@ def build_engine_asm(rom: ROM) -> dict:
         rom.CALL(f'gen_tick_{suffix}')
     rom.CALL('gen_tick_nz')
     rom.CALL('badzone_tick')
+    rom.CALL('song_tick')
+    rom.CALL('blend_tick')
     rom.RET()
 
     for (suffix, note_timer, cur_degree, lfsr_state, _seed, nr_lo, nr_hi, oct_delta, tempo_mult,
@@ -995,10 +1365,15 @@ def build_engine_asm(rom: ROM) -> dict:
             _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, nr_lo, nr_hi)
     _emit_noise_gen(rom)
     _emit_badzone_tick(rom)
+    _emit_song_tick(rom)
+    _emit_mood_update(rom)
+    _emit_blend_tick(rom)
 
     # ── Data tables ───────────────────────────────────────────────────
     rom.label('delta_table')
     rom.emit(*DELTA_TABLE)
+    rom.label('valence_table')
+    rom.emit(*VALENCE_TABLE)
 
     rom.label('tempo_table')
     rom.emit(*TEMPO_TABLE)
@@ -1031,6 +1406,17 @@ def build_engine_asm(rom: ROM) -> dict:
     rom.label('motif_table')
     rom.emit(*MOTIF_TABLE)
 
+    rom.label('motif_variant_selector')
+    rom.emit(*MOTIF_VARIANT_SELECTOR)
+
+    rom.label('style_table')
+    for row in STYLE_TABLE:
+        rom.emit(*row)
+
+    rom.label('song_table')
+    for row in SONG_TABLE:
+        rom.emit(*row)
+
     note_table_labels = []
     for si, scale_name in enumerate(SCALES):
         for oi in range(len(OCTAVE_ROOT_HZ)):
@@ -1042,5 +1428,3 @@ def build_engine_asm(rom: ROM) -> dict:
     rom.label('ptr_table')
     for lbl in note_table_labels:
         rom._abs(lbl)  # 2-byte pointer, fixed up in rom.resolve()
-
-    return patches

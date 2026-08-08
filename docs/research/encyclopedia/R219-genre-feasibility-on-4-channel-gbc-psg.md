@@ -115,6 +115,12 @@ No current `IP-xxxx`. This topic grounds a future `04-requirements-engineering`/
 `03-architecture-design-synthesis` pass on musical-identity scope, per MSTR-001 §9's routing — not
 scheduled here.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Genre feasibility on 4-channel GBC PSG fed `ADS-101` directly and shipped as `FEAT-1080`/`FS-108`/`IP-1080`'s genre-aware style presets (`VERIFIED`) — the topic's per-genre feasibility tiering is what made a three-style v1 `STYLE_TABLE` a defensible scope rather than a guess. Its §8 addendum (2026-07-26, `BL-0036`) added Celtic to the Folk/World tier and reclassified Seasonal as a preset-rotation concern routed to `R220`. Requirements: `FR-1230`-`FR-1260`. Tests: `T14`.
+
 ## 7. Related Topics
 
 R201 (algorithmic composition baseline), R207 (GB-era chiptune channel-usage idioms, the existing
@@ -122,3 +128,70 @@ grounding for wave/noise role conventions this topic builds on), R216 (arpeggio-
 the concrete technique that makes pseudo-harmonic genres partially reachable), R220 (style
 evolution/blending — where "progressive"/"hybrid" route), MSTR-001 §9 (the vision-tier thread
 this topic answers).
+
+## 8. Addendum — 2026-07-26: Celtic, Seasonal, Holiday (`BL-0036`)
+
+The original pass (§2's genre list) omitted three references from the user's full §4 list —
+**Celtic, Seasonal, and Holiday** — not deliberately scoped out, a genuine gap found by a later
+audit against the full 22-section vision-expansion list. Extending, not re-authoring, per this
+topic's own established discipline (R106/R302's addendum precedent).
+
+**Celtic is mode-driven, not harmony-driven — closer to Folk's assessment than a new tier.**
+"There are four scales commonly used in Celtic, Anglo-American and English folk songs: the major
+scale... the Mixolydian scale, the Dorian scale and the Aeolian (also known as the natural minor)
+scale" [Folkopedia — Scales and Musical Modes in Celtic, Anglo-American and English Folk
+Songs](https://folkopedia.info/wiki/Scales_and_Musical_Modes_in_Celtic,_Anglo-American_and_English_Folk_Songs).
+This is directly reachable via Driftune's existing `SCALE_SEMITONES`/`SCALES` table mechanism
+(already 4 entries, `IP-0001`/GDS-03 — extending to Mixolydian/Dorian/Aeolian is a data addition,
+no new mechanism), the same conclusion R219's original Folk/Medieval entries already reached.
+**Confirmed as already practiced on this exact hardware**, not just theoretically compatible: GB
+chiptune arrangements of "Celtic / Irish Folk" and "Celtic / Irish and Austrian Folk melodies" are
+a documented real-world chiptune-scene practice [Andi's Games Realm — Making Music With A
+Gameboy](https://andisgamesrealm.wordpress.com/2013/09/24/making-music-with-a-gameboy-homebrew-chiptunes/).
+**Verdict: high-confidence, joins the Folk/World tier** — a mode-table addition, not a new
+capability.
+
+**Holiday (specifically Christmas-convention) music has a well-documented, narrow, and
+GBC-cheap musical signature** — unusually well-suited to this hardware precisely because its
+defining features are already parameters Driftune tracks: "95 percent of Christmas classics are
+in a major key... and 90 percent are in 4/4 time," commonly using a "4-5-1" chord-sequence
+convention, "an accessible pitch range and a moderate tempo," with melodies that frequently "go
+right up or down the scale" (stepwise motion), and signature timbres — "sleigh bells, the
+celeste, the glockenspiel" [American Songwriter — What Makes Christmas Music Sound
+Christmassy?](https://americansongwriter.com/what-makes-christmas-music-sound-christmassy/). Every
+one of these maps directly onto an existing Driftune parameter: major mode (`SCALE_IDX`), 4/4 feel
+and moderate tempo (already the default `TEMPO_TABLE` register), stepwise melodic motion (a
+constrained `DELTA_TABLE` bias, see `BL-0037`/this topic's sibling gap), and a bright,
+bell-like timbre (duty-cycle/wave-channel timbre selection, `IP-1060`/R216). **Verdict:
+high-confidence** — arguably the single cheapest genre-style addition in the entire list, since it
+needs no new mechanism, only a specific *combination* of parameter defaults (a preset, not a
+feature).
+
+**Seasonal is not a musical genre or technique at all — it is a content-reskin of whatever
+generation mode is already running**, confirmed by the absence of any seasonal-specific
+compositional literature: a broad search for procedural/generative seasonal music found only
+that "the Reflection app is regularly updated as 'seasonal' versions that really do change the
+output" (general survey of generative-music practice) — i.e. real precedent for *periodically
+swapping preset content*, not for a distinct "seasonal generation algorithm." **Verdict:
+not a genre-feasibility question, same disposition R219 §3 already gave "Progressive"/"Hybrid
+Genres"** — this is a preset-rotation/scheduling concern (which preset table is active when),
+architecturally adjacent to R220's style-drift state machine, not a new per-genre entry.
+
+### Addendum sources
+- [Folkopedia — Scales and Musical Modes in Celtic, Anglo-American and English Folk Songs](https://folkopedia.info/wiki/Scales_and_Musical_Modes_in_Celtic,_Anglo-American_and_English_Folk_Songs)
+- [Andi's Games Realm — Making Music With A Gameboy – Homebrew Chiptunes](https://andisgamesrealm.wordpress.com/2013/09/24/making-music-with-a-gameboy-homebrew-chiptunes/)
+- [American Songwriter — What Makes Christmas Music Sound Christmassy?](https://americansongwriter.com/what-makes-christmas-music-sound-christmassy/)
+- General survey of generative-music practice (seasonal-content-reskin precedent) — no single
+  primary source independently fetched this pass (WebFetch unavailable for every attempted primary
+  source this session); flagged **needs fetch-verification** if deeper citation is wanted later.
+
+### Addendum implementation guidance
+- Fold **Celtic** into the existing Folk/World tier's eventual scale-table extension (§5) — no
+  separate feature.
+- **Holiday** is the cheapest concrete candidate preset in the entire genre list for a future
+  `08-content-authoring` preset-data package (parallel to `BL-0032`'s own preset-data follow-up) —
+  major mode + moderate tempo + stepwise-motion-biased `DELTA_TABLE` + bright duty-cycle, no new
+  mechanism required.
+- **Seasonal** is not a `CHMIX_MASKS`/scale-table-style data addition — it is a preset-*rotation*
+  concern. Route any future work to R220 (style-evolution/song-form state machine) rather than
+  this topic if picked up.

@@ -12,7 +12,7 @@ to ground the actual adoption call. That research has since landed:
 - [R106](../../research/encyclopedia/R106-mbc-and-sram.md) (extended): MBC5 (or MBC5+RAM+BATTERY
   for save) is the concrete hardware recommendation *if* bank-switching or save is ever adopted;
   PyBoy natively emulates MBC1/3/5 (not a verification blocker).
-- [R302](../../research/encyclopedia/R302-codegen-patterns.md) (§8-9 addendum): adopting
+- [R302](../../research/encyclopedia/R302-python-assembler-codegen-patterns.md) (§8-9 addendum): adopting
   bank-switching is real assembler-architecture work, not a config flag — `gbc_lib.py`'s
   label/fixup system would need a bank component (labels aren't just a byte offset once code can
   live in more than one bank), fixups would need to distinguish safely-callable bank-0 targets

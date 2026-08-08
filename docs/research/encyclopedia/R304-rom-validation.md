@@ -59,6 +59,13 @@ no-MBC, no-SRAM design.
 `test_rom.py` T1.1-T1.5 (every `VR-000x` report's own G5-gate audit re-confirms these), MSTR-001
 C2 (no-SRAM, reflected in the cart-type assertion).
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds `gbc_lib.py`'s `set_header` checksum computation and `test_rom.py`'s `T1.1`-`T1.5`, run as a permanent G5 gate on every stage-08 package and re-run by every `VR-xxxx`.
+
 ## 7. Related Topics
 R109 (cartridge header field *content* — this topic's sibling, covering the checksum
 *mechanism* specifically), R106 (MBC/SRAM — the cart-type byte's meaning), R112 (memory map).

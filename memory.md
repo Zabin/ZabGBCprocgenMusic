@@ -45,8 +45,14 @@ no hangs, bad-zone entry and self-recovery both observed.
 | `0xC01D`/`0xC01E` | `ARP_STATE_PA`/`PB` (`IP-1060`) — packed: bits0-3 sub-tick countdown, bits4-5 step index (0-3) |
 | `0xC01F` | `ARP_DEGREE_SCRATCH` (`IP-1060`, shared pa/pb working storage, not persisted across frames) |
 | `0xC038`-`0xC03A` | `MOTIF_STEP_PA`/`PB`/`WV` (`IP-1070`) — packed: bits0-3 Euclidean-pattern step (0-15), bits4-6 motif step (0-7); only advances under Scheme E |
+| `0xC03B` | `DUTY_BIAS` (`IP-1080`, roadmap R5) — per-style duty-cycle timbre offset, added to the degree-derived duty-table index before lookup (wrap via `AND 0x03`); 0 for the default style/preset 0 |
+| `0xC03C` | `MOTIF_VARIANT_IDX` (`IP-1090`, `BL-0010`) — which row of the now-multi-variant `MOTIF_TABLE` is active for Scheme E's motif lookup; single shared byte (v1 scope); drawn via a weighted lookup only at a motif-cycle boundary; 0 (variant 0, the original shipped sequence) on boot/Select-reset |
+| `0xC03D` | `SONG_STATE` (`IP-1100`, roadmap R6) — which of `SONG_TABLE`'s 4 song-form phases is active (0=INTRO); autonomously cycled by `_emit_song_tick`; 0 on boot/Select-reset |
+| `0xC03E`-`0xC03F` | `SONG_STATE_TIMER_LO`/`HI` (`IP-1100`, roadmap R6) — 16-bit frames-remaining countdown in the current phase; reloaded from `SONG_TABLE`'s duration field on each transition |
 | `0xC050`-`0xC052` | `JOY_PREV`/`JOY_CUR`/`JOY_NEW` |
 | `0xC060` | `VBLANK_FLAG` |
+| `0xC061` | `VIS_ENTRY_LY` (`IP-9030`, `BL-0069`) — `LY` register recorded at entry to `update_visuals`, every frame; `T19` asserts it stays within VBlank (`144`-`153`) |
+| `0xC068`-`0xC069` | `AROUSAL`/`VALENCE` (`IP-1120`, roadmap R7) — derived mood bytes: `AROUSAL = TEMPO_IDX+DENSITY_IDX`, `VALENCE = VALENCE_TABLE[SCALE_IDX]`; recomputed only at the 6 write sites that can change those inputs (`mood_update` routine), never per-frame; no consumer yet (groundwork for roadmap R9) |
 
 Unused/reserved from GDS-07 but not yet consumed: `0xC013`-`0xC015` (history ring-buffer heads —
 superseded by the simpler period-1-only `STALE_COUNT_*` design, see `IP-0004`'s package doc),
@@ -75,6 +81,12 @@ at all (R108/R115) — only onset timing is generative for it.
 cells at `0x9800`-`0x9803` (BG tilemap top-left), one per channel, tile 0 = off / tile 1 = on.
 BG palette 0 swaps between calm (blue/green) and bad-zone (red) color sets via `BCPS`/`BCPD`
 every frame based on `BAD_ZONE_FLAGS` bit3.
+
+**`IP-1110`**: 5 more tile-indicator cells at `0x9804`-`0x9808`, immediately after the channel
+cells — one per base control (tempo/octave/scale/density/channel-mix), tile indices 2-9 (8
+fill-level bar-height glyphs), reflecting `TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/
+`CHMIX_IDX` respectively. Updated last in `update_visuals`, after the channel-activity/palette
+writes.
 
 ## Emulator Test Command
 

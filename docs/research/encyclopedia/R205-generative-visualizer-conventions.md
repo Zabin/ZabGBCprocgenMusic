@@ -63,6 +63,12 @@ Not yet implemented. `visuals.py` does not exist yet (`IP-0006`).
 FR-1120 (visualizer reads engine state, read-only), `IP-0006` (not yet authored), GDS-08 (not yet
 authored).
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds the visualizer's whole design posture — template-based tile/palette animation rather than per-pixel procedural rendering, and the "2-3 restrained tones" palette discipline `visuals.py`'s `CALM_PALETTE`/`BAD_PALETTE` implement. Shipped via `IP-0006` (`VERIFIED`) and extended by `IP-1110`'s settings-indicator row. Architecture: **[GDS-08](../../architecture/08-presentation-architecture.md)** in full, which was authored 2026-07-26 against the shipped visualizer and supersedes this topic's forward-looking §5 guidance as the authoritative design record. Requirements: `FR-1120`, `FR-1350`-`FR-1380`. Tests: `T9`, `T18`.
+
 ## 7. Related Topics
 
 R108 (the WRAM mirror + NR52 this topic says the visualizer must read), R208 (now authored — CGB

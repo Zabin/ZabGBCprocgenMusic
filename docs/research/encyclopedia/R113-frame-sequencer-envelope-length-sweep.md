@@ -54,6 +54,13 @@ code, but will be the moment envelope shape becomes a generative/steerable param
 ## 6. Feature Mapping
 Not yet consumed — informs any future envelope/sweep-as-parameter feature (no `IP-xxxx` yet).
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds the envelope/duty register values `build_rom.py`'s sound init writes (`NR12`/`NR22` `0xF3`, `NR42`'s fast-decay percussion envelope) and the frame-sequencer timing discipline `music_engine.py`'s per-note writes must respect. Requirements: `FR-1010`/`FR-1170`. Named as a standing constraint in [GDS-06 §2](../../architecture/06-non-functional-requirements.md).
+
 ## 7. Related Topics
 R108 (register map these units live inside), R110 (the VBlank-frame cadence vs. this internal
 512Hz frame-sequencer cadence — two independent clocks in the same system, not to be confused).

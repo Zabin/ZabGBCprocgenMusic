@@ -1,6 +1,6 @@
 ---
 name: 00-pipeline-manager
-description: Run the documentation-driven-development pipeline with persistent memory — reconcile the pipeline journal (docs/pipeline/pipeline-journal.md) against the tree's real ledgers, triage the pipeline backlog (docs/pipeline/backlog.md — every finding/recommendation harvested from prior runs plus 00-intake-filed features/bugs, each needing an explicit disposition before the next step is chosen), determine the next step, execute it by invoking the owning numbered skill (01-vision through 11-release-readiness), harvest the invoked skill's findings into the backlog, append the run to the journal, and repeat. Modes: no args = iterate — keep advancing, one skill invocation at a time, each fully journaled, until every open thread and backlog item is genuinely blocked by something only the user can resolve (not by more research/architecture/requirements/planning work the pipeline can do itself), then report the whole run in one summary; "step" = advance exactly one step and report immediately; "status" = read-only survey + recommendation; "triage" = backlog triage only; "log" = show the journal; "sync" = reconcile only; "run <skill> [target]" = execute a specific step out of recommended order (journaled as an override). Use when asked to "run the pipeline," "run the pipeline skill," "do the next step," "continue where we left off," "iterate until blocked," "where are we / what's next," "triage the backlog," or "show the pipeline log." It always stops at genuine human-only gates (G3 package authorization, release GO/NO-GO, Vision-level tension, a ripe NEEDS-USER item, Critical review findings) and asks rather than proceeding; it performs no stage work itself beyond invoking the owning skill.
+description: Run the documentation-driven-development pipeline with persistent memory — reconcile the pipeline journal (docs/pipeline/pipeline-journal.md) against the tree's real ledgers, triage the pipeline backlog (docs/pipeline/backlog.md — every finding/recommendation harvested from prior runs plus 00-intake-filed features/bugs, each needing an explicit disposition before the next step is chosen), determine the next step, execute it by invoking the owning numbered skill (01-vision through 11-release-readiness), harvest the invoked skill's findings into the backlog, append the run to the journal, and repeat. Modes: no args = iterate — keep advancing, one skill invocation at a time, each fully journaled, until every open thread and backlog item is genuinely blocked by something only the user can resolve (not by more research/architecture/requirements/planning work the pipeline can do itself), then report the whole run in one summary; "step" = advance exactly one step and report immediately; "status" = read-only survey + recommendation; "triage" = backlog triage only; "log" = show the journal; "sync" = reconcile only; "run <skill> [target]" = execute a specific step out of recommended order (journaled as an override). Use when asked to "run the pipeline," "run the pipeline skill," "do the next step," "continue where we left off," "iterate until blocked," "where are we / what's next," "triage the backlog," or "show the pipeline log." It always stops at genuine human-only gates (G3 package authorization for a package not already covered by the current, user-approved release plan, release GO/NO-GO, Vision-level tension, a ripe NEEDS-USER item, Critical review findings) and asks rather than proceeding; it performs no stage work itself beyond invoking the owning skill.
 ---
 
 # Pipeline Manager
@@ -228,12 +228,13 @@ ROM.
 
 Before invoking anything, stop and ask the user (via `AskUserQuestion`) if the step requires:
 
-- **G3 authorization** — the step would implement a package with no explicit user go-ahead on
-  record. This project carries **no bootstrap carve-out** — every package, including the very
-  first one ever authored, requires the user's explicit per-package go-ahead before any
-  `08-code-implementation`/`08-content-authoring`/`08-refactoring` run; refactoring packages
-  (`IP-8xx0`, executed by `08-refactoring`) are held to the identical rule — they always require a
-  fresh, per-package user go-ahead;
+- **G3 authorization** — the step would implement a package that is neither (a) already scheduled
+  by the current, user-approved release plan in the shape the plan describes, nor (b) carrying its
+  own explicit user go-ahead on record. Release-plan coverage satisfies G3 automatically — cite
+  the matching release-plan section/row rather than asking again. A package not on the release
+  plan, or diverging materially from what it describes (different scope/approach, or a plan the
+  user hasn't actually approved), still requires a fresh per-package go-ahead before any
+  `08-code-implementation`/`08-content-authoring`/`08-refactoring` run;
 - **a release GO** — the step would flip baseline records;
 - **adjudication** — the step builds on a review with unadjudicated Critical/High findings;
 - **a ripe `NEEDS-USER` backlog entry** — the decision the entry is waiting on is needed now, and
@@ -308,8 +309,9 @@ via harvest, or by naming `00-intake` in its report; proposing is not scheduling
 
 **When the manager may INVOKE `08-refactoring` on an authored package** — all of:
 
-1. the package is `READY` (dependencies `VERIFIED`) **and** carries the explicit per-package user
-   authorization (G3, no carve-out — see the gate check);
+1. the package is `READY` (dependencies `VERIFIED`) **and** clears G3 — either it is already
+   scheduled by the current, user-approved release plan in the shape described, or it carries an
+   explicit per-package user go-ahead on record (see the gate check);
 2. the pipeline is **quiescent where it matters**: no package `IN PROGRESS`, and no
    `COMPLETE`-but-unverified package touches any file the refactor names;
 3. the tree is green: the G5 gates pass as-found (never schedule a refactor onto a red tree — a
@@ -397,7 +399,8 @@ summary's shape adapts to cover the whole run:
 2. **Recommendations** — same as above, covering everything surfaced across the whole run, not
    just the last step.
 3. **Next step** — **the exact gate that stopped the loop** (a specific `AskUserQuestion`-ready
-   decision — G3 on named packages, a G4 GO/NO-GO call, a Vision-level question, a `NEEDS-USER`
+   decision — G3 on named packages not covered by the release plan, a G4 GO/NO-GO call, a
+   Vision-level question, a `NEEDS-USER`
    backlog item's exact decision) if a gate stopped it, or confirmation that the backlog/next-step
    queue is genuinely empty if nothing did.
 

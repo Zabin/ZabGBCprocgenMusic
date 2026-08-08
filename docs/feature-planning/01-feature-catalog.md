@@ -4,12 +4,23 @@
 - **Release bucket:** "Foundation" — the first playable slice: engine + input + bad-zone + a
   minimal visualizer, all headlessly verified. Everything below is one release bucket; there is
   no epic/phase split yet at this project's size.
-- **Release status: ✅ SHIPPED — GO confirmed 2026-07-25.** Every feature below (`FEAT-1000`
-  through `FEAT-1070`) is `VERIFIED` and integration-reviewed as part of the consolidated
-  R1 (Foundation) + R2 (Sound Design) + R3 (Integrity Remediation) + R4 (Multi-Scheme Foundation)
-  release — see
+- **Release status: ✅ SHIPPED — GO confirmed 2026-07-25 (R1-R4); GO confirmed 2026-07-26 (R5
+  addition); GO confirmed 2026-07-26 (`IP-1090`/`BL-0010` addition); GO confirmed 2026-07-31 (R6/
+  `FEAT-1100` + `FEAT-1110` addition).** Every feature `FEAT-1000` through **`FEAT-1110`** is
+  `VERIFIED` and integration-reviewed as part of the consolidated R1 (Foundation) + R2 (Sound
+  Design) + R3 (Integrity Remediation) + R4 (Multi-Scheme Foundation) + R5 (Genre-Aware Style
+  Presets) + Motif Recurrence via Weighted Variant Selection + R6 (Song-Form) + Settings & Control
+  Visibility release — see
   [`docs/reviews/release-assessment-r1-r2-r3.md`](../reviews/release-assessment-r1-r2-r3.md)
-  (R4 addition confirmed via that document's second re-assessment section).
+  (R4 addition confirmed via that document's second re-assessment section; R5 addition confirmed
+  via its third; `IP-1090`/`BL-0010` addition confirmed via its fourth; R6/`FEAT-1110` addition
+  confirmed via its fifth, 2026-07-31 G4 section). **Corrected 2026-07-31**: this header
+  previously read `FEAT-1100`/`FEAT-1110` as `VERIFIED`-but-not-yet-shipped, stale since the
+  2026-07-31 G4 confirmation — both are now in the shipped baseline like every feature before
+  them. **`FEAT-1120` (added 2026-07-31, roadmap R7/`ADS-105`) is `COMPLETE` via `IP-1120`,
+  awaiting fresh-session `09-package-verification`** — not yet in the shipped baseline.
+  **`FEAT-1130` (added 2026-08-07, roadmap R8/`ADS-107`) is newly catalogued, not yet
+  specified, planned, built, or shipped** — see its own row below.
 
 | ID | Feature | Summary | FR/NFR traced |
 |---|---|---|---|
@@ -21,6 +32,12 @@
 | FEAT-1050 | Headless verification suite | PyBoy-driven button-sequence tests asserting on sound registers/WRAM state for every feature above | NFR-1010, NFR-1020 |
 | FEAT-1060 | Sound design techniques | Arpeggio (chord-implying frequency cycling), vibrato (periodic pitch modulation), portamento (multi-frame pitch glide), duty-cycle variation — layered onto `FEAT-1000`'s existing per-channel generation, no new input control | FR-1130...FR-1170, NFR-1040, NFR-1050 |
 | FEAT-1070 | Combinable generation schemes | A second per-channel note-selection strategy (Scheme E — Euclidean-gated onset timing + fixed-motif pitch selection) alongside the shipped Scheme W (LFSR walk), selectable per pitched channel via spare bits in the existing `CHMIX_IDX`/`CHMIX_MASKS` preset space — no new input control. `BL-0020`'s "solo or in combination" ask is satisfied at the ensemble level (different channels running different schemes), not by blending within one channel. First feature of `docs/roadmap/04-release-roadmap.md`'s **R4 — Multi-Scheme Foundation** | FR-1180...FR-1220, NFR-1060, NFR-1070 |
+| FEAT-1080 | Genre-aware style presets | A new, parallel `STYLE_TABLE` keyed by the existing `CHMIX_IDX` preset index (Start), each row a coordinated target combination (tempo/density/scale/duty-cycle bias) applied immediately on preset change — 3 concrete v1 styles (Techno/Chiptune-Driving, Ambient/Lo-Fi, Holiday). No new input control; no new generation mechanism (`_emit_channel_gen`/`_emit_noise_gen`/`_emit_badzone_tick` all unmodified — only which values `TEMPO_IDX` etc. hold changes). First feature of `docs/roadmap/04-release-roadmap.md`'s **R5 — Genre-Aware Style Presets** | FR-1230...FR-1260, NFR-1080, NFR-1090 |
+| FEAT-1090 | Motif recurrence via weighted variant selection | Extends `FEAT-1070`'s Scheme-E `MOTIF_TABLE` from a single fixed 8-step sequence to a small fixed set of pre-composed motif variants; at each motif-cycle boundary (step wraps 7→0), a weighted lookup table (retention-biased, reusing the `DELTA_TABLE`-style weighting idiom) autonomously selects the variant for the next cycle. No new input control, no L-system derivation engine — closes `BL-0010`'s motif-recurrence half. Spec: [`FS-109`](../features/fs-109-motif-recurrence-via-weighted-variant-selection.md) (authored 2026-07-26). | FR-1270...FR-1300, NFR-1100, NFR-1110 |
+| FEAT-1100 | Song-form via autonomous phase cycling | A new, independent state machine (`SONG_STATE`/`SONG_STATE_TIMER`) autonomously cycling 4 named phases (intro/build/peak/breakdown, looping); each phase transition overwrites `TEMPO_IDX`/`DENSITY_IDX` to that phase's target values, same tick. No new input control; bad-zone detection/recovery and Scheme-E motif-variant selection are unaffected (disjoint WRAM fields, `ADS-103` §2). Closes roadmap R6/`BL-0010`'s song-form half. Spec: [`FS-110`](../features/fs-110-song-form-via-autonomous-phase-cycling.md) (authored 2026-07-26). | FR-1310...FR-1340, NFR-1120, NFR-1130 |
+| FEAT-1110 | Settings & control visibility | Extends `FEAT-1040`'s minimal visualizer with 5 new bar-height indicator tiles, one per base control (`TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX`), each a filled-bar-height glyph (0-7 rows) proportional to that parameter's current index, updated the same frame the parameter changes. Reuses the existing BG palette — no new palette, no font/text rendering. Purely additive: existing channel-activity tiles and calm/bad-zone palette swap are unchanged. Read-only (`visuals.py` still never writes engine state, GDS-03 §1). Closes the base-control half of `BL-0051`'s visualizer request; the newer per-feature reactive signals (scheme/style/motif-variant/song-form-phase) are explicitly out of scope, deferred to a v1.1+ using the same reusable bar-tile mechanism (`ADS-104` §9). Spec: [`FS-111`](../features/fs-111-settings-and-control-visibility.md) (authored 2026-07-26). | FR-1350...FR-1380, NFR-1140...NFR-1160 |
+| FEAT-1120 | Emotional/energy layer | Two new derived WRAM bytes, `AROUSAL` (function of `TEMPO_IDX`/`DENSITY_IDX`, monotonic) and `VALENCE` (fixed one-to-one mapping keyed by `SCALE_IDX`), recomputed **only** at the write sites that can change their inputs — 3 input-step routines, the song-form tick, and boot/Select-reset (`ADS-105` §2) — never as an unconditional per-frame call, a direct design response to `IP-9030`'s VBlank-budget finding this session. `visuals.py` and `input_map.py`'s control mapping are untouched; nothing audible or visible changes as a result of this feature in isolation, per roadmap R7's own framing — it lays groundwork for roadmap R9's future mood-reactive visualizer work, which remains separately blocked on its own unrun research thread. `DISSONANCE_SCORE`'s valence-proxy role and `CHMIX_IDX`-derived active-channel count in `AROUSAL` are both explicitly deferred (`CR-0002`, not baselined). Closes roadmap R7. Spec: [`FS-112`](../features/fs-112-emotional-energy-layer.md) (authored 2026-07-31). **Note (2026-08-07): this row's own trigger-site count is stale** — `FS-112`/`IP-1120` later corrected it to **4** input-step routines (`TEMPO_IDX` has two writers, D-pad Up *and* Down, not one), 6 sites total; filed as a doc-defect rather than silently fixed in this pass. | FR-1390...FR-1420, NFR-1170, NFR-1180 |
+| FEAT-1130 | Genre blending | Interpolates `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` between `FEAT-1080`'s `STYLE_TABLE` rows over 4 discrete steps on a Start press, via a compile-time-known shift (no SM83 division); `SCALE_IDX` hard-switches immediately (categorical — cannot interpolate). 4 new independent WRAM bytes (`BLEND_SRC_TEMPO`/`DENSITY`/`DUTY`, `BLEND_STEP`); no new input control — reuses Start's existing edge, per `R217`'s no-free-control finding. A second Start press mid-blend restarts the blend from the engine's current values rather than queuing. **Not purely additive — the one place this differs from every prior feature in this catalog**: it changes `FR-1240`'s existing behavior. `FR-1240` is amended in place (not superseded by a new ID) — its `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` instant-apply guarantee is now delivered via this blend instead of the same-frame write `FEAT-1080` originally shipped; `SCALE_IDX`'s half of the original guarantee is unchanged. `test_rom.py`'s existing `T15` same-frame-landing checks will need updating when this feature ships (`BL-0099`, filed by `ADS-107`, **stays open through this pass** — planning-layer work does not close an implementation-scoped finding; tracked forward in this row's own risk note so it isn't lost). Closes roadmap R8. No spec yet — see this file's own closing discussion for the FS-authoring decision. | FR-1470...FR-1490, NFR-1210...NFR-1230; amends FR-1240 |
 
 ## Dependency graph (Foundation bucket, `FEAT-1000`...`FEAT-1050`)
 
@@ -46,6 +63,94 @@ required, same convention). No dependency on `FEAT-1060` — the two features to
 (the same `_emit_channel_gen`/`CHANNELS` seam) but are functionally independent; sequencing them
 in either order is safe, per `07-implementation-planning`'s own eventual call.
 
+`FEAT-1080` (added 2026-07-26, roadmap R5/`ADS-101`) depends on `FEAT-1000` (reads/overwrites
+`TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX`, all `FEAT-1000`-owned state) and `FEAT-1010` (reuses
+`CHMIX_IDX`, the same Start-stepped index `FEAT-1010`'s input mapping already owns — `STYLE_TABLE`
+is read alongside `CHMIX_MASKS`, not a modification to `FEAT-1010`'s own input-handling code).
+Must not regress `FEAT-1030` (bad-zone thresholds are unaffected by style-driven parameter
+overwrites — no FR claims otherwise, and none of `FEAT-1030`'s own FRs reference `STYLE_TABLE`) or
+`FEAT-1050` (new headless coverage required for `FR-1250`'s audible-distinctness claim, same
+convention). No dependency on `FEAT-1060`/`FEAT-1070` — `FEAT-1080` reads a sibling table keyed by
+the same `CHMIX_IDX` index those features' `CHMIX_MASKS`/scheme-select machinery already uses, but
+touches none of their own code paths (`ADS-101` §2 keeps the two tables independent); sequencing
+relative to either is unconstrained.
+
+`FEAT-1090` (added 2026-07-26, `BL-0010`/`ADS-102`) depends directly on `FEAT-1070` — it extends
+`FEAT-1070`'s own shipped `MOTIF_TABLE`/motif-step mechanism (Scheme E's pitch-selection half),
+rather than adding an independent one; `FEAT-1070` must be `VERIFIED` first (it already is).
+Must not regress `FEAT-1030` (bad-zone detection/recovery is unaffected — `ADS-102` §8 explicitly
+notes motif-variant selection keeps ticking every frame the same scheme/style-agnostic way other
+per-frame state already does) or `FEAT-1050` (new headless coverage required for `FR-1300`'s
+no-regression claim and `FR-1280`/`FR-1290`'s selection-behavior claims, same convention). No
+dependency on `FEAT-1080` — `FEAT-1090` touches `_emit_channel_gen`'s Scheme-E motif-lookup code
+directly, `FEAT-1080` touches the sibling `STYLE_TABLE`/`_emit_apply_style` path; `ADS-102` §8
+flags the *interaction* (a style change landing mid-cycle relative to a motif-variant boundary) as
+a risk to verify, not a code dependency — sequencing relative to `FEAT-1080` is unconstrained, but
+`09-package-verification`/`10-integration-review` should exercise the combination once both are
+implemented, per that flagged risk.
+
+`FEAT-1110` (added 2026-07-26, `BL-0051`/`ADS-104`) depends on `FEAT-1040` (it extends the
+existing minimal visualizer's `update_visuals` call site, adding a new tilemap-write routine
+alongside its existing channel-activity/bad-zone-palette writes) and reads `FEAT-1000`/`FEAT-1010`
+(`TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`)/`FEAT-1070` (`CHMIX_IDX`) state read-only —
+the same "visualizer never writes engine state" pattern `FEAT-1040` itself already established
+(GDS-03 §1, unchanged). **No dependency on `FEAT-1080`/`FEAT-1090`/`FEAT-1100`** despite `ADS-104`
+naming their reactive signals (style identity, motif-variant, song-form phase) as deferred v1.1+
+follow-on indicators using the same bar-tile mechanism — this feature's v1 scope covers only the
+5 base-control parameters (`TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX`), all
+already owned by `FEAT-1000`/`FEAT-1010`/`FEAT-1070`; no code path this feature touches reads
+`STYLE_TABLE`'s implicit style identity, `MOTIF_VARIANT_IDX`, or `SONG_STATE`. Must not regress
+`FEAT-1050` (new headless coverage required for `FR-1380`'s live-reflects-a-button-press
+acceptance criterion, same convention as every prior feature).
+
+`FEAT-1100` (added 2026-07-26, roadmap R6/`ADS-103`) depends on `FEAT-1000` (reads/overwrites
+`TEMPO_IDX`/`DENSITY_IDX`, the same `FEAT-1000`-owned state `FEAT-1080` also overwrites). Must not
+regress `FEAT-1030` (bad-zone detection/recovery — `ADS-103` §2 confirms the two mechanisms drive
+genuinely disjoint WRAM fields: bad-zone biases `CUR_DEGREE_*` deltas only, song-form biases
+`TEMPO_IDX`/`DENSITY_IDX` only, so no code-level conflict exists) or `FEAT-1090` (Scheme-E
+motif-variant selection — also confirmed disjoint, `ADS-103` §2). **No dependency on `FEAT-1080`**
+— the two features write the same two WRAM fields via different, independent triggers (Start
+press vs. an autonomous per-frame timer); this is the same "last write wins, no special-casing
+needed" contract `FEAT-1080`'s own `FR-1240` already established for the D-pad/B handlers, not a
+new interaction to design around — but `ADS-103` §8 flags it for `09-package-verification`/
+`10-integration-review` to exercise once both are implemented (a Start press landing on the same
+frame as a phase transition), the same "reasoned safe, verify anyway" discipline `FEAT-1090`'s own
+`FEAT-1080` interaction already followed. Must not regress `FEAT-1050` (new headless coverage
+required for the long-run cyclic-order demonstration, `FR-1340`).
+
+`FEAT-1120` (added 2026-07-31, roadmap R7/`ADS-105`) depends **only** on `FEAT-1010` (the
+button-driven `TEMPO_IDX`/`SCALE_IDX`/`DENSITY_IDX` steering this feature's five trigger sites
+piggyback on) and `FEAT-1020` (Select-reset, one of the five trigger sites per `ADS-105` §2) —
+the two already-shipped features that establish every WRAM address and reset path this feature
+reads and hooks into. **No dependency on `FEAT-1080`/`FEAT-1090`/`FEAT-1100`/
+`FEAT-1110`** despite reading the same underlying WRAM addresses those features also touch —
+`FEAT-1120` is a pure read/interpret layer with no writer of its own contending for those bytes,
+and `ADS-105` §2 confirms every trigger site (3 input-step routines, song-tick, reset/boot-init)
+already exists in the tree for other reasons; this feature adds a call at each, not a new write
+path. **No dependency on `FEAT-1040`/`FEAT-1110`'s visualizer code** — `visuals.py` is explicitly
+untouched (`ADS-105` §2); the eventual visual consumer is roadmap R9, separately blocked, not this
+feature. Must not regress `FEAT-1050` (new headless coverage required per `FR-1410`'s
+recompute-timing guarantee, exercised at each of the five trigger sites independently — see
+`ADS-105`'s own Risk about a missed trigger site going undetected with no consumer to notice).
+
+`FEAT-1130` (added 2026-08-07, roadmap R8/`ADS-107`) depends on `FEAT-1080` (interpolates
+directly between `STYLE_TABLE`'s rows, the same `CHMIX_IDX`-keyed table `FEAT-1080` owns — this
+feature reads that table, never modifies it) and, at the **design-pattern level only, not a
+WRAM/data dependency**, on `FEAT-1100` (reuses the countdown-then-overwrite *shape* `ADS-103`
+established for song-form phase transitions — `ADS-107` deliberately kept the blend's own WRAM
+independent of `SONG_STATE`/`SONG_STATE_TIMER`, the same "orthogonal concerns, disjoint fields"
+precedent `ADS-103` itself set for song-form vs. bad-zone). **Changes, rather than only extends,
+`FEAT-1080`'s existing behavior** — the one dependency edge in this catalog that is not purely
+additive; recorded explicitly per this feature's own summary field, not left implicit the way a
+"depends on" edge normally reads. Must not regress `FEAT-1050` (new headless coverage required
+for the 4-step interpolation, `FR-1480`'s exact-landing guarantee, and the mid-blend-restart
+behavior `FR-1490` describes) or `FEAT-1030` (bad-zone thresholds are unaffected by blended, as
+opposed to instant, parameter changes — no FR claims otherwise; `ADS-107` §9 OQ3 names the
+`TEMPO_IDX`/`DENSITY_IDX` dual-writer interaction with `FEAT-1100`'s own song-form ticks as
+needing empirical confirmation, not an architectural rule, at implementation/verification time).
+No dependency on `FEAT-1090`/`FEAT-1110`/`FEAT-1120` — none of their own state is read or written
+by this feature.
+
 ## Feature Review
 
 No structural conflicts found; every FR/NFR from `docs/requirements/01-functional-requirements.md`
@@ -67,3 +172,134 @@ artificial here, since neither half is independently useful or independently tes
 other; a sizing call `07-implementation-planning` should confirm, not override, when it plans
 this). No architectural inconsistency: the design (`ADS-100`) was already synthesized against the
 shipped module boundaries (GDS-03), not invented at this stage.
+
+**2026-07-26 update:** `FEAT-1080` reviewed against the existing catalog — no conflict, no
+requirement double-assigned (`FR-1230`-`FR-1260`/`NFR-1080`/`1090` traced to exactly this one
+feature, confirmed against the full FR/NFR inventory). Right-sized for a single implementation
+package (the `STYLE_TABLE` data table, its read-and-apply routine, and the 3 v1 style rows are
+one cohesive unit — no natural split point the way `FEAT-1060` split arpeggio/vibrato-portamento
+into two packages; `07-implementation-planning`'s own sizing call should confirm, not override).
+No architectural inconsistency: `ADS-101` was synthesized against the shipped module boundaries
+and the already-shipped `CHMIX_IDX`/`CHMIX_MASKS` mechanism, not inventing a new one. No
+dependency-graph conflict: `FEAT-1080`'s independence from `FEAT-1060`/`FEAT-1070` (both share the
+`CHMIX_IDX` index but touch disjoint tables/code paths) was checked directly against
+`ADS-101` §2's own "two tables stay independent" statement, not assumed.
+
+**2026-07-26 update:** `FEAT-1090` reviewed against the existing catalog — no conflict, no
+requirement double-assigned (`FR-1270`-`FR-1300`/`NFR-1100`/`1110` traced to exactly this one
+feature, confirmed against the full FR/NFR inventory). Unlike every prior feature this session,
+`FEAT-1090` genuinely **depends on** an existing feature's code (`FEAT-1070`'s `MOTIF_TABLE`
+mechanism) rather than merely reading sibling state — checked explicitly and recorded as a real
+dependency-graph edge, not the "independent, shared index only" pattern `FEAT-1080` established.
+Right-sized for a single implementation package (variant-table extension, cycle-boundary
+detection, and weighted selection are one tightly coupled unit inside `_emit_channel_gen`'s
+existing Scheme-E branch — no natural split point). No architectural inconsistency: `ADS-102` was
+synthesized directly against `IP-1070`'s shipped `MOTIF_TABLE`/motif-step mechanism, extending it
+rather than inventing a parallel one. One item flagged for `07-implementation-planning`'s
+attention, not a catalog defect: `ADS-102` §8's own noted risk (a style change, `FEAT-1080`,
+landing mid-cycle relative to a motif-variant boundary) has no dedicated FR of its own — correctly
+so, since both `FR-1240` (style applies immediately) and this feature's own FRs already fully
+describe each mechanism's independent behavior; the interaction itself is a verification-time
+concern (`09`/`10`), not a missing requirement.
+
+**2026-07-26 update:** `FEAT-1100` reviewed against the existing catalog — no conflict, no
+requirement double-assigned (`FR-1310`-`FR-1340`/`NFR-1120`/`1130` traced to exactly this one
+feature, confirmed against the full FR/NFR inventory). Right-sized for a single implementation
+package (the phase table, the countdown-and-transition tick, and the coordinated overwrite are
+one tightly coupled unit — no natural split point). No architectural inconsistency: `ADS-103` was
+synthesized directly against the shipped WRAM map and `_emit_badzone_tick`'s own existing
+countdown-tick shape, extending neither, inventing a new sibling tick instead. Checked explicitly
+for the same "two writers, one field" pattern `FEAT-1080`/`FEAT-1090`'s own reviews already
+established a discipline for: `FEAT-1100` and `FEAT-1080` both write `TEMPO_IDX`/`DENSITY_IDX` via
+independent triggers, correctly not treated as a conflict (same "last write wins" contract), but
+flagged for `09`/`10` verification per `ADS-103` §8, mirroring exactly how `FEAT-1090`'s own
+`FEAT-1080` interaction was handled — consistent precedent, not a new judgment call.
+
+**2026-07-26 update:** `FEAT-1110` reviewed against the existing catalog — no conflict, no
+requirement double-assigned (`FR-1350`-`FR-1380`/`NFR-1140`-`NFR-1160` traced to exactly this one
+feature, confirmed against the full FR/NFR inventory). Right-sized for a single implementation
+package (a new tile-pattern set + one new per-frame tilemap-update routine is one cohesive unit —
+no natural split point). No architectural inconsistency: `ADS-104` was synthesized directly
+against `FEAT-1040`'s shipped `update_visuals` call site and GDS-03 §1's read-only invariant,
+extending neither by writing engine state. Checked explicitly for a dependency-graph conflict
+against `FEAT-1080`/`FEAT-1090`/`FEAT-1100` (all three add state this feature's parent `ADS-104`
+names as future reactive-signal candidates) — confirmed no dependency exists in v1's actual scope
+(only the 5 pre-existing base-control fields are read), consistent with `ADS-104` §4/§7's own
+explicit v1-scope boundary; the four-way unification is a documented future extension (`ADS-104`
+§9), not a hidden dependency incurred now.
+
+**2026-07-31 update:** `FEAT-1120` reviewed against the existing catalog — no conflict, no
+requirement double-assigned (`FR-1390`-`FR-1420`/`NFR-1170`/`NFR-1180` traced to exactly this one
+feature, confirmed against the full FR/NFR inventory; `CR-0002` correctly excluded, per its own
+not-baselined status). Right-sized for a single implementation package: one small derivation
+routine plus five call-site additions (3 input steps, 1 song-tick, 1 reset/boot-init) is one
+tightly coupled unit — no natural split point, and splitting the trigger sites across packages
+would risk exactly the "missed site, silent staleness" failure `ADS-105`'s own Risks field names.
+No architectural inconsistency: `ADS-105` was synthesized directly against the shipped steering-
+index family and the current per-frame call-order contract (`GDS-09` §5), adding a new derived
+entity rather than modifying an existing one. Checked explicitly for the same "reads shared state,
+no new writer conflict" pattern `FEAT-1110`'s own review established a discipline for: `FEAT-1120`
+reads `TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX` but writes only its own two new bytes — no dependency-
+graph edge to `FEAT-1080`/`FEAT-1090`/`FEAT-1100`/`FEAT-1110` despite touching adjacent territory,
+correctly following the established precedent rather than being treated as a fresh judgment call.
+
+**Spec-authoring decision, recorded explicitly per this run's own instruction not to deviate from
+convention by default:** every feature since `FEAT-1060` has received its own full `FS-xxx` before
+implementation planning, with no MVP-push shortcut taken since the Foundation bucket's original,
+user-authorized exception (`BL-0012`). `FEAT-1120` is smaller in scope than several of those
+features (`FEAT-1090`/`FEAT-1100` each touched more call sites and more WRAM state), and `ADS-105`
+is already unusually thorough — its own Decision Log states the load-bearing architectural call
+in full. Nonetheless: **this catalog keeps the standing convention rather than deviating.** The
+reasons a deviation would need to clear are not met here — `ADS-105` synthesizes architecture, not
+behavior/acceptance-criteria-grade precision (`06-feature-specification`'s own job, per its
+skill definition: "state precisely enough that an Implementation Package can be written without
+re-deciding anything design-level"), and `ADS-105` itself explicitly left two things to a later
+stage (exact derivation formulas, resolved by `04` to the behavioral level rather than fully
+specified; the `CHMIX_IDX`/arousal question, deferred as `CR-0002`) — both of which an `FS-xxx`'s
+own Acceptance Criteria/System Behaviour fields are the correct place to pin down before planning.
+Skipping the FS here would save one stage-06 pass at the cost of the exact discipline that has
+caught real gaps on every smaller feature so far. **Next step: `06-feature-specification` authors
+`FS-112` for `FEAT-1120`.**
+
+**`FEAT-1130` spec-authoring decision (2026-08-07), same standing convention:** an `FS-xxx` is
+authored, not skipped. If anything the case for one is stronger here than it was for `FEAT-1120`:
+`ADS-107` itself left multiple things at the behavioral/design level that an FS's own
+Acceptance-Criteria-grade precision must pin down before implementation planning — exact blend
+duration in frames (§9 OQ1, explicitly deferred to content-review-informed tuning), whether
+duration should vary by style-pair distance (§9 OQ2, explicitly deferred), and this feature is
+also the one place in the catalog where an *existing* requirement (`FR-1240`) is amended rather
+than only extended — the FS's own System Behaviour field is exactly where the edge case a
+mid-blend second Start press produces needs spelling out precisely enough for
+`07-implementation-planning` to plan against without re-deciding it. **Next step:
+`06-feature-specification` authors an `FS-11x` for `FEAT-1130`** (next free number in the
+existing `fs-1xx` series, per that skill's own numbering convention — currently `FS-113`, to be
+confirmed against `docs/features/INDEX.md` at authoring time rather than assumed here).
+
+## Feature Review — 2026-08-07 (full-catalog pass, 14 features)
+
+This project's `05-feature-review.md` deliverable was confirmed absent 2026-08-07 (`BL-0095`) —
+a genuine gap, unlike the epic catalog and dependency graph, which have real substitutes
+elsewhere in the tree. Rather than leave it owed indefinitely while this pass already had the
+full catalog loaded to add `FEAT-1130`, a standalone review (this skill's own documented use of
+Step 5 alone, "as a cheap health check") ran across all 14 features, not merely the one just
+added.
+
+**Two genuine findings — requirements baselined but owned by no feature:**
+
+| Finding type | IDs involved | Description | Severity | Recommendation |
+|---|---|---|---|---|
+| Missing assignment | `NFR-1000` | "The ROM builds to a fixed size with a valid header… via `build_rom.py`" — no `FEAT-xxxx` row cites it. It doesn't cleanly belong to any single feature (it's a property of the build pipeline itself, `build_rom.py`, not of any one generation/input/visualizer capability). | Low (the requirement is satisfied in practice — `test_rom.py`'s `T1` suite checks exactly this — the gap is catalog bookkeeping, not unmet behavior) | Assign to `FEAT-1050` (Headless verification suite) alongside its existing `NFR-1010`/`NFR-1020` — build-integrity is the same "infrastructure, not a listener-visible capability" category those two already occupy, not a new feature. |
+| Missing assignment | `NFR-1030` | "Threshold/preset constants… are first-guess placeholders" — no `FEAT-xxxx` row cites it. | Low (same shape — satisfied in practice, `BL-0005` tracks the tuning debt this NFR names; the gap is that no catalog row points at it) | Assign to `FEAT-1000` (Core generation engine, "preset tables") — the natural owner of the constants this NFR describes. |
+
+**No other findings.** Checked explicitly, all clean: every other baselined FR/NFR (72 of 74)
+traces to exactly one feature, no double-assignment found; no feature is oversized/undersized
+for a single implementation-planning pass at this project's scale; no circular dependency in the
+prose dependency graph (§ above); `FEAT-1430`-`FEAT-1460`/`NFR-1190`/`1200` (roadmap R9) are
+correctly uncited — R9 is confirmed v1.1 scope (`01-release-plan.md` §0.5) and deliberately has
+no `FEAT-11x0` row yet, matching the release plan's own "forward placeholder, not a catalog
+entry" framing rather than a gap.
+
+**Recommend — not applied in this pass** (this skill's own Step 5 rule: "recommend, do not
+modify the other documents in the same pass"): `07-implementation-planning` or a future
+`05`-triggered pass adds `NFR-1000`/`NFR-1030` to `FEAT-1050`/`FEAT-1000`'s traced-requirement
+columns respectively. Filed to the pipeline backlog for tracking.

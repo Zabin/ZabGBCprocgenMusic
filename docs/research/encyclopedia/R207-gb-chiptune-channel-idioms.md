@@ -63,6 +63,12 @@ in genre-typical GB music.
 `IP-0002` (pulse B + wave — not yet authored; this topic's finding should inform its FS), `IP-0003`
 (noise, confirmed consistent with plan).
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds the channel-role conventions actually shipped — pulse A/B as lead and harmony, wave as bass/pad, noise as percussion — in `music_engine.py`'s per-channel generation. Shipped via `IP-0002`/`IP-0003` (`VERIFIED`). Its percussion-envelope finding was double-confirmed by `R115` and carried into `IP-0003`'s noise programming. Architecture: `GDS-04` §2.
+
 ## 7. Related Topics
 
 R201 (the generation algorithm this topic recommends differentiating per channel), R108 (wave

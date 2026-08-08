@@ -1,6 +1,6 @@
 ---
 name: 08-refactoring
-description: Execute exactly one approved, eligible refactoring-scoped Implementation Package (IP-8xx0) — behavior-preserving restructuring of code (any repo-root .py the package names) and/or meaning-preserving restructuring of documentation under docs/ — capture a baseline (ROM hash + full test_rom.py results) before the first edit, refactor in small reversible steps, prove equivalence afterward (byte-identical ROM or the package's enumerated predicted deltas; full suite green; doc statuses/decisions/IDs meaning-unchanged; link integrity), update traceability and any migration map, and advance the package on the Master Build Plan. Use when asked to "refactor X," "restructure/reorganize the docs," "rename Y across the tree," "pay down structural debt," "the log/backlog/roadmap has gotten too big," or "implement IP-8xxx" where the package names this skill. Growing living documents (an append-only run log or backlog, a router doc whose summary cells have become history essays) follow a named pattern (Step 4a): archive-split for logs, compact-to-current-state-plus-pointer for router docs, both proven by row-for-row/byte-for-byte diff, with the strategic choice confirmed via `AskUserQuestion` when it isn't a single obvious move. Stage-08 peer of 08-code-implementation and 08-content-authoring; it never changes behavior, never fixes bugs (even ones it finds — those go to intake), never adds features, and is never pre-authorized (G3 bootstrap carve-out does not apply). Verification to VERIFIED belongs to 09-package-verification.
+description: Execute exactly one approved, eligible refactoring-scoped Implementation Package (IP-8xx0) — behavior-preserving restructuring of code (any repo-root .py the package names) and/or meaning-preserving restructuring of documentation under docs/ — capture a baseline (ROM hash + full test_rom.py results) before the first edit, refactor in small reversible steps, prove equivalence afterward (byte-identical ROM or the package's enumerated predicted deltas; full suite green; doc statuses/decisions/IDs meaning-unchanged; link integrity), update traceability and any migration map, and advance the package on the Master Build Plan. Use when asked to "refactor X," "restructure/reorganize the docs," "rename Y across the tree," "pay down structural debt," "the log/backlog/roadmap has gotten too big," or "implement IP-8xxx" where the package names this skill. Growing living documents (an append-only run log or backlog, a router doc whose summary cells have become history essays) follow a named pattern (Step 4a): archive-split for logs, compact-to-current-state-plus-pointer for router docs, both proven by row-for-row/byte-for-byte diff, with the strategic choice confirmed via `AskUserQuestion` when it isn't a single obvious move. Stage-08 peer of 08-code-implementation and 08-content-authoring; it never changes behavior, never fixes bugs (even ones it finds — those go to intake), never adds features, and requires G3 authorization — release-plan coverage or an explicit per-package user go-ahead — before running. Verification to VERIFIED belongs to 09-package-verification.
 ---
 
 # Refactoring
@@ -11,7 +11,7 @@ stage-08 peer — where `08-code-implementation` changes what the code *does* an
 `08-content-authoring` changes what the game *shows*, this skill changes only how code and docs
 are *organized*, and carries the burden of proving that's all it changed.
 
-Grounding: [`R307`](../../../docs/research/encyclopedia/R307-refactoring-practices.md)
+Grounding: [`R310`](../../../docs/research/encyclopedia/R310-refactoring-practices.md)
 (behavior-preserving refactoring, characterization/golden-master testing, doc-tree refactoring).
 
 ## What this is for (and what it is not)
@@ -44,9 +44,10 @@ the work isn't a refactor and belongs to a different package.
 
 1. **Package.** A refactoring-scoped `IP-8xx0` exists (authored by `07-implementation-planning`,
    citing its `BL-xxxx`), status exactly `READY`, every dependency `VERIFIED`.
-2. **Authorization (G3, strict).** Explicit user go-ahead on record for *this* package.
-   Refactoring is **never** pre-authorized (this project has no bootstrap carve-out for anything,
-   but the point stands regardless) — structural change is always the user's call.
+2. **Authorization (G3).** Either the release plan already schedules this refactor in the shape
+   described (cite the matching section/row), or an explicit user go-ahead is on record for
+   *this* package. Absent both, refactoring is not authorized — structural change defaults to
+   the user's call.
 3. **Quiescence.** No other package is `IN PROGRESS`, and no `COMPLETE`-but-unverified package
    touches any file this package names — refactoring under a moving tree makes both the refactor
    and the pending verification unprovable.
@@ -111,7 +112,8 @@ by shape:
   explicit pointer to the doc that holds the full history.
 
 Both patterns are meaning-preserving structural moves, governed by the same eligibility/G3 rules
-as any other `IP-8xx0` package — they are not a standing exemption to run unprompted. Because no
+as any other `IP-8xx0` package (release-plan coverage or an explicit user go-ahead) — they are
+not a standing exemption to run unprompted. Because no
 automated test verifies "did this doc refactor preserve meaning" (unlike `test_rom.py` for code),
 when a package's own approach involves a real choice (which threshold, which cells, split vs.
 compact) rather than one obviously-correct move, confirm the approach with the user via

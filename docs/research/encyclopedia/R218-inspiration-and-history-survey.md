@@ -98,6 +98,12 @@ relative to everything else already planned.
 ## 6. Feature Mapping
 No current `IP-xxxx`; two new `feature`-type backlog candidates surfaced.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⛔ **EXCEPTION — an orientation/history topic, exactly the category `MSTR-001` v1.3's changelog predicted.** An inspiration and history survey of generative and ambient music systems. Cited once, by `ADS-100`, as background framing. No shipped code descends from it, and it surfaced two `feature`-type candidates that remain unscheduled. Its real function is to make the project's *posture* legible — why Driftune is an instrument that drifts rather than a jukebox — which is vision-layer value, not feature-layer value. Honest exception; `R112` occupies the same category in the R100 tier.
+
 ## 7. Related Topics
 R201 (Eno/generative-music baseline, expanded here), R114 (wave-channel timbre, the bytebeat idea's
 target), R205 (visualizer-as-sibling-process framing, echoed in Eno's own later work), R209/R207

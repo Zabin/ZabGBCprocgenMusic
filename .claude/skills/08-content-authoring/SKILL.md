@@ -40,8 +40,8 @@ Outstanding Issue.
 ## Workflow (mirrors the code peer; differences below)
 
 1. **Select & gate** exactly as `08-code-implementation` Steps 0–1 (status `READY`, dependencies
-   `VERIFIED`, explicit G3 authorization — no bootstrap carve-out applies to this project). The
-   package must name this skill as its owner.
+   `VERIFIED`, G3 authorization cleared — either release-plan coverage or an explicit per-package
+   user go-ahead). The package must name this skill as its owner.
 2. **Read the package + spec + the content quick-refs** — `memory.md`'s tile index map and
    palette tables, and GDS-07/GDS-08 once authored — before drawing or tabulating anything. Verify
    claimed tile slots are actually free and claimed patterns/constants exist.

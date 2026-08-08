@@ -12,7 +12,7 @@ except what this session authors.
 
 | Directory | Contents | Owning skill(s) |
 |---|---|---|
-| [`pipeline/`](pipeline/BOOTSTRAP.md) | The run-book ([BOOTSTRAP.md](pipeline/BOOTSTRAP.md)), the manager's journal ([pipeline-journal.md](pipeline/pipeline-journal.md)), backlog ([backlog.md](pipeline/backlog.md)) | `00-pipeline-manager`, `00-intake` |
+| [`pipeline/`](pipeline/pipeline-journal.md) | The manager's journal ([pipeline-journal.md](pipeline/pipeline-journal.md)) and backlog ([backlog.md](pipeline/backlog.md)), each with its own archive file. **Note (2026-07-31):** this row previously pointed at a `pipeline/BOOTSTRAP.md` run-book that has never existed in the tree — the pipeline's run-book is [`.claude/skills/README.md`](../.claude/skills/README.md) plus each skill's own `SKILL.md`. Corrected rather than left as a dangling link; see `BL-0075`. | `00-pipeline-manager`, `00-intake` |
 | [`master/`](master/INDEX.md) | Program-level MSTR documents (vision, governance, …) | `01-vision` (+ `03`) |
 | [`research/`](research/INDEX.md) | Encyclopedia tiers R100 (GBC hardware, esp. sound) / R200 (generative-music design) / R300 (tooling & verification) | the three `02-research-*` skills |
 | [`architecture/`](architecture/INDEX.md) | The GDS-00…10 ladder, ADS clusters, ADRs, assumptions register | `03-architecture-design-synthesis` (+ `01-vision` for GDS-00) |

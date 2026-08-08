@@ -146,12 +146,17 @@ traces to Vision/research.
 
 ## R5 — Genre-Aware Style Presets
 
+- **Status: ✅ SHIPPED — GO confirmed by the user, 2026-07-26.** `IP-1080` `VERIFIED` via
+  `VR-1080`; 13-package integration review clean; see
+  [`docs/reviews/release-assessment-r1-r2-r3.md`](../reviews/release-assessment-r1-r2-r3.md)'s
+  R5 re-assessment section.
 - **Purpose:** Turn R219's genre-feasibility research into real, selectable parameter regions.
 - **Capabilities introduced:** CAP-11.
 - **Capabilities expanded:** CAP-03/CAP-06/CAP-09 (all read by style presets).
-- **User-visible improvement:** A style control (mapping TBD at architecture time — likely riding
-  existing preset-index infrastructure) audibly shifts the whole mix toward a recognizable genre
-  reference (e.g. "techno" vs. "ambient") using only R219's high-confidence tier.
+- **User-visible improvement:** A style control (shipped as designed at architecture time,
+  `ADS-101` — rides the existing `CHMIX_IDX` preset-index infrastructure, Start-stepped) audibly
+  shifts the whole mix toward a recognizable genre reference (e.g. "techno" vs. "ambient") using
+  R219's high-confidence tier.
 - **Testing goals:** Assert each style preset produces its documented parameter combination;
   A/B-listenable regression (content-review, not just automated).
 - **Completion criteria:** At least 3 high-confidence styles (R219 tier 1) implemented and

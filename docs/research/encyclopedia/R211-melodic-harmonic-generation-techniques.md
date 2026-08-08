@@ -69,9 +69,60 @@ only (R201).
 ## 6. Feature Mapping
 No current `IP-xxxx` depends on this topic directly; informs future backlog scope only.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED**, via its addendum rather than its original body. The original melodic/harmonic survey fed no code directly. **§8 (2026-07-26, `BL-0037`) grounds `DELTA_TABLE`'s already-shipped weighting** — a lookup-table bias that had been in `music_engine.py` since `IP-0001` with *no* research behind it, which this topic supplied retroactively — and the topic then fed `ADS-100`/`ADS-102`/`FS-109` and shipped as `IP-1090`'s weighted variant selection (`VERIFIED`). Architecture: `GDS-04`. Tests: `T16`. Noted honestly: this is a trace earned by a later addendum, not by the topic as first authored.
+
 ## 7. Related Topics
 R201 (melody, already adopted technique), R202 (rhythm/percussion), R115 (noise channel), R212
 (song-structure/tension — the phrase-level gap this topic names is the same gap that section
 covers from the "form" angle), R220 (2026-07-22 — found a cheap song-form-structure partial
 answer via horizontal-resequencing/vertical-layering; this topic's motif-recurrence half remains
 open, see `BL-0010`'s updated note).
+
+## 8. Addendum — 2026-07-26: Weighted Random Selection (`BL-0037`)
+
+A 115-topic wishlist audit found "weighted random selection" was never independently grounded,
+even though Driftune already ships a working example of it — `music_engine.py`'s
+`DELTA_TABLE = [0xFF, 0x00, 0x00, 0x01]` (-1, 0, 0, +1, indexed by 2 LFSR bits) makes "no pitch
+change" twice as likely as either directional step, a genuine weighted (not uniform) random walk
+shipped since `IP-0001`/`IP-0002` with no citation backing it until now. Same
+"implementation-outpaced-its-own-documentation" pattern already named by `BL-0025`/`BL-0026`/
+`BL-0029` — a retroactive grounding gap, not a missing capability.
+
+**A lookup-table-driven weighting mechanism is a real, prior-art technique for exactly this
+purpose.** A patented method for "generating random weighted musical choices" describes generating
+a pseudo-random number, then applying "a weighting method associated with each pattern... to
+modify the random number, with patterns potentially having a weighting curve lookup table" (US
+patent 6121533, general prior-art description found via search). This is structurally identical
+to `DELTA_TABLE`'s own design: an LFSR-derived index used to select from a small table whose entry
+*distribution* (not just its values) encodes the desired bias — the table itself, not extra
+arithmetic, is what makes the selection non-uniform.
+
+**Biased/weighted random walks specifically for real-time pitch assignment are a named, precedented
+melody-generation technique**, distinct from unweighted note-by-note walks: real-time pitch
+generation can use "a note-by-note random walk sequence" (unweighted, 'drunk' mode) or a
+weighted/contoured variant that "applies the random walk sequence to onsets and interpolates
+between them" (general random-walk-melody-generation prior art found via search). Driftune's own
+`DELTA_TABLE` sits in the same family as the simpler "drunk mode" but with an explicit bias toward
+stasis (repeated 0 entries) rather than a uniform step distribution — a deliberate, if previously
+uncited, design choice.
+
+### Addendum sources
+- General prior-art description of a lookup-table weighting mechanism for random musical choices
+  (patent-literature search finding) and of "drunk"/biased random-walk melody generation (general
+  procedural-melody-generation prior art) — no single primary source independently fetched this
+  pass (WebFetch unavailable for every attempted primary source this session); flagged **needs
+  fetch-verification** if a future pass wants primary-document depth.
+
+### Addendum implementation guidance
+- `DELTA_TABLE`'s existing 2-of-4-entries-are-zero bias is now retroactively grounded as a
+  standard lookup-table-weighting technique, not an ungrounded implementation detail — no code
+  change implied, this closes a documentation gap only.
+- **Any future generation scheme wanting a different weighting shape** (e.g. `BL-0020`'s Scheme
+  W/E precedent, or a Holiday-preset's stepwise-motion bias per `R219`'s addendum) should reuse
+  this exact mechanism — a differently-weighted lookup table, not new arithmetic — consistent with
+  this project's established "extend the table, not the mechanism" pattern (`CHMIX_MASKS`,
+  `ARPEGGIO_OFFSETS`, `MOTIF_TABLE`).

@@ -52,6 +52,12 @@ No code implication — confirms existing scope boundaries.
 ## 6. Feature Mapping
 No current `IP-xxxx`. Confirms MSTR-001 §4 / GDS-01's existing non-goals.
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⛔ **EXCEPTION — confirms existing non-goals, produces no feature.** UX conventions for generative instruments (presets, undo, save/recall, visible parameter state). Its conclusion was that Driftune's deliberate *absence* of most of them is consistent with the ambient-instrument posture `MSTR-001` §4 and `GDS-01` already committed to — i.e. it validated a boundary rather than moving it. Cited by `ADS-100`, `ADS-101` and the strategic assumptions register, always in that confirming role. **One partial caveat worth naming**: the "make current parameter state visible" convention it documents *did* eventually ship, as `IP-1110`'s settings-indicator row — but by way of the user's own direct request and `ADS-104`, which cite `R205`/`R222`/`R223` rather than this topic. An honest exception with one near-miss, not a clean trace.
+
 ## 7. Related Topics
 R205 (visualizer), R206 (input mapping, the "live editing" this topic confirms is answered), R213
 (seed management options this topic's "seed entry" item would need a menu for, if ever pursued).

@@ -48,6 +48,13 @@ implement against.
 ## 6. Feature Mapping
 None currently — no FR/NFR references sprites or OAM.
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+⚠️ **EXCEPTION — no forward trace, and by design (`BL-0063`).** Driftune's visualizer uses **no sprites, no OAM, and no OAM DMA whatsoever**: every pixel is BG tilemap, and the sprite system is never touched anywhere in the ROM. [GDS-08 §1.1](../../architecture/08-presentation-architecture.md) records that as a deliberate architectural choice, not an oversight. This topic therefore grounds a capability the project consciously does not use — a legitimate `MSTR-001` C10 exception, recorded explicitly here rather than left as an untracked gap. **It retains real standby value**: if any future increment wants a moving/overlaid visual element, this is the grounding it would need, and the tile/OAM budget is entirely unspent.
+
 ## 7. Related Topics
 R102 (VRAM/OAM access-timing rule OAM DMA shares), R103 (`LCDC` OBJ-enable bits), R110 (interrupt
 model — HRAM-only execution during DMA has implications for ISR design if ever combined).

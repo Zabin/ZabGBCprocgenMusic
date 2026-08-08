@@ -80,6 +80,12 @@ this was not evaluated against accessibility convention when `IP-0006` shipped.
 FR-1120 (visualizer bad-zone-reactive palette), GDS-03 §6 (visualizer design intent), R205 SS5
 (palette-restraint principle this topic deepens).
 
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds `visuals.py`'s red/calm bad-zone palette semantic and its single-palette restraint, confirming both against real CGB colour-design convention rather than taste. Shipped via `IP-0006` (`VERIFIED`). Requirements: `FR-1120`. **Carries one open forward thread**: this topic surfaced the accessibility finding that a state distinction should not rest on colour alone (`BL-0021`), which `GDS-08` §4.3 accepted at design altitude and which remains **unbuilt** — an honest partial, not a clean full trace.
+
 ## 7. Related Topics
 R104 (CGB palette register mechanics — the "how," where this topic is the "what color and why"),
 R205 (generative visualizer conventions this topic deepens specifically for color).

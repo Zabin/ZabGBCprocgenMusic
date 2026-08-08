@@ -51,6 +51,13 @@ Not yet implemented (`IP-0002`).
 ## 6. Feature Mapping
 `IP-0002` (wave channel, not yet authored).
 
+
+## 6b. Forward trace (`MSTR-001` C10)
+
+*Convention established 2026-07-26 (`BL-0067`/`BL-0071`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
+
+✅ **TRACED.** Grounds `music_engine.py`'s `_wave_table_bytes()` and the Wave RAM copy in `build_rom.py`'s init, plus the wave channel's one-octave-lower frequency formula that gives the bass voice its register placement (`IP-0002`). Requirement: `FR-1010`. Domain role recorded in [GDS-04 §2](../../architecture/04-domain-model.md).
+
 ## 7. Related Topics
 R108 (register map), R111 (retrigger-corruption erratum, confirmed not applicable to CGB), R207
 (the bass-role recommendation this topic assumes).

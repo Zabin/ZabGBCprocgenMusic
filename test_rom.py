@@ -28,6 +28,27 @@ Suites:
   T14 Combinable generation schemes (IP-1070, BL-0020): a channel assigned Scheme E cycles
       through a fixed motif on a Euclidean-pattern-gated onset schedule, a channel left on
       Scheme W is unaffected, and bad-zone detection/recovery still applies
+  T15 Genre-aware style presets (IP-1080, roadmap R5): each CHMIX_IDX preset maps to a
+      STYLE_TABLE row, applied immediately on a Start press
+  T16 Motif recurrence via weighted variant selection (IP-1090, BL-0010): Scheme E's
+      MOTIF_TABLE now has N_VARIANTS rows, autonomously selected at motif-cycle boundaries
+      via a weighted lookup, retention-biased, with no regression when variant 0 is active
+  T17 Song-form via autonomous phase cycling (IP-1100, roadmap R6): the engine cycles
+      autonomously through 4 named phases, each overwriting TEMPO_IDX/DENSITY_IDX, with no
+      interaction with bad-zone recovery or Scheme-E motif-variant selection
+  T18 Settings & control visibility (IP-1110, BL-0051/ADS-104): 5 new bar-height indicator
+      tiles track TEMPO_IDX/OCTAVE_IDX/SCALE_IDX/DENSITY_IDX/CHMIX_IDX, pre-initialized at
+      boot, updated live on each manual button press, purely additive to the existing
+      channel-activity tiles, reset by Select
+  T19 VBlank budget assertion (IP-9030, BL-0069): VIS_ENTRY_LY, recorded at entry to
+      update_visuals, stays within VBlank (LY 144-153) on every frame class -- idle, plain
+      index step, Start, Select, and a song-form phase transition
+  T20 Emotional/Energy Layer (IP-1120, roadmap R7): derived AROUSAL/VALENCE bytes recomputed
+      only at the 6 write sites that can change TEMPO_IDX/DENSITY_IDX/SCALE_IDX -- monotonicity,
+      fixed VALENCE_TABLE mapping, all 6 trigger sites independently, boot-correctness, and
+      Select-reset correctness. Named coverage limit (IP-1120's own Tests to Add field): every
+      check here computes its expected value via the same formula the implementation uses --
+      there is no independent consumer yet to check against.
 
 Run from the repo root: python3 test_rom.py
 Requires: pyboy (pinned 2.7.0, matching the reference project), numpy.
@@ -52,14 +73,26 @@ BAD_ZONE_FLAGS = 0xC005; DISSONANCE_SCORE = 0xC006
 STALE_COUNT_PA = 0xC007; ONSET_WINDOW_COUNT = 0xC00A
 ARP_STATE_PA = 0xC01D; ARP_STATE_PB = 0xC01E
 MOTIF_STEP_PA = 0xC038; MOTIF_STEP_PB = 0xC039; MOTIF_STEP_WV = 0xC03A
+MOTIF_VARIANT_IDX = 0xC03C
+SONG_STATE = 0xC03D; SONG_STATE_TIMER_LO = 0xC03E; SONG_STATE_TIMER_HI = 0xC03F
+VIS_ENTRY_LY = 0xC061  # IP-9030 (BL-0069)
+AROUSAL = 0xC068; VALENCE = 0xC069  # IP-1120 (roadmap R7)
+LY = 0xFF44
 LCDC = 0xFF40
 CHANNEL_CELLS = [0x9800, 0x9801, 0x9802, 0x9803]
+SETTINGS_CELLS = [0x9804, 0x9805, 0x9806, 0x9807, 0x9808]  # IP-1110
+TILE_BAR_BASE = 2  # IP-1110
 BCPD = 0xFF69
 
 # Sound registers (I/O, 0xFF00+offset)
 NR11 = 0xFF11; NR13 = 0xFF13; NR14 = 0xFF14; NR52 = 0xFF26
 
 from music_engine import PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX, PRESET_SCALE_IDX
+from music_engine import PRESET_DENSITY_IDX, PRESET_CHMIX_IDX
+from music_engine import STYLE_TABLE, DUTY_BIAS
+from music_engine import MOTIF_TABLE, N_VARIANTS
+from music_engine import SONG_TABLE, N_SONG_PHASES
+from music_engine import VALENCE_TABLE
 
 results = []
 PASS = 0
@@ -167,7 +200,6 @@ def t4_input_steering():
         ("left", OCTAVE_IDX, "T4.4 D-pad Left steps OCTAVE_IDX (back down)"),
         ("a", SCALE_IDX, "T4.5 A steps SCALE_IDX"),
         ("b", DENSITY_IDX, "T4.6 B steps DENSITY_IDX"),
-        ("start", CHMIX_IDX, "T4.7 Start steps CHMIX_IDX"),
     ]
     pb = fresh_boot()
     for button, addr, label in cases:
@@ -179,6 +211,19 @@ def t4_input_steering():
         check(label, after != before, f"{hex(addr)}: {before} -> {after}")
         unaffected = all(pb.memory[a] == others[a] for a in others)
         check(label + " — no other parameter changed", unaffected)
+
+    # T4.7 (IP-1080, FR-1240): Start still steps CHMIX_IDX, but — unlike every other control
+    # above — now *also* immediately applies the newly-selected preset's style row to
+    # TEMPO_IDX/DENSITY_IDX/SCALE_IDX/DUTY_BIAS, a deliberate behavior change from the
+    # "no other parameter changed" invariant the other 6 controls still hold.
+    before = pb.memory[CHMIX_IDX]
+    tap(pb, "start")
+    after = pb.memory[CHMIX_IDX]
+    check("T4.7 Start steps CHMIX_IDX", after != before, f"{hex(CHMIX_IDX)}: {before} -> {after}")
+    style = STYLE_TABLE[after]
+    check("T4.7 Start immediately applies the new preset's style (TEMPO_IDX/DENSITY_IDX/SCALE_IDX/DUTY_BIAS)",
+          (pb.memory[TEMPO_IDX], pb.memory[DENSITY_IDX], pb.memory[SCALE_IDX], pb.memory[DUTY_BIAS]) == style,
+          f"got {(pb.memory[TEMPO_IDX], pb.memory[DENSITY_IDX], pb.memory[SCALE_IDX], pb.memory[DUTY_BIAS])}, expected {style}")
     pb.stop(save=False)
 
 
@@ -605,6 +650,642 @@ def t14_combinable_generation_schemes():
     pb4.stop(save=False)
 
 
+def t15_genre_aware_style_presets():
+    """IP-1080 (roadmap R5): each CHMIX_IDX preset maps to a STYLE_TABLE row (tempo_idx,
+    density_idx, scale_idx, duty_bias), applied immediately (same frame) on a Start press —
+    unlike CHMIX_MASKS's channel-mix/scheme half, which takes effect at the next onset."""
+
+    def style_now(pb):
+        return (pb.memory[TEMPO_IDX], pb.memory[DENSITY_IDX], pb.memory[SCALE_IDX],
+                pb.memory[DUTY_BIAS])
+
+    # (a)/(b)/(c): each of the 3 named v1 styles applies immediately and matches its own row.
+    pb = fresh_boot()
+    for preset, name in [(1, "Techno/Chiptune-Driving"), (2, "Ambient/Lo-Fi"), (3, "Holiday")]:
+        tap(pb, 'start')
+        got = style_now(pb)
+        expected = STYLE_TABLE[preset]
+        check(f"T15.{preset} CHMIX_IDX preset {preset} ({name}) applies its style immediately",
+              got == expected, f"got {got}, expected {expected}")
+    pb.stop(save=False)
+
+    # (d): cycling all the way back around to preset 0 exactly matches the shipped default —
+    # no regression to pre-IP-1080 boot/reset behavior (FR-1260).
+    pb2 = fresh_boot()
+    default_style = style_now(pb2)
+    for _ in range(8):  # wraps mod 8 back to preset 0
+        tap(pb2, 'start')
+    check("T15.4 Cycling CHMIX_IDX all the way around to preset 0 matches the shipped default "
+          "style exactly (no regression)",
+          pb2.memory[CHMIX_IDX] == 0 and style_now(pb2) == default_style,
+          f"CHMIX_IDX={pb2.memory[CHMIX_IDX]}, style={style_now(pb2)}, default={default_style}")
+    pb2.stop(save=False)
+
+    # (e): a style change during an active bad-zone state leaves bad-zone WRAM untouched — only
+    # TEMPO_IDX/DENSITY_IDX/SCALE_IDX/DUTY_BIAS differ, per FS-108's acceptance criterion (4).
+    pb3 = fresh_boot()
+    was_bad = False
+    for _ in range(8000):
+        pb3.tick()
+        if pb3.memory[BAD_ZONE_FLAGS] & 0x08:
+            was_bad = True
+            break
+    check("T15.5.setup engine reached a bad-zone state before the style-change probe", was_bad,
+          f"got was_bad={was_bad}")
+    # Note: DISSONANCE_SCORE is excluded from this check — a live probe (independent of this
+    # package) confirmed it recomputes every single frame regardless of any button press at all
+    # (background dynamics from the channels' own ongoing onsets), so "unchanged on this frame"
+    # isn't a meaningful invariant for that specific field; BAD_ZONE_FLAGS/STALE_COUNT_PA/
+    # ONSET_WINDOW_COUNT only change at an actual onset event, a much rarer coincidence, and are
+    # the fields FS-108's acceptance criterion (4) is actually meant to protect (no *new* onset
+    # bookkeeping caused by the style-change write itself, which touches only
+    # TEMPO_IDX/DENSITY_IDX/SCALE_IDX/DUTY_BIAS — none of which any bad-zone computation reads).
+    flags_before = pb3.memory[BAD_ZONE_FLAGS]
+    stale_before = pb3.memory[STALE_COUNT_PA]
+    onset_before = pb3.memory[ONSET_WINDOW_COUNT]
+    # Read on the exact style-change frame (press + one tick, no settling ticks) — unlike
+    # tap()'s multi-frame settle, which would let further ordinary background activity run too.
+    pb3.button_press('start')
+    pb3.tick()
+    pb3.button_release('start')
+    check("T15.5 A style change during an active bad-zone state leaves BAD_ZONE_FLAGS/"
+          "STALE_COUNT_PA/ONSET_WINDOW_COUNT unchanged on the change frame itself",
+          (pb3.memory[BAD_ZONE_FLAGS], pb3.memory[STALE_COUNT_PA], pb3.memory[ONSET_WINDOW_COUNT])
+          == (flags_before, stale_before, onset_before),
+          f"before={(flags_before, stale_before, onset_before)}, "
+          f"after={(pb3.memory[BAD_ZONE_FLAGS], pb3.memory[STALE_COUNT_PA], pb3.memory[ONSET_WINDOW_COUNT])}")
+    pb3.stop(save=False)
+
+    # (f): Select resets DUTY_BIAS to 0 alongside every other per-preset field it already resets.
+    pb4 = fresh_boot()
+    tap(pb4, 'start')  # drift DUTY_BIAS away from 0 (preset 1's style sets duty_bias=1)
+    check("T15.6.setup DUTY_BIAS drifted away from 0 before Select", pb4.memory[DUTY_BIAS] != 0,
+          f"got {pb4.memory[DUTY_BIAS]}")
+    pb4.button_press('select')
+    pb4.tick()
+    pb4.button_release('select')
+    check("T15.6 Select resets DUTY_BIAS to 0 (read on the exact reset frame)",
+          pb4.memory[DUTY_BIAS] == 0, f"got {pb4.memory[DUTY_BIAS]}")
+    pb4.stop(save=False)
+
+
+def t16_motif_recurrence_via_weighted_variant_selection():
+    """IP-1090 (BL-0010, ADS-102): Scheme E's MOTIF_TABLE now has N_VARIANTS rows; at each
+    motif-cycle boundary (motif step wraps 7->0) the engine autonomously draws a new
+    MOTIF_VARIANT_IDX via a weighted lookup (MOTIF_VARIANT_SELECTOR), retention-biased. Variant 0
+    is byte-identical to the pre-IP-1090 shipped sequence (FR-1300, no regression)."""
+
+    # (a) Sanity check on the authored data itself: the 4 variant rows are pairwise distinct.
+    rows = [tuple(MOTIF_TABLE[i * 8:(i + 1) * 8]) for i in range(N_VARIANTS)]
+    check("T16.1 All defined motif variants are pairwise distinct", len(set(rows)) == N_VARIANTS,
+          f"got {len(set(rows))} distinct of {N_VARIANTS}")
+    check("T16.2 Variant 0 matches the pre-IP-1090 shipped sequence",
+          rows[0] == (0, 2, 4, 5, 4, 2, 0, 7), f"got {rows[0]}")
+
+    pb = fresh_boot()
+    for _ in range(6):
+        tap(pb, 'start')  # CHMIX_IDX preset 6: Scheme E on the wave channel
+    check("T16.setup CHMIX_IDX reached preset 6", pb.memory[CHMIX_IDX] == 6,
+          f"got {pb.memory[CHMIX_IDX]}")
+
+    seen_variants = set()
+    boundary_frames = []      # frames where the motif step wrapped 7->0
+    change_frames = []        # frames where MOTIF_VARIANT_IDX itself changed
+    lookup_checks = []        # (variant, step, degree) sampled at each onset
+    prev_variant = pb.memory[MOTIF_VARIANT_IDX]
+    prev_step = (pb.memory[MOTIF_STEP_WV] >> 4) & 0x07
+    N = 6000
+    for frame in range(N):
+        # IP-0007's dissonant-pull/stuck-escape override (checked inside this tick's own
+        # gen_tick_wv) reads BAD_ZONE_FLAGS as computed by the *previous* frame's badzone_tick
+        # (badzone_tick runs after every channel's gen_tick each frame) -- sample it here, before
+        # this tick, so the override-in-effect check below reflects the value the override
+        # mechanism actually used, not this frame's own just-recomputed flags.
+        flags_in_effect = pb.memory[BAD_ZONE_FLAGS]
+        pb.tick()
+        variant = pb.memory[MOTIF_VARIANT_IDX]
+        step = (pb.memory[MOTIF_STEP_WV] >> 4) & 0x07
+        seen_variants.add(variant)
+        if prev_step == 7 and step == 0:
+            boundary_frames.append(frame)
+        if variant != prev_variant:
+            change_frames.append(frame)
+        if step != prev_step:
+            # IP-0007's autonomous bad-zone avoidance can override the motif-picked delta
+            # (dissonant-pull or stuck-escape, per FR-1220 -- applies identically regardless of
+            # scheme), so only sample onsets where neither override was in effect this frame;
+            # same "plus bad-zone-override reachable degrees" caveat T14.3 already established
+            # for the pre-IP-1090 single-variant table.
+            if flags_in_effect & 0x03 == 0:
+                lookup_checks.append((variant, step, pb.memory[CUR_DEGREE_WV]))
+        prev_variant = variant
+        prev_step = step
+    pb.stop(save=False)
+
+    check("T16.3 MOTIF_VARIANT_IDX stays within the defined variant range",
+          seen_variants.issubset(set(range(N_VARIANTS))), f"seen: {sorted(seen_variants)}")
+    check("T16.4 At least one motif cycle boundary occurred over the run",
+          len(boundary_frames) > 0, f"got {len(boundary_frames)}")
+    check("T16.5 MOTIF_VARIANT_IDX only changes on a motif-cycle-boundary frame, never mid-cycle",
+          set(change_frames).issubset(set(boundary_frames)),
+          f"change_frames not in boundary_frames: {sorted(set(change_frames) - set(boundary_frames))}")
+    check("T16.6 Variant-selection weighting favors retention over switching",
+          len(change_frames) < len(boundary_frames),
+          f"boundaries={len(boundary_frames)}, changes={len(change_frames)}")
+    mismatches = [(v, s, d) for (v, s, d) in lookup_checks if d != MOTIF_TABLE[v * 8 + s]]
+    check("T16.7 Every observed onset's degree matches its variant row's documented value",
+          not mismatches, f"mismatches: {mismatches[:5]}")
+
+    # (e) IP-1080 interaction: repeatedly press Start (style + channel-mix/scheme changes) while
+    # a Scheme-E channel is active, confirming neither mechanism's state is corrupted by the other
+    # landing on the same frame as a motif-cycle boundary (same randomized-stress methodology
+    # VR-1080's own interaction test used).
+    pb2 = fresh_boot()
+    for _ in range(6):
+        tap(pb2, 'start')
+    ok = True
+    for i in range(4000):
+        pb2.tick()
+        if i % 47 == 0:  # irregular interval, deliberately not synced to any engine cadence
+            pb2.button_press('start')
+            pb2.tick()
+            pb2.button_release('start')
+            expected = STYLE_TABLE[pb2.memory[CHMIX_IDX]]
+            got = (pb2.memory[TEMPO_IDX], pb2.memory[DENSITY_IDX], pb2.memory[SCALE_IDX],
+                   pb2.memory[DUTY_BIAS])
+            if got != expected:
+                ok = False
+            if pb2.memory[MOTIF_VARIANT_IDX] not in range(N_VARIANTS):
+                ok = False
+    check("T16.8 Repeated style changes (IP-1080) never corrupt MOTIF_VARIANT_IDX or the "
+          "style-application mechanism, even landing on a motif-cycle boundary", ok, f"got ok={ok}")
+    pb2.stop(save=False)
+
+
+def t17_song_form_via_autonomous_phase_cycling():
+    """IP-1100 (roadmap R6, ADS-103): the engine autonomously cycles 4 named song-form phases
+    (INTRO/BUILD/PEAK/BREAKDOWN), overwriting TEMPO_IDX/DENSITY_IDX per phase transition, entirely
+    independent of bad-zone recovery and Scheme-E motif-variant selection."""
+
+    def song_timer(pb):
+        return pb.memory[SONG_STATE_TIMER_LO] | (pb.memory[SONG_STATE_TIMER_HI] << 8)
+
+    # (a)/(b): drive a bit more than one full cycle and confirm phases occur in cyclic order,
+    # each transition landing exactly SONG_TABLE's documented TEMPO_IDX/DENSITY_IDX.
+    pb = fresh_boot()
+    seen_states = set()
+    transition_frames = []
+    prev_state = pb.memory[SONG_STATE]
+    mismatches = []
+    N = 7000
+    for frame in range(N):
+        pb.tick()
+        state = pb.memory[SONG_STATE]
+        seen_states.add(state)
+        if state != prev_state:
+            transition_frames.append((frame, state))
+            expected = (SONG_TABLE[state][0], SONG_TABLE[state][1])
+            got = (pb.memory[TEMPO_IDX], pb.memory[DENSITY_IDX])
+            if got != expected:
+                mismatches.append((frame, state, got, expected))
+        prev_state = state
+    pb.stop(save=False)
+
+    check("T17.1 SONG_STATE stays within the defined phase range",
+          seen_states.issubset(set(range(N_SONG_PHASES))), f"seen: {sorted(seen_states)}")
+    check("T17.2 At least one full phase cycle (INTRO->BUILD->PEAK->BREAKDOWN->INTRO) occurred",
+          len(transition_frames) >= N_SONG_PHASES,
+          f"got {len(transition_frames)} transitions: {transition_frames}")
+    check("T17.3 Phase order is cyclic (0,1,2,3,0,...)",
+          [s for (_f, s) in transition_frames[:4]] == [1, 2, 3, 0],
+          f"got order: {[s for (_f, s) in transition_frames[:4]]}")
+    check("T17.4 Every phase transition applies exactly that phase's documented TEMPO_IDX/"
+          "DENSITY_IDX", not mismatches, f"mismatches: {mismatches}")
+
+    # (c)/(d): a phase transition during an active bad-zone state leaves bad-zone/motif-variant
+    # WRAM fields untouched on the transition frame itself (same assertion shape T15.5 uses).
+    pb2 = fresh_boot()
+    for _ in range(6):
+        tap(pb2, 'start')  # CHMIX_IDX preset 6: Scheme E on the wave channel, for MOTIF_VARIANT_IDX
+    first_transition_frame = None
+    for frame in range(N):
+        prev_state2 = pb2.memory[SONG_STATE]
+        pb2.tick()
+        if pb2.memory[SONG_STATE] != prev_state2:
+            first_transition_frame = frame
+            break
+    check("T17.5.setup a phase transition was observed", first_transition_frame is not None,
+          f"got {first_transition_frame}")
+    pb2.stop(save=False)
+
+    pb3 = fresh_boot()
+    for _ in range(6):
+        tap(pb3, 'start')
+    for _ in range(first_transition_frame - 1):
+        pb3.tick()
+    flags_before = pb3.memory[BAD_ZONE_FLAGS]
+    stale_before = pb3.memory[STALE_COUNT_PA]
+    onset_before = pb3.memory[ONSET_WINDOW_COUNT]
+    variant_before = pb3.memory[MOTIF_VARIANT_IDX]
+    pb3.tick()  # the transition frame itself
+    check("T17.5 A phase transition leaves BAD_ZONE_FLAGS/STALE_COUNT_PA/ONSET_WINDOW_COUNT/"
+          "MOTIF_VARIANT_IDX unchanged on the transition frame itself",
+          (pb3.memory[BAD_ZONE_FLAGS], pb3.memory[STALE_COUNT_PA], pb3.memory[ONSET_WINDOW_COUNT],
+           pb3.memory[MOTIF_VARIANT_IDX]) == (flags_before, stale_before, onset_before, variant_before),
+          f"before={(flags_before, stale_before, onset_before, variant_before)}, "
+          f"after={(pb3.memory[BAD_ZONE_FLAGS], pb3.memory[STALE_COUNT_PA], pb3.memory[ONSET_WINDOW_COUNT], pb3.memory[MOTIF_VARIANT_IDX])}")
+    pb3.stop(save=False)
+
+    # (e): force a guaranteed collision between a Start press (IP-1080 style application) and a
+    # phase transition, using the empirically-derived plain-boot transition frames from the (a)/(b)
+    # run above (not a merely plausible interval, per BL-0045's own lesson) -- deliberately not
+    # first_transition_frame, which was measured on a timeline with 6 prior Start taps already
+    # consumed and would desync from this scenario's own untapped boot.
+    # BL-0052: exercise all three phase-internal boundaries (INTRO->BUILD, BUILD->PEAK,
+    # PEAK->BREAKDOWN), not only the first -- transition_frames[0:3] from the (a)/(b) run above
+    # covers exactly those three (the fourth transition, ...->INTRO, wraps the cycle and is the
+    # same boundary shape as the first).
+    plain_transition_frame = transition_frames[0][0]  # used unchanged by (f) below
+    t176_mismatches = []
+    for boundary_i, (tf, _state_at_tf) in enumerate(transition_frames[:3]):
+        pb4 = fresh_boot()
+        for _ in range(tf):
+            pb4.tick()
+        song_state_before = pb4.memory[SONG_STATE]
+        pb4.button_press('start')
+        pb4.tick()  # the exact transition frame, with Start also held down
+        pb4.button_release('start')
+        # Per the real per-frame call order (build_rom.py: apply_input -> engine_tick, and
+        # engine_tick's own call order: gen_tick_*/badzone_tick -> song_tick last), a Start-press
+        # style-application write and a same-frame song-form transition write both land on
+        # TEMPO_IDX/DENSITY_IDX, but song_tick always runs after apply_input this frame -- so the
+        # phase's own target values are expected to win deterministically ("last write wins", the
+        # same contract FR-1240/FR-1320 both already establish), while CHMIX_IDX (untouched by
+        # song_tick) still reflects the Start press.
+        new_state = (song_state_before + 1) % N_SONG_PHASES
+        ok = (pb4.memory[SONG_STATE] == new_state and
+              pb4.memory[CHMIX_IDX] == 1 and
+              (pb4.memory[TEMPO_IDX], pb4.memory[DENSITY_IDX]) ==
+              (SONG_TABLE[new_state][0], SONG_TABLE[new_state][1]))
+        if not ok:
+            t176_mismatches.append((boundary_i, song_state_before, new_state,
+                                     pb4.memory[SONG_STATE], pb4.memory[CHMIX_IDX],
+                                     pb4.memory[TEMPO_IDX], pb4.memory[DENSITY_IDX]))
+        pb4.stop(save=False)
+    check("T17.6 A Start press landing on the exact same frame as a phase transition corrupts "
+          "neither mechanism's own state, at all 3 phase-internal boundaries "
+          "(SONG_STATE advances, CHMIX_IDX steps, song-form's value wins per call order)",
+          not t176_mismatches, f"mismatches (boundary_i, state_before, expected_state, "
+          f"got_state, got_chmix, got_tempo, got_density): {t176_mismatches}")
+
+    # (f): Select resets SONG_STATE/SONG_STATE_TIMER to phase 0 and re-applies its target values.
+    pb5 = fresh_boot()
+    for _ in range(plain_transition_frame + 5):
+        pb5.tick()
+    check("T17.7.setup SONG_STATE drifted away from phase 0 before Select",
+          pb5.memory[SONG_STATE] != 0, f"got {pb5.memory[SONG_STATE]}")
+    pb5.button_press('select')
+    pb5.tick()
+    pb5.button_release('select')
+    check("T17.7 Select resets SONG_STATE to phase 0 (read on the exact reset frame)",
+          pb5.memory[SONG_STATE] == 0, f"got {pb5.memory[SONG_STATE]}")
+    check("T17.8 Select re-applies phase 0's TEMPO_IDX/DENSITY_IDX target values",
+          (pb5.memory[TEMPO_IDX], pb5.memory[DENSITY_IDX]) == (SONG_TABLE[0][0], SONG_TABLE[0][1]),
+          f"got {(pb5.memory[TEMPO_IDX], pb5.memory[DENSITY_IDX])}")
+    pb5.stop(save=False)
+
+
+# ── T18: Settings & control visibility (IP-1110, BL-0051/ADS-104) ────
+def t18_settings_and_control_visibility():
+    settings_sources = [TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX_IDX]
+    settings_presets = [PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX, PRESET_SCALE_IDX,
+                        PRESET_DENSITY_IDX, PRESET_CHMIX_IDX]
+
+    # (a) At boot, the 5 settings cells already reflect the boot-preset values (Implementation
+    # Task 3 — pre-initialized, not left blank until the first update_visuals call).
+    pb = fresh_boot()
+    cells = [pb.memory[addr] for addr in SETTINGS_CELLS]
+    expected = [TILE_BAR_BASE + p for p in settings_presets]
+    check("T18.1 At boot, the 5 settings indicators already show the correct preset fill levels",
+          cells == expected, f"cells={cells} expected={expected}")
+
+    # (b) Each of D-pad Up/Down/Left/Right, A, B, Start updates its own indicator on the same
+    # frame its underlying parameter changes (FR-1360/FR-1380).
+    cases = [
+        ("up", TEMPO_IDX, SETTINGS_CELLS[0], "T18.2 tempo indicator tracks TEMPO_IDX after D-pad Up"),
+        ("right", OCTAVE_IDX, SETTINGS_CELLS[1], "T18.3 octave indicator tracks OCTAVE_IDX after D-pad Right"),
+        ("a", SCALE_IDX, SETTINGS_CELLS[2], "T18.4 scale indicator tracks SCALE_IDX after A"),
+        ("b", DENSITY_IDX, SETTINGS_CELLS[3], "T18.5 density indicator tracks DENSITY_IDX after B"),
+        ("start", CHMIX_IDX, SETTINGS_CELLS[4], "T18.6 channel-mix indicator tracks CHMIX_IDX after Start"),
+    ]
+    for button, src_addr, cell_addr, label in cases:
+        tap(pb, button)
+        value = pb.memory[src_addr]
+        cell = pb.memory[cell_addr]
+        check(label, cell == TILE_BAR_BASE + value,
+              f"{hex(src_addr)}={value}, cell={cell}, expected={TILE_BAR_BASE + value}")
+
+    # (c) Purely additive: the existing channel-activity tiles and calm/bad-zone palette are
+    # unaffected by this feature's own writes over the same run (FR-1370, same assertion shape
+    # T15.5/T17.5 already established).
+    nr52 = pb.memory[NR52]
+    channel_cells = [pb.memory[addr] for addr in CHANNEL_CELLS]
+    channel_expected = [1 if (nr52 & (1 << i)) else 0 for i in range(4)]
+    check("T18.7 Channel-activity tiles still track NR52 correctly with the settings row present",
+          channel_cells == channel_expected, f"cells={channel_cells} expected={channel_expected}")
+    pb.stop(save=False)
+
+    # (d) Select resets the underlying WRAM fields on the reset frame itself (same guarantee
+    # T5/T17.7 already established for other reset fields — unaffected by this package). The
+    # settings-indicator *display* takes one further frame to catch up, because update_visuals's
+    # re-render for the reset frame runs from WRAM that had not yet been reset when this frame's
+    # render happened -- corrected 2026-07-31 (BL-0069): this was previously attributed to a
+    # dropped VRAM write; that finding was falsified (no write is ever dropped, R308 SS8.5) and
+    # the true cause is this ordinary render-vs-reset-timing lag, present on every frame class,
+    # not a Select-specific defect. The display self-heals the very next frame regardless
+    # (update_visuals reruns unconditionally every frame against already-reset WRAM).
+    # BL-0057: exercise at least 2 distinct pre-Select button sequences, not only one -- reusing
+    # VR-1110's own independently-confirmed sequences.
+    pre_select_sequences = [
+        ["up", "right", "a", "b", "start"],
+        ["up", "up", "up", "left", "start", "start"],
+    ]
+    t18_8_mismatches = []
+    t18_9_mismatches = []
+    t18_10_mismatches = []
+    for seq_i, sequence in enumerate(pre_select_sequences):
+        pb2 = fresh_boot()
+        for button in sequence:
+            tap(pb2, button)
+        drifted = [pb2.memory[addr] for addr in SETTINGS_CELLS]
+        if drifted == expected:
+            t18_8_mismatches.append((seq_i, drifted))
+        pb2.button_press('select')
+        pb2.tick()
+        pb2.button_release('select')
+        reset_frame_wram = (pb2.memory[TEMPO_IDX], pb2.memory[OCTAVE_IDX], pb2.memory[SCALE_IDX],
+                            pb2.memory[DENSITY_IDX], pb2.memory[CHMIX_IDX])
+        if reset_frame_wram != tuple(settings_presets):
+            t18_9_mismatches.append((seq_i, reset_frame_wram))
+        pb2.tick()  # one-frame render-vs-reset-timing lag (see above) — self-heals here
+        cells_after_reset = [pb2.memory[addr] for addr in SETTINGS_CELLS]
+        if cells_after_reset != expected:
+            t18_10_mismatches.append((seq_i, cells_after_reset))
+        pb2.stop(save=False)
+    check("T18.8.setup At least one settings indicator drifted away from its boot value before "
+          f"Select, across all {len(pre_select_sequences)} pre-Select sequences",
+          not t18_8_mismatches, f"sequences that failed to drift: {t18_8_mismatches}")
+    check("T18.9 Select resets the underlying WRAM fields on the reset frame itself, across all "
+          f"{len(pre_select_sequences)} pre-Select sequences",
+          not t18_9_mismatches, f"mismatches (seq_i, got): {t18_9_mismatches}")
+    check("T18.10 The settings-indicator display catches up to the restored preset within one "
+          f"further frame, across all {len(pre_select_sequences)} pre-Select sequences "
+          "(one-frame render-vs-reset-timing lag, self-healing)",
+          not t18_10_mismatches, f"mismatches (seq_i, got): {t18_10_mismatches}")
+    pb2.stop(save=False)
+
+
+# ── T19: VBlank budget assertion (IP-9030, BL-0069) ──────────────────
+def t19_vblank_budget_assertion():
+    """VIS_ENTRY_LY records LY at entry to update_visuals -- before this frame's channel-activity,
+    palette or settings-row writes run, but after read_joypad/apply_input/engine_tick have already
+    executed. Measured (R101 SS8.5): those three routines alone consume roughly 9 of VBlank's 10
+    scanlines, so this value is expected to sit at 152-153 on every frame, idle included, not only
+    on frames with heavy input work -- the budget is tight everywhere, not on one special frame
+    class. This suite asserts the falsifiable thing that actually matters: the value never leaves
+    VBlank (144-153) at all, on any of five representative frame classes. It does NOT assert that
+    any VRAM write is accepted or discarded by the PPU -- that property is unobservable in this
+    harness (R301 SS3, R305 SS5) and no check here claims it."""
+
+    def entry_ly(pb):
+        return pb.memory[VIS_ENTRY_LY]
+
+    results_by_class = {}
+
+    # (a) idle -- no input at all, several frames, asserting on each rather than once. This is
+    # the baseline case, not a trivial one: the budget is spent on idle frames too.
+    pb = fresh_boot()
+    idle_values = []
+    for _ in range(5):
+        pb.tick()
+        idle_values.append(entry_ly(pb))
+    pb.stop(save=False)
+    results_by_class['idle'] = idle_values
+    check("T19.1 VIS_ENTRY_LY stays within VBlank (144-153) on idle frames (no input)",
+          all(144 <= v <= 153 for v in idle_values), f"got {idle_values}")
+
+    # (b) plain index step -- D-pad Up and B. Read VIS_ENTRY_LY on the exact press frame itself
+    # (press, single tick, release, read immediately) -- tap()'s own settle_frames would advance
+    # past the frame this check needs to measure, since VIS_ENTRY_LY is overwritten every frame.
+    pb2 = fresh_boot()
+    pb2.button_press('up')
+    pb2.tick()
+    pb2.button_release('up')
+    up_value = entry_ly(pb2)
+    pb2.tick(); pb2.tick()  # settle before the next button, matching tap()'s own convention
+    pb2.button_press('b')
+    pb2.tick()
+    pb2.button_release('b')
+    b_value = entry_ly(pb2)
+    pb2.stop(save=False)
+    results_by_class['plain index step (Up, B)'] = [up_value, b_value]
+    check("T19.2 VIS_ENTRY_LY stays within VBlank on a plain index-step frame (D-pad Up / B)",
+          144 <= up_value <= 153 and 144 <= b_value <= 153,
+          f"Up={up_value}, B={b_value}")
+
+    # (c) Start -- style application (IP-1080). Same exact-frame read as (b).
+    pb3 = fresh_boot()
+    pb3.button_press('start')
+    pb3.tick()
+    pb3.button_release('start')
+    start_value = entry_ly(pb3)
+    pb3.stop(save=False)
+    results_by_class['Start (style apply)'] = [start_value]
+    check("T19.3 VIS_ENTRY_LY stays within VBlank on a Start-press (style-apply) frame",
+          144 <= start_value <= 153, f"got {start_value}")
+
+    # (d) Select -- full init_engine reset. Same exact-frame read.
+    pb4 = fresh_boot()
+    pb4.button_press('select')
+    pb4.tick()
+    pb4.button_release('select')
+    select_value = entry_ly(pb4)
+    pb4.stop(save=False)
+    results_by_class['Select (init_engine reset)'] = [select_value]
+    check("T19.4 VIS_ENTRY_LY stays within VBlank on a Select-press (init_engine reset) frame",
+          144 <= select_value <= 153, f"got {select_value}")
+
+    # (e) song-form phase transition -- empirically derive the first transition frame from a
+    # plain, untapped boot (same method T17's (a)/(b) run uses), then read VIS_ENTRY_LY on that
+    # exact frame.
+    pb5 = fresh_boot()
+    prev_state = pb5.memory[SONG_STATE]
+    transition_frame = None
+    for frame in range(7000):
+        pb5.tick()
+        if pb5.memory[SONG_STATE] != prev_state:
+            transition_frame = frame
+            break
+        prev_state = pb5.memory[SONG_STATE]
+    pb5.stop(save=False)
+    check("T19.5.setup a song-form phase transition was observed for VIS_ENTRY_LY derivation",
+          transition_frame is not None, f"got {transition_frame}")
+
+    pb6 = fresh_boot()
+    for _ in range(transition_frame + 1):  # +1: lands exactly on the transition frame itself,
+        pb6.tick()                        # confirmed empirically against SONG_STATE's own change
+    transition_value = entry_ly(pb6)
+    pb6.stop(save=False)
+    results_by_class['song-form phase transition'] = [transition_value]
+    check("T19.5 VIS_ENTRY_LY stays within VBlank on a song-form phase-transition frame",
+          144 <= transition_value <= 153, f"got {transition_value}")
+
+    # (f) Head-room reporting: surface every class's observed value in one check's detail, not
+    # merely pass/fail, so a narrowing margin is visible in test output before it becomes a
+    # failure. Measured at authoring time (clean build): all five classes read LY=153 -- VBlank's
+    # last scanline. This check always passes if (a)-(e) did; its job is visibility, not a new
+    # assertion.
+    check("T19.6 VIS_ENTRY_LY head-room by frame class (informational -- see detail)",
+          all(144 <= v <= 153 for vals in results_by_class.values() for v in vals),
+          f"{results_by_class}")
+
+
+# ── T20: Emotional/Energy Layer (IP-1120, roadmap R7) ─────────────────
+def t20_emotional_energy_layer():
+    """AROUSAL = TEMPO_IDX + DENSITY_IDX; VALENCE = VALENCE_TABLE[SCALE_IDX]. Recomputed only at
+    the 6 write sites that can change those three inputs -- never per-frame (NFR-1170). Named
+    coverage limit (IP-1120's own Tests to Add field, carried forward honestly): every check here
+    computes its expected value via the same formula the implementation uses -- there is no
+    independent consumer yet to check the derivation against."""
+
+    def expected_arousal(pb):
+        return pb.memory[TEMPO_IDX] + pb.memory[DENSITY_IDX]
+
+    def expected_valence(pb):
+        return VALENCE_TABLE[pb.memory[SCALE_IDX]]
+
+    # (a) AROUSAL monotonicity across TEMPO_IDX range (DENSITY_IDX fixed at boot value), then
+    # across DENSITY_IDX range (TEMPO_IDX fixed at boot value) (FR-1390). TEMPO_IDX/DENSITY_IDX
+    # each wrap mod 8 (0x07 mask), so "non-decreasing" is checked only across steps that don't
+    # wrap 7->0.
+    pb2 = fresh_boot()
+    tempo_trace = []
+    for _ in range(8):
+        tap(pb2, 'up')
+        tempo_trace.append((pb2.memory[TEMPO_IDX], pb2.memory[AROUSAL]))
+    pb2.stop(save=False)
+    tempo_mismatches = [(t, a) for (t, a) in tempo_trace if a != expected_arousal_from(t, PRESET_DENSITY_IDX)]
+    check("T20.1 AROUSAL == TEMPO_IDX+DENSITY_IDX at every step while driving TEMPO_IDX via D-pad Up",
+          not tempo_mismatches, f"trace={tempo_trace} mismatches={tempo_mismatches}")
+    non_decreasing = [(a, b) for (a, b) in zip([t for t, _ in tempo_trace], [t for t, _ in tempo_trace][1:])]
+    check("T20.2 AROUSAL is non-decreasing as TEMPO_IDX steps upward (wrap excluded)",
+          all(b_a >= a_a or a_t == 7 and b_t == 0
+              for (a_t, a_a), (b_t, b_a) in zip(
+                  [(t, a) for t, a in tempo_trace], [(t, a) for t, a in tempo_trace][1:])),
+          f"trace={tempo_trace}")
+
+    pb3 = fresh_boot()
+    density_trace = []
+    for _ in range(8):
+        tap(pb3, 'b')
+        density_trace.append((pb3.memory[DENSITY_IDX], pb3.memory[AROUSAL]))
+    pb3.stop(save=False)
+    density_mismatches = [(d, a) for (d, a) in density_trace
+                           if a != expected_arousal_from(PRESET_TEMPO_IDX, d)]
+    check("T20.3 AROUSAL == TEMPO_IDX+DENSITY_IDX at every step while driving DENSITY_IDX via B",
+          not density_mismatches, f"trace={density_trace} mismatches={density_mismatches}")
+    check("T20.4 AROUSAL is non-decreasing as DENSITY_IDX steps upward (wrap excluded)",
+          all(b_a >= a_a or a_d == 7 and b_d == 0
+              for (a_d, a_a), (b_d, b_a) in zip(
+                  [(d, a) for d, a in density_trace], [(d, a) for d, a in density_trace][1:])),
+          f"trace={density_trace}")
+
+    # (b) VALENCE matches VALENCE_TABLE[SCALE_IDX] at all 4 SCALE_IDX values (FR-1400).
+    pb4 = fresh_boot()
+    scale_trace = []
+    for _ in range(4):
+        tap(pb4, 'a')
+        scale_trace.append((pb4.memory[SCALE_IDX], pb4.memory[VALENCE]))
+    pb4.stop(save=False)
+    scale_mismatches = [(s, v) for (s, v) in scale_trace if v != VALENCE_TABLE[s]]
+    check("T20.5 VALENCE == VALENCE_TABLE[SCALE_IDX] at every SCALE_IDX value reached via A",
+          not scale_mismatches, f"trace={scale_trace} mismatches={scale_mismatches}")
+
+    # (c) All 6 trigger sites independently.
+    # Sites 1-4: the 4 input-step calls (Up/Down -> TEMPO_IDX, A -> SCALE_IDX, B -> DENSITY_IDX),
+    # each checked on the exact tap frame.
+    site_checks = [
+        ("up", "T20.6 site 1/6: D-pad Up recomputes AROUSAL/VALENCE on the same frame"),
+        ("down", "T20.7 site 2/6: D-pad Down recomputes AROUSAL/VALENCE on the same frame"),
+        ("a", "T20.8 site 3/6: A recomputes AROUSAL/VALENCE on the same frame"),
+        ("b", "T20.9 site 4/6: B recomputes AROUSAL/VALENCE on the same frame"),
+    ]
+    for button, label in site_checks:
+        pb5 = fresh_boot()
+        tap(pb5, button)
+        got = (pb5.memory[AROUSAL], pb5.memory[VALENCE])
+        want = (expected_arousal(pb5), expected_valence(pb5))
+        pb5.stop(save=False)
+        check(label, got == want, f"got={got} want={want}")
+
+    # Site 5: _emit_song_tick's transition branch -- empirically derive the first phase-
+    # transition frame from a plain, untapped boot (same method T17/T19 already use), then check
+    # AROUSAL/VALENCE on that exact frame.
+    pb6 = fresh_boot()
+    prev_state = pb6.memory[SONG_STATE]
+    transition_frame = None
+    for frame in range(7000):
+        pb6.tick()
+        if pb6.memory[SONG_STATE] != prev_state:
+            transition_frame = frame
+            break
+        prev_state = pb6.memory[SONG_STATE]
+    pb6.stop(save=False)
+    check("T20.10.setup a song-form phase transition was observed for site-5 derivation",
+          transition_frame is not None, f"got {transition_frame}")
+
+    pb7 = fresh_boot()
+    for _ in range(transition_frame + 1):
+        pb7.tick()
+    got = (pb7.memory[AROUSAL], pb7.memory[VALENCE])
+    want = (expected_arousal(pb7), expected_valence(pb7))
+    pb7.stop(save=False)
+    check("T20.10 site 5/6: song_tick's transition branch recomputes AROUSAL/VALENCE on the "
+          "transition frame itself", got == want, f"got={got} want={want}")
+
+    # Site 6: init_engine's Select-reset path -- drift the steering state first, then check the
+    # reset frame itself.
+    pb8 = fresh_boot()
+    for button in ("up", "up", "a", "b"):
+        tap(pb8, button)
+    pb8.button_press('select')
+    pb8.tick()
+    pb8.button_release('select')
+    got = (pb8.memory[AROUSAL], pb8.memory[VALENCE])
+    want = (expected_arousal(pb8), expected_valence(pb8))
+    reset_correct = (pb8.memory[TEMPO_IDX] == SONG_TABLE[0][0]
+                      and pb8.memory[DENSITY_IDX] == SONG_TABLE[0][1]
+                      and pb8.memory[SCALE_IDX] == PRESET_SCALE_IDX)
+    pb8.stop(save=False)
+    check("T20.11 site 6/6: init_engine's Select-reset path recomputes AROUSAL/VALENCE on the "
+          "reset frame itself", got == want and reset_correct,
+          f"got={got} want={want} reset_correct={reset_correct}")
+
+    # (d) Boot-correctness: AROUSAL/VALENCE already correct on the first tested frame, before any
+    # input (FR-1420, boot half) -- init_engine's own call, exercised via the boot path rather
+    # than the Select-reset path checked in T20.11 above.
+    pb9 = fresh_boot()
+    got = (pb9.memory[AROUSAL], pb9.memory[VALENCE])
+    want = (expected_arousal(pb9), expected_valence(pb9))
+    pb9.stop(save=False)
+    check("T20.12 AROUSAL/VALENCE are already correct on the first tested frame after boot, "
+          "before any input", got == want, f"got={got} want={want}")
+
+
+def expected_arousal_from(tempo_idx, density_idx):
+    return tempo_idx + density_idx
+
+
 def main():
     t1_header()
     t2_boot()
@@ -620,6 +1301,12 @@ def main():
     t12_channel_mix_gating()
     t13_overload_recalibration()
     t14_combinable_generation_schemes()
+    t15_genre_aware_style_presets()
+    t16_motif_recurrence_via_weighted_variant_selection()
+    t17_song_form_via_autonomous_phase_cycling()
+    t18_settings_and_control_visibility()
+    t19_vblank_budget_assertion()
+    t20_emotional_energy_layer()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

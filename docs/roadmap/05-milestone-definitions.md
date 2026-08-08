@@ -46,9 +46,15 @@ Six milestones group the fourteen releases into demonstrable, decision-relevant 
   12-package scope (one new non-blocking Low finding, `BL-0033`, alongside the still-open
   non-blocking `BL-0030`/`BL-0032`). `11-release-readiness` recommended GO for the R4 addition;
   **user confirmed GO 2026-07-25.**
-- **Status:** ✅ **R3+R4 shipped — GO confirmed 2026-07-25.** CAP-09 delivered; CAP-11 (style
-  regions) remains this milestone's only unshipped capability. R4.5's cart-shape decision remains
-  a separate, not-yet-made checkpoint.
+- **R5 complete as of 2026-07-26:** `IP-1080` `VERIFIED`
+  ([VR-1080](../implementation/verification/VR-1080-genre-aware-style-presets.md)), CAP-11
+  delivered (3 v1 styles: Techno/Chiptune-Driving, Ambient/Lo-Fi, Holiday, `STYLE_TABLE` keyed by
+  `CHMIX_IDX`). `10-integration-review` re-ran clean at 13-package scope (one new non-blocking Low
+  finding, `BL-0041`, alongside the still-open non-blocking `BL-0030`/`BL-0032`/`BL-0033`/`BL-0040`).
+  `11-release-readiness` recommended GO for the R5 addition; **user confirmed GO 2026-07-26.**
+- **Status:** ✅ **R3+R4+R5 shipped — GO confirmed 2026-07-25 (R3/R4), 2026-07-26 (R5).** CAP-09
+  and CAP-11 both delivered — this milestone's capability list is now complete. R4.5's cart-shape
+  decision remains a separate, not-yet-made checkpoint.
 
 ## Milestone C — Musical Maturity (R6-R7)
 

@@ -103,6 +103,10 @@ mechanism the reference project already uses for its own menu-navigation edge-tr
 | `0xC061` | `VIS_ENTRY_LY` | Added `IP-9030` (`BL-0069`), 2026-07-31. `LY` register value recorded at entry to `update_visuals` (`visuals.py`), every frame — a permanent diagnostic making the per-frame VBlank budget measurable. `test_rom.py`'s `T19` asserts it stays within `144`-`153` across five frame classes. Measured: consistently `152`-`153` in the shipped build (`R101` §8.5) — `read_joypad`+`apply_input`+`engine_tick` alone consume roughly 9 of VBlank's 10 scanlines before this value is recorded. |
 | `0xC068` | `AROUSAL` | Added `IP-1120` (roadmap R7, `ADS-105`/`FS-112`), 2026-07-31. Derived mood byte: `TEMPO_IDX + DENSITY_IDX` (0-14, fits the required 0-15 range). Recomputed only at the 6 write sites that can change `TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX` (`music_engine.py`'s `mood_update` routine) — never as an unconditional per-frame call, per `NFR-1170`'s zero-added-per-frame-cost contract (a direct response to `IP-9030`'s VBlank-budget measurement). No visualizer/input consumer yet — groundwork for roadmap R9, separately blocked. `test_rom.py`'s `T20` covers monotonicity and all 6 trigger sites. |
 | `0xC069` | `VALENCE` | Added `IP-1120` (roadmap R7, `ADS-105`/`FS-112`), 2026-07-31. Derived mood byte: `VALENCE_TABLE[SCALE_IDX]`, a 4-entry ROM-resident lookup (`[10, 6, 12, 4]`, illustrative first-guess placement values, not tuned by ear — `BL-0005`-class deferral). Recomputed at the same 6 sites as `AROUSAL`, by the same `mood_update` call. |
+| `0xC070` | `BLEND_SRC_TEMPO` | Added `IP-1130` (roadmap R8, `ADS-107`/`FS-113`), 2026-08-08. Snapshot of `TEMPO_IDX`'s value at the start of the current (or most recently restarted) genre blend — `_emit_begin_blend` unconditionally recaptures it on every Start press, whether the engine was settled or mid-blend, which is what makes a mid-blend restart correct with no special-casing. |
+| `0xC071` | `BLEND_SRC_DENSITY` | Added `IP-1130`, 2026-08-08. Same role as `BLEND_SRC_TEMPO`, for `DENSITY_IDX`. |
+| `0xC072` | `BLEND_SRC_DUTY` | Added `IP-1130`, 2026-08-08. Same role as `BLEND_SRC_TEMPO`, for `DUTY_BIAS`. |
+| `0xC073` | `BLEND_STEP` | Added `IP-1130`, 2026-08-08. 0-4, doubles as blend progress index and completion flag — `_emit_blend_tick` (called unconditionally every frame from `engine_tick`, alongside `song_tick`) increments it by 1 per frame while `< 4`, recomputing `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` as `BLEND_SRC_* + ((STYLE_TABLE[CHMIX_IDX].field − BLEND_SRC_*) × BLEND_STEP) ÷ 4` each step; `== 4` is a cheap comparison-and-return, `NFR-1210`'s steady-state cost. `SCALE_IDX` is not a blend field — `_emit_begin_blend` applies it immediately, same frame as the press, and it is never touched again until the next press. As-shipped blend duration is **N=4 frames** (`BLEND_STEP` increments once per frame with no per-step frame-hold), not the package's originally-proposed N=16 (4 frames held per step) — a first-guess placeholder either way, per `FS-113`'s own Open Question (1), deferred to `09-content-review` tuning. `test_rom.py`'s `T21` covers the full contract including the mid-blend-restart edge case (`FR-1490`). |
 
 This section is appended rather than renumbered so `IP-0001`'s own commit diff against this file
 stays a clean addition — a live doc, corrected in place per the pipeline's own discipline (`GDS-07`
@@ -110,9 +114,9 @@ must match the shipped bytes, not drift the way the reference project's `Claude.
 
 ## §6 Headroom
 
-Fields span `0xC000`-`0xC069` (84 bytes used of the block, updated 2026-07-31 for `AROUSAL`/
-`VALENCE`) with the next free 8-aligned address at `0xC070` — ample headroom before any
-bank-switching question (a non-goal per MSTR-001 §4) becomes relevant.
+Fields span `0xC000`-`0xC073` (88 bytes used of the block, updated 2026-08-08 for `IP-1130`'s
+`BLEND_SRC_TEMPO`/`DENSITY`/`DUTY`/`BLEND_STEP`) with the next free address at `0xC074` — ample
+headroom before any bank-switching question (a non-goal per MSTR-001 §4) becomes relevant.
 
 ## §7 Reset-to-preset constants (GDS-03 §5)
 

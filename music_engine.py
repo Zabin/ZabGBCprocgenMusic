@@ -440,8 +440,12 @@ def _emit_blend_tick(rom):
     """IP-1130 (roadmap R8, ADS-107/FS-113): called once per frame from engine_tick, alongside
     song_tick. Steady state (BLEND_STEP already 4, the overwhelming majority of frames) is one
     comparison and a return -- NFR-1210's negligible-per-frame-cost contract. During an active
-    blend (at most N=16 frames per Start press -- BL-0005-class first guess, not tuned by ear),
-    increments BLEND_STEP then recomputes each of TEMPO_IDX/DENSITY_IDX/DUTY_BIAS as
+    blend (BLEND_STEP increments by 1 every frame, so N=4 frames per Start press to land exactly
+    -- FS-113's own Open Question (1) leaves N implementer's-choice/content-review-tuned; this is
+    the as-shipped value, not the package's originally-proposed N=16, disclosed here rather than
+    left mismatched against the docstring that used to describe a 4-frames-per-step/16-frame-total
+    scheme this implementation does not use), increments BLEND_STEP then recomputes each of
+    TEMPO_IDX/DENSITY_IDX/DUTY_BIAS as
     BLEND_SRC_* + ((STYLE_TABLE[CHMIX_IDX].field - BLEND_SRC_*) * BLEND_STEP) >> 2 -- multiply
     before divide (not divide-then-multiply) so the result is exact at BLEND_STEP==4 regardless
     of rounding at the intermediate steps (FR-1480's no-overshoot/no-stall-short guarantee).

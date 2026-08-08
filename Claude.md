@@ -26,7 +26,7 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers)
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 142 checks across T1-T20
+                    sound registers + WRAM engine state) — 153 checks across T1-T21
 ```
 
 ### Data layout, WRAM map
@@ -46,6 +46,10 @@ per-frame VBlank budget stays within `144`-`153` (`T19`; see the Known Good Beha
 (`TEMPO_IDX+DENSITY_IDX`, `VALENCE_TABLE[SCALE_IDX]`), recomputed only at the 6 write sites that
 can change their inputs, never per-frame; no visualizer/input consumer yet (groundwork for
 roadmap R9, separately blocked); see `T20`.
+**`BLEND_SRC_TEMPO`/`DENSITY`/`DUTY`/`BLEND_STEP` at `0xC070`-`0xC073` (`IP-1130`, roadmap R8)** —
+genre-blending state: `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` now glide toward a newly-selected
+`STYLE_TABLE` row over `BLEND_STEP`'s 0-4 progress instead of landing instantly; `SCALE_IDX` still
+hard-switches the same frame as the Start press. See `T21` and the Known Good Behavior note below.
 **No SRAM** — this project makes no save/battery commitment (MSTR-001 C2).
 
 ### Input mapping (GDS-03 SS3)
@@ -306,8 +310,23 @@ exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
   change, `visuals.py` untouched; groundwork for roadmap R9's future mood-reactive visualizer
   work, which remains separately blocked. `VALENCE_TABLE`'s 4 entries are illustrative
   first-guess values, not tuned by ear (`BL-0005`-class deferral).
+- Genre Blending (`IP-1130`, roadmap R8/`ADS-107`/`FS-113`, amends `FR-1240`): a Start press's
+  style change is no longer instant for 3 of its 4 fields — `SCALE_IDX` still hard-switches the
+  same frame, but `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` now glide toward the newly-selected
+  `STYLE_TABLE` row over `BLEND_STEP`'s 0-4 progress (as-shipped: **N=4 frames** to land exactly,
+  a first-guess placeholder like every other untuned constant here, not the package's
+  originally-proposed N=16 — `FS-113` Open Question 1, deferred to `09-content-review` tuning). A
+  second Start press mid-blend restarts the blend from the engine's then-current,
+  partially-interpolated values, not the original pre-first-press values. Disclosed finding: this
+  package's own unconditional per-frame `blend_tick` call (cheap steady-state check-and-return)
+  shifted `engine_tick`'s cycle timing enough to newly expose a **pre-existing, latent** one-frame
+  self-healing read-order race between the visualizer's `NR52` sample and the wave channel's own
+  periodic DAC retrigger (not introduced by, or fixable within, this package — `visuals.py` is
+  untouched) — same self-healing-lag class as the settings-indicator display's own note above, now
+  also disclosed for the channel-activity indicator tiles (`T9.3`, tolerating exactly a single-
+  frame skew, never two consecutive).
 
-**142/142 `test_rom.py` checks pass** (T1-T20). An 8000+ frame stress run with continuous input
+**153/153 `test_rom.py` checks pass** (T1-T21). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

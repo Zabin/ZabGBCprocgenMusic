@@ -477,11 +477,17 @@ R9-equivalent catalog row.
   requirement resolving that OQ, matching `ADS-107`'s own explicit deferral.
 - **No architecture violation.** Every new FR/NFR traces directly to `ADS-107`; no ADR is directly
   implicated.
-- **Forward traceability (Module/FS/IP/Test):** all `UNASSIGNED` — correctly honest, no `FS-xxx`/
-  package/test exists yet for R8. `NFR-1230`'s own Verification Method (WRAM-assertion-testable,
-  audible judgment deferred) previews what `06-feature-specification`'s Acceptance Criteria field
-  should look like when R8 reaches that stage — not decided here, only flagged as consistent
-  guidance.
+- **Forward traceability (Module/FS/IP/Test), updated 2026-08-08 now that `IP-1130` is
+  `COMPLETE`:** `FR-1470`/`FR-1480`/`FR-1490`/`NFR-1210`/`NFR-1220`/`NFR-1230` (and `FR-1240`'s
+  amendment) → Module `music_engine.py` (`_emit_begin_blend`, `_emit_blend_tick`, called from
+  `input_map.py`'s Start handler and `engine_tick` respectively) · FS `FS-113` · IP `IP-1130` ·
+  Test `test_rom.py` `T21` (`T21.1`/`T21.2` FR-1470, `T21.3` FR-1480, `T21.4`-`T21.7` FR-1490,
+  `T21.8`/`T4.7`/`T15.1`-`T15.4` FR-1240's surviving `SCALE_IDX` guarantee; `NFR-1220` verified by
+  inspection — 4 bytes, `0xC070`-`0xC073`, per `GDS-07` §6; `NFR-1230`'s own audible-quality half
+  remains explicitly deferred to `09-content-review`, never claimed by `T21`). Awaiting
+  `09-package-verification`. `NFR-1210`'s own Verification Method (WRAM-assertion-testable,
+  audible judgment deferred) previewed what `06-feature-specification`'s Acceptance Criteria field
+  looked like once R8 reached that stage — confirmed consistent, not re-decided here.
 
 No Critical/High finding. This delta is ready for `05-feature-decomposition` to add an
 R8-equivalent catalog row (`FEAT-1130`, per the release plan's own forward placeholder).

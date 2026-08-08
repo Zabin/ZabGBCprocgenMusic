@@ -19,13 +19,10 @@
 
 ### Authorization (G3)
 
-**Status: `READY`, authorization `NOT GRANTED`.**
+**Status: `READY`, authorization `GRANTED 2026-08-07`.**
 
-This package has not been through any go-ahead conversation with the user. The session's standing
-"iterate pipeline skill" instruction that produced the planning chain this package is the output of
-(`03`→`04`→`05`→`06`→`07`, roadmap R8) authorizes running the *planning* pipeline — it is not
-itself a build go-ahead, and this project carries no bootstrap carve-out that would make it one.
-No earlier grant in this session (`IP-1120`'s "Yes proceed"; the `IP-9030`/`IP-8010`/`IP-8020`
-standing-basis grants) was given for, or plausibly extends to, this fresh new-feature work — each
-of those was cited to its own specific package at the moment it was given, and this package follows
-the identical discipline rather than assuming coverage from a broader or earlier grant.
+The user was asked directly, via `AskUserQuestion`, whether to authorize `08-code-implementation`
+to build this package now that R8's full planning chain (`03`→`07`) was complete with no
+Critical/High finding and no blocking Open Question. The user chose **"Yes, build it."** Recorded
+as the basis rather than assumed — this is a fresh, specific grant for `IP-1130`, not a reuse of
+any earlier grant in this session.

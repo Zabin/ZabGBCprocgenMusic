@@ -279,7 +279,7 @@ unplanned and would each need their own fresh go-ahead.
 
 | IP | Package | FR/NFR cited | Status |
 |---|---|---|---|
-| IP-1130 | Genre Blending — interpolates `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` between `STYLE_TABLE` rows over 4 discrete steps on a Start press (`SCALE_IDX` hard-switches immediately, unchanged); 4 new independent WRAM bytes (`BLEND_SRC_TEMPO`/`DENSITY`/`DUTY`, `BLEND_STEP`); no new input control | `FS-113`/`FEAT-1130`, roadmap R8; `FR-1470`...`FR-1490`, `NFR-1210`...`NFR-1230`; amends `FR-1240` | **NOT STARTED** — `READY`, not authorized (see G3 authorization note below) |
+| IP-1130 | Genre Blending — interpolates `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` between `STYLE_TABLE` rows over 4 discrete steps on a Start press (`SCALE_IDX` hard-switches immediately, unchanged); 4 new independent WRAM bytes (`BLEND_SRC_TEMPO`/`DENSITY`/`DUTY`, `BLEND_STEP`); no new input control | `FS-113`/`FEAT-1130`, roadmap R8; `FR-1470`...`FR-1490`, `NFR-1210`...`NFR-1230`; amends `FR-1240` | **READY**, authorization **GRANTED 2026-08-07** ("Yes, build it"). |
 
 **Verb inventory.** *Generate* (the interpolation arithmetic itself) and *apply* (writing the
 result to `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS`/`SCALE_IDX`) are both covered by this one package
@@ -308,15 +308,10 @@ reasoning for `FEAT-1130` (one trigger, one per-frame tick, four bytes, no indep
 verifiable sub-piece) and `FS-113`'s own Module Responsibilities field, which already assigns
 both new routines to `music_engine.py` and the one call-site change to `input_map.py`.
 
-**G3 authorization for `IP-1130`: NOT GRANTED.** This package has not been through any go-ahead
-conversation with the user. The session's standing "iterate pipeline skill" instruction that
-produced this planning chain (`03`→`04`→`05`→`06`→`07`) authorizes running the *planning*
-pipeline — it is not itself a build go-ahead, and this project has no bootstrap carve-out that
-would make it one. No prior grant in this session (`IP-1120`'s "Yes proceed," the earlier
-`IP-9030`/`IP-8010`/`IP-8020` standing-basis grants) was given for or plausibly extends to this
-fresh new-feature work — each of those grants was cited to its own specific package at the time,
-not treated as a blanket authorization, and this package follows the identical discipline rather
-than assuming coverage.
+**G3 authorization for `IP-1130`: GRANTED 2026-08-07.** The user was asked directly via
+`AskUserQuestion` once R8's full planning chain (`03`→`07`) was complete, and chose "Yes, build
+it." Recorded as the basis rather than assumed — a fresh, specific grant for `IP-1130`, not a
+reuse of any earlier grant in this session.
 
 ## G5 gate (every stage-08 run)
 

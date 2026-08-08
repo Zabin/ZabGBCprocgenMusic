@@ -32,7 +32,7 @@
 | FR-1210 | A pitched channel running Scheme E selects its next scale-degree by stepping through a fixed, precomputed cyclic motif (a short sequence of scale-degree deltas), rather than an LFSR-picked random delta. | ADS-100 §3 (Domain Model: "Scheme E," pitch selection), R211, R216 |
 | FR-1220 | Bad-zone detection (`FR-1080`/`FR-1090`/`FR-1100`) and autonomous recovery (`IP-0007`'s dissonant/stuck/overload-driven overrides) apply identically to a pitched channel regardless of which generation scheme (Scheme W or Scheme E) it is currently running — no scheme-specific bad-zone logic exists. | ADS-100 §2 ("both schemes still write through the same `BAD_ZONE_FLAGS`-driven... overrides"), §5 (FR-candidate 4) |
 | FR-1230 | Each `CHMIX_IDX` preset value maps to a style data row specifying that style's target tempo index, density index, scale/mode index, and duty-cycle bias. | ADS-101 §2/§3/§5 (FR-candidate 1) |
-| FR-1240 | Changing `CHMIX_IDX` (Start) applies its mapped style row's target values to `TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX`/the duty-cycle-bias state immediately on the press that changes the preset — not gated to the next note-onset event, unlike `CHMIX_IDX`'s channel-activity/scheme-select half (`FR-1190`). | ADS-101 §2/§4/§5 (FR-candidate 2) |
+| FR-1240 | Changing `CHMIX_IDX` (Start) applies its mapped style row's `SCALE_IDX` target value immediately on the press that changes the preset — not gated to the next note-onset event, unlike `CHMIX_IDX`'s channel-activity/scheme-select half (`FR-1190`). **`TEMPO_IDX`/`DENSITY_IDX`/the duty-cycle-bias state no longer apply immediately as of this amendment (2026-08-07, roadmap R8/`BL-0020`)** — those three fields now land on their target values via the blend mechanism `FR-1470`-`FR-1490` define, not on the Start press itself. Original text (2026-07-26, `ADS-101`) stated all four fields applied immediately; this requirement is amended in place rather than left standing beside a contradicting new FR, since both described the same trigger. | ADS-101 §2/§4/§5 (FR-candidate 2); amended per ADS-107 §5 (FR-candidate 4) |
 | FR-1250 | The style data defines at least 3 named styles, each producing a tempo/density/scale/duty-cycle-bias combination that is audibly distinguishable, by content review, from every other defined style and from the default (preset-0) combination. | ADS-101 §3/§5 (FR-candidate 3) |
 | FR-1260 | The style row mapped to `CHMIX_IDX` preset 0 (the boot/Select-reset preset) specifies exactly the tempo/density/scale/duty-cycle-bias combination already shipped as the default preset — selecting preset 0 introduces no change to current boot/reset behavior. | ADS-101 §5 (FR-candidate 4) |
 | FR-1270 | A Scheme-E channel's motif data is one of a small, fixed set of motif variants, each a complete sequence of absolute scale-degree targets for one full motif-step cycle; variant index 0 specifies exactly the motif sequence already shipped. | ADS-102 §3/§5 (FR-candidate 1) |
@@ -55,6 +55,9 @@
 | FR-1440 | The `CHMIX_IDX`=0 row of that lookup table produces a palette identical to the calm palette already shipped — selecting preset 0 introduces no visual change from current shipped behavior. | ADS-106 §5 (FR-candidate 2) |
 | FR-1450 | Whenever `BAD_ZONE_FLAGS` is non-zero, the visualizer's palette is the existing bad-zone warning palette unconditionally, regardless of the current style-theme selection — the bad-zone override is absolute, not a blend or a priority tie-break. | ADS-106 §5 (FR-candidate 3) |
 | FR-1460 | At least 3 non-default style-theme palettes each produce a color combination distinguishable, by content review, from the default theme and from each other. | ADS-106 §5 (FR-candidate 4) |
+| FR-1470 | On a Start press that changes `CHMIX_IDX`, the engine begins a blend: it captures the current `TEMPO_IDX`/`DENSITY_IDX`/duty-cycle-bias values as the blend's starting point, and applies the newly selected style's `SCALE_IDX` value immediately (unchanged from `FR-1240`'s original guarantee for that one field). | ADS-107 §5 (FR-candidate 1) |
+| FR-1480 | Following a blend's start, `TEMPO_IDX`/`DENSITY_IDX`/the duty-cycle-bias state step through exactly 4 discrete levels from their captured starting values to the newly selected style's target values, landing exactly on the target at the final step — never overshooting the target, never stalling short of it. | ADS-107 §5 (FR-candidate 2) |
+| FR-1490 | A second Start press occurring while a blend is still in progress begins a new blend using the engine's current (possibly still-blending) `TEMPO_IDX`/`DENSITY_IDX`/duty-cycle-bias values as the new starting point — it does not wait for the prior blend to finish, and does not discard or queue the new selection. | ADS-107 §5 (FR-candidate 3) |
 
 ## Non-Functional Requirements
 
@@ -81,6 +84,9 @@
 | NFR-1180 | `AROUSAL`/`VALENCE` (2 new WRAM bytes) add bounded WRAM — within the current 32KB single-bank budget's ample headroom (`GDS-07` §6), with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5); the derivation's added cost at each trigger site is small relative to that site's own existing cost. | ADS-105 §6 (NFR-candidate 2/3), GDS-07 §6, MSTR-001 §4 |
 | NFR-1190 | The style-theme palette lookup adds zero unconditional per-frame CPU cost beyond one indexed table read replacing one constant reference — the palette-write routine already runs every frame under the existing stateless re-render contract; this capability changes what it reads, not how often it runs or how much it does. | ADS-106 §6 (NFR-candidate 1), GDS-08 §5 |
 | NFR-1200 | The new style-theme palette table adds bounded ROM — at most a handful of 8-byte palette rows, negligible against the measured free-ROM headroom (`R104` §7), with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5). | ADS-106 §6 (NFR-candidate 2), R104 §7, MSTR-001 §4 |
+| NFR-1210 | The blend mechanism's per-frame CPU cost is negligible once a blend is complete (one comparison and a return, no measurable addition to `engine_tick`'s existing per-frame cost); real interpolation arithmetic runs only during an active blend's brief window (at most 4 frames per Start press), a rare event relative to the per-frame budget `IP-9030` measured — costed and confirmed against that measured margin at implementation time, not assumed from this NFR alone. | ADS-107 §6 (NFR-candidate 1), GDS-06 §2.2a |
+| NFR-1220 | The 4 new blend-state WRAM bytes (`BLEND_SRC_TEMPO`/`BLEND_SRC_DENSITY`/`BLEND_SRC_DUTY`/`BLEND_STEP`) add bounded WRAM — within the current 32KB single-bank budget's ample headroom (`GDS-07` §6), with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5). | ADS-107 §6 (NFR-candidate 2), GDS-07 §6, MSTR-001 §4 |
+| NFR-1230 | The blend's 4-discrete-step interpolation is independently, headlessly verifiable via WRAM-value assertion (the exact expected index at each of the 4 steps, computed by the same shift-based formula the implementation uses) — whether the resulting audible transition is musically coherent is explicitly a `09-content-review` judgment, never claimed by an automated check. | ADS-107 §6 (NFR-candidate 3) |
 
 ## Open items carried to feature decomposition
 
@@ -142,6 +148,7 @@ Untraceable-to-a-source or explicitly-unbuilt statements, **excluded from the nu
 | 2026-07-26 | Added FR-1350 (5 settings indicators, bar-height glyph per parameter), FR-1360 (each indicator updates same-frame as its parameter), FR-1370 (purely additive, no change to existing channel-activity/palette behavior), FR-1380 (at least one indicator demonstrably live-reflects a manual button change), NFR-1140 (ROM/VRAM budget), NFR-1150 (VBlank-gated, comparable per-frame cost), NFR-1160 (no new input control). Delta update formalizing `ADS-104` §5/§6's candidate FRs/NFRs for `BL-0051` (settings & control visibility). No existing FR/NFR changed. | `BL-0051`, grounded in `ADS-104`. |
 | 2026-07-31 | Added FR-1390 (`AROUSAL` is a monotonic function of `TEMPO_IDX`/`DENSITY_IDX`), FR-1400 (`VALENCE` is a fixed one-to-one mapping keyed by `SCALE_IDX`), FR-1410 (both recomputed within one frame of any input write), FR-1420 (both correct on the first frame after boot and on a Select-reset's own frame), NFR-1170 (zero unconditional per-frame CPU cost — the load-bearing NFR, a direct response to `IP-9030`'s VBlank-budget measurement), NFR-1180 (bounded WRAM budget, bounded per-trigger-site cost). Delta update formalizing `ADS-105` §5/§6's candidate FRs/NFRs for roadmap R7 (Emotional/Energy Layer). Resolved `BL-0081` (exact derivation formulas) by keeping the baseline at the behavioral level — monotonicity and a fixed mapping, not literal lookup-table values, per this skill's own "no byte-level detail in requirements" rule; exact table contents are `07-implementation-planning`'s to propose. Resolved `BL-0080` (whether `AROUSAL` includes `CHMIX_IDX`-derived active-channel count) by explicitly scoping it out as new **`CR-0002`**, not baselined. No existing FR/NFR changed. | Roadmap R7, grounded in `ADS-105`. |
 | 2026-07-31 | Added FR-1430 (style-theme palette selected by a `CHMIX_IDX`-keyed lookup, applied every frame `BAD_ZONE_FLAGS` is clear), FR-1440 (preset-0 theme matches the shipped calm palette exactly, no regression), FR-1450 (bad-zone palette unconditionally overrides the style theme), FR-1460 (at least 3 distinguishable non-default themes), NFR-1190 (zero unconditional per-frame CPU cost beyond one indexed read replacing one constant), NFR-1200 (bounded ROM budget, cited to `R104` §7's actual measured headroom). Delta update formalizing `ADS-106` §5/§6's candidate FRs/NFRs for roadmap R9 (Visual Evolution & Audio-Visual Synchronization), **scoped to `RM-9001` (style-reactive palette) only** — `RM-9002` (mood-reactive, `IP-1120`'s `AROUSAL`/`VALENCE` as first consumer) and `RM-9003` (accessibility) are explicitly out of scope for this pass, per `ADS-106`'s own deferral decisions, and carry no FR/NFR here. No existing FR/NFR changed. | Roadmap R9, grounded in `ADS-106`. |
+| 2026-08-07 | Added FR-1470 (blend begins on Start press: capture start values, `SCALE_IDX` applies immediately), FR-1480 (4-discrete-step interpolation landing exactly on target), FR-1490 (a second Start press mid-blend restarts from current values, never queues), NFR-1210 (negligible steady-state per-frame cost), NFR-1220 (bounded WRAM budget, 4 new bytes), NFR-1230 (WRAM-assertion-testable; audible-quality judgment explicitly deferred to `09-content-review`). Delta update formalizing `ADS-107` §5/§6's candidate FRs/NFRs for roadmap R8 (Genre Blending). **`FR-1240` amended in place** (not left standing beside a contradicting new FR): its `TEMPO_IDX`/`DENSITY_IDX`/duty-cycle-bias instant-apply guarantee is superseded by `FR-1470`-`FR-1490`'s blend mechanism — only the `SCALE_IDX` half of the original guarantee survives unchanged. Checked for other requirements citing `FR-1240`'s original guarantee (see this pass's own Delta Review); none found beyond descriptive prose in prior passes' own historical Delta Reviews, which are left as accurate records of their own time rather than retroactively edited. | Roadmap R8/`BL-0020`, grounded in `ADS-107`. |
 
 ## Delta Review — 2026-07-25 (`FR-1180`-`FR-1220`, `NFR-1060`/`1070`)
 
@@ -443,3 +450,38 @@ No Critical/High finding. This delta is ready for `05-feature-decomposition` to 
 
 No Critical/High finding. This delta is ready for `05-feature-decomposition` to add an
 R9-equivalent catalog row.
+
+## Delta Review — 2026-08-07 (`FR-1470`-`FR-1490`, `NFR-1210`-`1230`, `FR-1240` amended)
+
+- **`FR-1240` amendment checked for isolation, as this pass's argument required.** Grepped the
+  whole file for every citation of `FR-1240`: two occurrences are the requirement's own row and
+  its 2026-07-26 changelog entry (both now consistent with the amendment); the remaining four
+  are inside **two prior passes' own historical `## Delta Review` sections** (the 2026-07-26 R5
+  review discussing `FR-1240` vs. `FR-1190`'s differing timing, and the 2026-07-26 R6 review
+  discussing `FR-1240` vs. `FR-1320`'s shared "last write wins" contract). **Left unedited,
+  deliberately**: those sections are dated records of what was true and reasoned about *at the
+  time each pass ran* — `FR-1240` genuinely did guarantee instant application for all four fields
+  when R5 and R6 were reviewed, and both reviews' conclusions (no conflict with `FR-1190`; the
+  same last-write-wins contract `FR-1320` reuses) remain accurate as historical statements. Only
+  `FR-1240`'s own current text needed to change; rewriting past reviews to match present tense
+  would falsify the record this file's own append-only Delta Review convention exists to
+  preserve.
+- **No duplicate or conflicting requirement introduced.** `FR-1470`-`FR-1490` describe a genuinely
+  new mechanism (the blend) that did not exist under any prior FR — they extend, not duplicate,
+  the space `FR-1240` used to cover alone.
+- **The amendment does not disturb `FR-1320`'s own "last write wins" contract** (song-form phase
+  transitions still overwrite `TEMPO_IDX`/`DENSITY_IDX` directly, same tick, per `ADS-103`) —
+  checked explicitly since both `FR-1320` and the new blend mechanism write the same two fields.
+  `ADS-107` §9 OQ3 already names the interaction as needing empirical confirmation at
+  implementation/verification time rather than an architectural rule; this pass adds no new
+  requirement resolving that OQ, matching `ADS-107`'s own explicit deferral.
+- **No architecture violation.** Every new FR/NFR traces directly to `ADS-107`; no ADR is directly
+  implicated.
+- **Forward traceability (Module/FS/IP/Test):** all `UNASSIGNED` — correctly honest, no `FS-xxx`/
+  package/test exists yet for R8. `NFR-1230`'s own Verification Method (WRAM-assertion-testable,
+  audible judgment deferred) previews what `06-feature-specification`'s Acceptance Criteria field
+  should look like when R8 reaches that stage — not decided here, only flagged as consistent
+  guidance.
+
+No Critical/High finding. This delta is ready for `05-feature-decomposition` to add an
+R8-equivalent catalog row (`FEAT-1130`, per the release plan's own forward placeholder).

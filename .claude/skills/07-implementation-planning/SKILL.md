@@ -1,6 +1,6 @@
 ---
 name: 07-implementation-planning
-description: Transform approved Feature Specifications (FS-xxx) — or backlog bugs routed here as remediation work — into an executable implementation plan under docs/implementation/ — a Technical Work Breakdown, build-ready Implementation Packages (IP-xxxx, the 14-field template), and the Master Build Plan (sequencing, dependency graph, critical path, status ledger). Use when asked to "plan the implementation of FS-xxx," "write the implementation package for this feature," "package the fix for BL-xxxx," "break this spec into work packages," or "update the Master Build Plan." This skill writes no production code (packages describe work in prose/pseudocode only), performs no research, no architecture redesign, no requirements authoring, and never modifies the Feature Specification it plans — and authoring a package is never itself an authorization to code it (G3 — this project has no bootstrap carve-out; every package needs the user's explicit per-package go-ahead). Do not use it to write Feature Specifications (06) or to implement packages (08).
+description: Transform approved Feature Specifications (FS-xxx) — or backlog bugs routed here as remediation work — into an executable implementation plan under docs/implementation/ — a Technical Work Breakdown, build-ready Implementation Packages (IP-xxxx, the 14-field template), and the Master Build Plan (sequencing, dependency graph, critical path, status ledger). Use when asked to "plan the implementation of FS-xxx," "write the implementation package for this feature," "package the fix for BL-xxxx," "break this spec into work packages," or "update the Master Build Plan." This skill writes no production code (packages describe work in prose/pseudocode only), performs no research, no architecture redesign, no requirements authoring, and never modifies the Feature Specification it plans — and authoring a package is never itself an authorization to code it (G3): a package that implements work already scheduled by the current, user-approved release plan inherits that plan's authorization automatically; a package outside the release plan (not on it, or a materially different shape than what it describes) still needs the user's explicit per-package go-ahead. Do not use it to write Feature Specifications (06) or to implement packages (08).
 ---
 
 # Implementation Planning
@@ -18,10 +18,16 @@ It SHALL NOT:
   described in prose/pseudocode sufficient for a coding agent, never as compilable source.
 - **Modify specs, requirements, or architecture.** An unimplementable spec or a conflict found
   while planning routes upstream — never planned around quietly.
-- **Authorize coding (G3).** A package being fully specified — even `READY` — is not
-  authorization to build. This project carries **no bootstrap carve-out**: every package, from
-  the first ever authored, requires the user's explicit per-package go-ahead before any stage-08
-  peer may build it. State every new package's authorization status explicitly.
+- **Authorize coding (G3) beyond what the release plan already covers.** A package being fully
+  specified — even `READY` — is not itself authorization to build. If the package implements work
+  the current, user-approved release plan (`docs/feature-planning/01-release-plan.md`, or its
+  successor) already schedules, in the shape the plan describes, that plan approval is the
+  authorization — no separate per-package go-ahead is required. A package that is *not* on the
+  release plan, or diverges materially from what the plan describes (different scope, different
+  approach, a plan the user hasn't actually approved), still requires the user's explicit
+  per-package go-ahead before any stage-08 peer may build it. State every new package's
+  authorization status explicitly, and cite which basis applies — release-plan coverage (name the
+  plan section/row) or an explicit user go-ahead.
 - **Execute anything.** The moment work turns into editing the repo-root `.py` files, it belongs
   to stage 08.
 
@@ -61,8 +67,9 @@ All under `docs/implementation/` (this skill's sole write scope):
   an enumerated, per-delta-justified list of predicted byte deltas; for doc-scoped work, the
   meaning-preservation constraints and the migration-map location if IDs/files move (grounding:
   `R310`). A package that mixes refactoring with behavior change must be split — the equivalence
-  proof doesn't survive mixing. Refactoring packages are **never** pre-authorized (G3, no
-  bootstrap carve-out — the same rule every other package follows on this project).
+  proof doesn't survive mixing. Refactoring packages follow the same G3 rule as every other
+  package: authorized automatically if the release plan already schedules the refactor in the
+  shape described, otherwise requiring the user's explicit go-ahead.
 - **Status vocabulary (verbatim):** `NOT STARTED / READY / IN PROGRESS / BLOCKED / COMPLETE /
   VERIFIED`. This skill only writes `NOT STARTED`, `READY`, or `BLOCKED` — `IN PROGRESS`/
   `COMPLETE` belong to stage 08, `VERIFIED` exclusively to `09-package-verification`.
@@ -125,8 +132,9 @@ section it lands in per GDS-07) belongs in Risks for any package that grows data
 
 New rows (status, blockers, authorization state), graph edges, critical path, parallel
 opportunities; `packages/INDEX.md` in sync. Per new package, state explicitly whether G3
-authorization exists (user go-ahead on record — there is no bootstrap carve-out on this project) —
-default is **not authorized**.
+authorization exists and its basis: **release-plan coverage** (cite the release plan section/row
+the package matches, in shape and scope) or an explicit **user go-ahead on record**. If neither
+applies, the default is **not authorized**.
 
 ### Step 4 — Cross-link and commit
 
@@ -141,8 +149,9 @@ implementation rows, commit as `docs(implementation): IP-xxxx — <what was plan
 - [ ] Every Requirements Covered ID exists in `docs/requirements/` and matches the FS.
 - [ ] Dependency edges consistent across package fields, the plan's graph, and the index.
 - [ ] No package `READY` whose dependencies aren't all `VERIFIED`; no package marked authorized
-      without an explicit basis (user go-ahead, cited — this project has no G3 bootstrap
-      carve-out to cite instead).
+      without an explicit, cited basis (release-plan coverage naming the matching section/row, or
+      a user go-ahead) — a package outside or diverging from the release plan defaults to not
+      authorized.
 - [ ] The TWBS records the rationale for every split/no-split decision.
 - [ ] For a multi-verb capability (generate/render/apply/persist/review), every verb has a
       named package or a recorded, deliberate deferral — the TWBS states this explicitly.
@@ -174,10 +183,11 @@ End **every** invocation with a chat summary containing exactly these three part
    Build Plan / index rows, each new package's status + authorization state.
 2. **Recommendations** — spec defects or Open Questions routed upstream, right-sizing concerns,
    critical-path or ROM-budget risks the user should know before authorizing.
-3. **Next step** — if the new package(s) are `READY` and authorized (explicit user go-ahead on
-   record), advance to the owning stage-08 peer naming the first package (critical-path first); if
-   authorization is missing, ask the user for the explicit go-ahead; if planning was blocked
-   upstream, name the owning skill and what it must resolve.
+3. **Next step** — if the new package(s) are `READY` and authorized (release-plan coverage cited,
+   or an explicit user go-ahead on record), advance to the owning stage-08 peer naming the first
+   package (critical-path first); if authorization is missing (package not on, or diverging from,
+   the release plan), ask the user for the explicit go-ahead; if planning was blocked upstream,
+   name the owning skill and what it must resolve.
 
 Never end a run without naming the next step — the pipeline is driven one stage at a time, and
 the user relies on each stage's summary to know what to invoke next.

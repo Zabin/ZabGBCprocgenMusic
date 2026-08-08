@@ -1,6 +1,6 @@
 ---
 name: 08-code-implementation
-description: Implement exactly one approved, eligible Implementation Package end-to-end — write the engine-logic/build-machinery code and tests it describes (music_engine.py, visuals.py, input_map.py, gbc_lib.py, build_rom.py, test_rom.py), rebuild the ROM, run the full test suite, fix defects this package's own changes introduced, update the documentation and traceability the package names, and advance that package's status on the Master Build Plan. Use when asked to "implement IP-xxxx," "pick up the next ready package and build it," or "execute the next step of the Master Build Plan." This is the first skill in the pipeline authorized to modify production source. It implements exactly one package per invocation, never redesigns architecture, never edits requirements/specs/packages, and never chooses work outside the Master Build Plan. Content-only packages (pure visualizer tile/palette art, curated scale/rhythm data) belong to its peer 08-content-authoring; verification to VERIFIED belongs to 09-package-verification.
+description: Implement exactly one approved, eligible Implementation Package end-to-end — write the engine-logic/build-machinery code and tests it describes (music_engine.py, visuals.py, input_map.py, gbc_lib.py, build_rom.py, test_rom.py), rebuild the ROM, run the full test suite, fix defects this package's own changes introduced, update the documentation and traceability the package names, and advance that package's status on the Master Build Plan. Use when asked to "implement IP-xxxx," "pick up the next ready package and build it," or "execute the next step of the Master Build Plan." This is the first skill in the pipeline authorized to modify production source. It implements exactly one package per invocation, never redesigns architecture, never edits requirements/specs/packages, and never chooses work outside the Master Build Plan. A package already scheduled by the current, user-approved release plan is authorized (G3) on that basis alone; a package outside or diverging from the release plan still needs its own explicit user go-ahead. Content-only packages (pure visualizer tile/palette art, curated scale/rhythm data) belong to its peer 08-content-authoring; verification to VERIFIED belongs to 09-package-verification.
 ---
 
 # Code Implementation
@@ -40,9 +40,12 @@ that's the candidate — still gate-check it. Otherwise select deterministically
 lowest ID → if still tied, ask. Zero survivors: stop and report what's closest and what it waits
 on.
 
-**Eligibility ≠ authorization (G3).** Check the package's recorded authorization state (explicit
-user go-ahead on record — this project has no bootstrap carve-out; every package needs its own
-go-ahead). If it isn't there, stop and ask.
+**Eligibility ≠ authorization (G3), but release-plan coverage satisfies it.** Check the package's
+recorded authorization state. A package that implements work the current, user-approved release
+plan already schedules, in the shape the plan describes, is authorized on that basis — no separate
+go-ahead needed; cite the matching release-plan section/row. A package not on the release plan, or
+diverging materially from what it describes, needs its own explicit user go-ahead on record. If
+neither basis is present, stop and ask.
 
 ### Step 2–3 — Read the package and everything it cites
 
@@ -112,7 +115,8 @@ package `BLOCKED` with a pointer, and end the run — no consolation package.
 
 ## Quality checklist (before presenting `COMPLETE`)
 
-- [ ] Status was `READY`, dependencies `VERIFIED`, authorization explicitly cleared.
+- [ ] Status was `READY`, dependencies `VERIFIED`, authorization cleared with its basis cited
+      (release-plan coverage or explicit user go-ahead).
 - [ ] Every touched file appears in the package's file lists (or is an implied test), and the
       content-peer seam (`tiles.py`/`patterns.py`/`music_data.py` data) was not crossed.
 - [ ] ROM builds (32768 bytes, valid header); full `test_rom.py` passes; every Tests to Add item

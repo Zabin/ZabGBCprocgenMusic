@@ -32,6 +32,23 @@ flagged in §9 for the roadmap owner's adoption. Everything else reuses R0-R13 v
 
 ---
 
+## §0.5 Decisions on record (2026-08-07)
+
+Four open questions were put to the user directly and answered. This plan is written to them; they
+are not assumptions.
+
+| Question | Decision | Effect on this plan |
+|---|---|---|
+| **v1.0 scope** | **R0-R8 + R12 + R12.5 + R13.** R9 and R10 move to **v1.1**. | Confirms §5's recommended scope. **De-escalates `BL-0086`** from release-blocking to v1.1 cleanup. |
+| **Product name** (`BL-0007`) | **Keep "Driftune"** as final. | `BL-0007` `DONE`. No rename anywhere; header/build/docs already use it. |
+| **Hardware validation** (`BL-0058`) | **Ship emulator-validated, stated plainly; add a SameBoy/BGB mode-accurate cross-check at R13.** Real silicon → v1.1 goal. | `BL-0058` off `NEEDS-USER`; R13 gains one concrete task. Not a v1.0 blocker. |
+| **`08-content-authoring`'s broken scope** (`BL-0089`) | **Create the three modules** — extract data into real `tiles.py`/`patterns.py`/`music_data.py`, restoring the decomposition `GDS-03`/`GDS-09` always described. | **Adds a refactoring package to the critical path before R12.5** (see §2.5). Chosen over repointing or retiring the skill. |
+
+**No `NEEDS-USER` backlog items remain open.** Every remaining open item is `SCHEDULED` to a named
+release or a named ride.
+
+---
+
 ## §1 The release ladder
 
 State as of 2026-08-07. "Shipped" means a `11-release-readiness` GO is on record.
@@ -48,8 +65,8 @@ State as of 2026-08-07. "Shipped" means a `11-release-readiness` GO is on record
 | R6 Song-Form Engine | C | ✅ Shipped, GO 2026-07-31 (+ `IP-1090`, `IP-1110`) | — |
 | **R7 Emotional/Energy Layer** | C | 🟡 **`IP-1120` `COMPLETE`, unverified** | Verification queue (§2.1) |
 | **R8 Genre Blending** | D | ⬜ **Unstarted, fully unblocked** | none |
-| **R9 Visual Evolution & A-V Sync** | E | 🟡 Designed (`ADS-106`, `FR-1430`-`1460`), **blocked** | `BL-0086` (High) |
-| R10 Interactive Control Expansion | E | ⬜ Not started | R8 |
+| **R9 Visual Evolution & A-V Sync** | E | 🟡 Designed (`ADS-106`, `FR-1430`-`1460`) — **v1.1** (scope decision 2026-08-07) | `BL-0086`, now v1.1 cleanup |
+| R10 Interactive Control Expansion | E | ⬜ **v1.1** (scope decision 2026-08-07) | R8 |
 | R11 Persistence Layer | F | ❌ **Struck** — R4.5 decided NO-GO | — (closed) |
 | R12 Performance & ROM-Budget | F | ⬜ Not started | all prior |
 | **R12.5 Content & Musical Quality** | F | ⬜ **Proposed here** (§2.5) | R12 |
@@ -154,9 +171,19 @@ blend-quality review surfaces.
 **Placement:** after R12 (so tuning isn't invalidated by a later performance pass) and before R13.
 Uses the `R4.5` half-numbered-checkpoint precedent the roadmap already established.
 
-**Prerequisite:** `BL-0089` — `08-content-authoring`'s entire declared write scope is three files
-that do not exist (`tiles.py`/`patterns.py`/`music_data.py`). Retuning constants is exactly the
-work that skill exists to do, so this gate must be resolved before R12.5 can execute.
+**Prerequisite — now a named work item, not an open gate.** `BL-0089` asked how to fix
+`08-content-authoring`'s write scope, which pointed at three files that have never existed. **The
+user decided 2026-08-07: create them** — extract the data out of `visuals.py` and `music_engine.py`
+into real `tiles.py` / `patterns.py` / `music_data.py`, restoring the decomposition `GDS-03` and
+`GDS-09` always described.
+
+That is a genuine **`IP-8xx0` refactoring package** (executor `08-refactoring`) carrying the
+standard equivalence contract — **byte-identical ROM** and an identical full-suite check-name set —
+touching the two largest modules in the tree. It needs `07-implementation-planning` to author it
+and its **own G3 authorization** (refactoring packages are never pre-authorized). It sits **on the
+critical path immediately before R12.5**, because the tuning pass needs a working content surface
+to write through. When it lands it supersedes `GDS-09` §2's honestly-recorded "three of those five
+do not exist" note.
 
 ### §2.6 R12 — Performance & ROM-Budget · §2.7 R13 — Release Candidate
 
@@ -205,13 +232,16 @@ sequencing is visible, marked italic so they are not mistaken for existing rows.
 
 Every open `BL-xxxx` has a home. Nothing is silently omitted.
 
-### Blocking gates (4) — require a user decision
-| ID | Blocks | Decision needed |
+### Former blocking gates (4) — **all answered 2026-08-07, none open**
+| ID | Was blocking | Resolution |
 |---|---|---|
-| `BL-0086` | **R9** | Correct `ADS-106` + `NFR-1190` now, or at planning time |
-| `BL-0089` | **R12.5** | Repoint `08-content-authoring`'s write scope, or retire the 3 never-built modules |
-| `BL-0095` | — | This file closes the substantive half; the residual is §9's deliverable disposition |
-| `BL-0058` | R13 | Is hardware/emulator-cross-check validation wanted, and at what priority |
+| `BL-0086` | R9 | **De-escalated** — R9 is v1.1, so this is no longer release-blocking. Default: correct `ADS-106` + `NFR-1190` in the next doc-coherence pass, alongside `BL-0087`/`BL-0091`/`BL-0092`/`BL-0093`, which land in the same documents. |
+| `BL-0089` | R12.5 | **Answered: create the three modules.** Becomes an `IP-8xx0` refactoring package on the critical path before R12.5 (§2.5), with its own G3. |
+| `BL-0095` | — | Substantive half closed by this file. Residual: `05-feature-review.md`, §9. |
+| `BL-0058` | R13 | **Answered: emulator-validated + SameBoy/BGB cross-check at R13.** Real silicon → v1.1. |
+
+**Zero `NEEDS-USER` items remain in the backlog.** The only user input still owed is **G3
+authorization per package**, at the point each one is ready to build.
 
 ### Assigned to a release (28)
 - **R7 (verification queue):** `BL-0069`, `BL-0064`, `BL-0065`, `BL-0088`, `BL-0013`
@@ -252,17 +282,16 @@ independence in verification; trigger: next `09` run confirming a *finding*) · 
    generator is the single largest quality risk in the project, and it is invisible to the test
    suite.
 4. **`10-integration-review` clean at full package scope**, and **`11-release-readiness` GO**.
-5. **A decided product name** (`BL-0007`). "Driftune" is a working title the vision doc itself
-   flags as open; a v1.0 ships under a name someone chose.
+5. ~~**A decided product name** (`BL-0007`).~~ ✅ **Settled 2026-08-07: "Driftune" is final.**
+   `BL-0007` `DONE` — no rename needed; the ROM header, build output and docs tree already use it.
 
 **Not required to ship** — deliberately:
 
-6. **Hardware validation** (`BL-0058`). Every claim this project makes is a claim about PyBoy
-   2.7.0. Real-silicon validation needs a flash cart and a physical device, which is outside every
-   automated stage's reach. **Recommendation:** ship v1.0 as *emulator-validated*, stated plainly
-   in the release notes, and treat hardware as a v1.1 goal. The cheaper partial substitute —
-   cross-checking against a mode-accurate emulator (SameBoy/BGB, `R309`) — is worth doing at R13
-   and does not block.
+6. **Hardware validation** (`BL-0058`). ✅ **Decided 2026-08-07:** ship v1.0 as *emulator-validated*,
+   stated plainly in the release notes; add a mode-accurate-emulator cross-check (SameBoy/BGB,
+   `R309`) at R13 to target the one divergence PyBoy structurally cannot model — it applies no
+   PPU-mode gating to VRAM writes, while this ROM's `update_visuals` finishes on VBlank's last
+   scanline. Real-silicon validation is a **v1.1 goal**, not a v1.0 blocker.
 7. **R9, R10, and R11.** A legitimate, smaller RC is explicitly permitted:
    `05-milestone-definitions.md` states the RC *"requires whichever subset the project actually
    pursued to be fully `VERIFIED`."* **R0-R8 + R12 + R12.5 is a coherent, shippable v1.0** — a
@@ -296,20 +325,28 @@ and it is the one release whose duration is set by judgment rather than by work.
 
 ---
 
-## §7 Next three steps — sequential, for `00-pipeline-manager`
+## §7 Next steps — sequential, for `00-pipeline-manager`
+
+Revised 2026-08-07 against the scope decision and `BL-0089`'s answer.
 
 1. **`09-package-verification`, fresh session, on `IP-9030`** (then `IP-8010`, `IP-8020`,
    `IP-1120` — one per session, oldest first). Needs no decision. Unblocks R7's GO and closes
    `BL-0069`/`BL-0064`/`BL-0065`.
 2. **`03-architecture-design-synthesis` → new `ADS-107` for R8 (Genre Blending).** The only
-   forward release that is fully unblocked. Runs in parallel with step 1.
-3. **`11-release-readiness` for a bundled R7+R8 GO** once both land — honoring R7's own
+   forward release in v1.0 scope that is fully unblocked. **Runs in parallel with step 1.**
+3. **`07-implementation-planning` → an `IP-8xx0` module-extraction package** implementing
+   `BL-0089`'s answer: move tile/palette data out of `visuals.py` and the musical tables out of
+   `music_engine.py` into real `tiles.py` / `patterns.py` / `music_data.py`, under a byte-identical
+   -ROM equivalence contract. **Needs its own G3 authorization.** Prerequisite to R12.5; can be
+   planned any time, best executed while no feature package is in flight (`08-refactoring` requires
+   a quiescent tree).
+4. **`11-release-readiness` for a bundled R7+R8 GO** once both land — honoring R7's own
    "should ship bundled" note rather than calling a GO for a release with nothing to hear.
+5. **R12 → R12.5 → R13.** R12.5 is the first time anyone listens to this thing; expect it to
+   generate retuning work that is real, and budget for a second review pass after retuning.
 
-Ahead of the next `08-*` run, the standing G3 rule applies: **every package needs its own explicit
+Ahead of every `08-*` run, the standing G3 rule applies: **each package needs its own explicit
 user go-ahead.** This plan schedules work; it authorizes none.
-
----
 
 ## §8 Deviation from this skill's own template
 

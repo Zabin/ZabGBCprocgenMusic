@@ -98,6 +98,19 @@ VALENCE = 0xC069
 # place to retune.
 VALENCE_TABLE = [10, 6, 12, 4]
 
+# IP-1130 (roadmap R8, ADS-107/FS-113): genre blending -- TEMPO_IDX/DENSITY_IDX/DUTY_BIAS glide
+# over 4 discrete steps toward a newly-selected STYLE_TABLE row instead of landing instantly
+# (supersedes FR-1240's original instant-apply guarantee for these 3 fields; SCALE_IDX keeps it,
+# categorical fields cannot interpolate). BLEND_SRC_* is a snapshot of the pre-blend values,
+# captured unconditionally on every Start press -- this is what makes a mid-blend restart
+# (FR-1490) correct with no special-casing: the capture always reads whatever the engine
+# currently holds, settled or mid-blend. BLEND_STEP doubles as progress index and completion
+# flag (0 = just begun, 4 = complete/terminal).
+BLEND_SRC_TEMPO = 0xC070
+BLEND_SRC_DENSITY = 0xC071
+BLEND_SRC_DUTY = 0xC072
+BLEND_STEP = 0xC073
+
 # IP-0004 thresholds (GDS-03 SS4, R204 SS5) — first-guess placeholders, per BL-0005's own
 # deferred-tuning convention; the dissonance weight table itself is literature-grounded (R204),
 # these threshold *numbers* are not yet tuned by ear.
@@ -388,21 +401,105 @@ def _ld_hl_label(rom, label):
     rom.fixups.append((rom.pos - 2, label, 'abs16'))
 
 
-def _emit_apply_style(rom):
-    """IP-1080 (roadmap R5, ADS-101/FS-108): reads STYLE_TABLE[CHMIX_IDX]'s 4-byte row
-    (tempo_idx, density_idx, scale_idx, duty_bias) and writes each value into
-    TEMPO_IDX/DENSITY_IDX/SCALE_IDX/DUTY_BIAS — called from input_map.py's Start-press handler
-    immediately after CHMIX_IDX is stepped, so a style change applies the same frame as the press
-    (FR-1240), unlike CHMIX_MASKS's channel-mix/scheme half (next onset, FR-1190)."""
+def _emit_begin_blend(rom):
+    """IP-1130 (roadmap R8, ADS-107/FS-113): supersedes IP-1080's _emit_apply_style. Called from
+    input_map.py's Start-press handler immediately after CHMIX_IDX is stepped. Unconditionally
+    captures the engine's CURRENT TEMPO_IDX/DENSITY_IDX/DUTY_BIAS as the blend's source — this is
+    what makes a mid-blend restart (FR-1490) correct with no special-casing: the capture always
+    reads whatever the engine currently holds, whether settled (BLEND_STEP==4) or partway through
+    an earlier blend. SCALE_IDX still applies immediately (FR-1240's surviving half, categorical
+    -- cannot interpolate). BLEND_STEP resets to 0; _emit_blend_tick (engine_tick) carries the
+    other 3 fields the rest of the way over the following frames."""
+    rom.LD_A_nn(TEMPO_IDX);   rom.LD_nn_A(BLEND_SRC_TEMPO)
+    rom.LD_A_nn(DENSITY_IDX); rom.LD_nn_A(BLEND_SRC_DENSITY)
+    rom.LD_A_nn(DUTY_BIAS);   rom.LD_nn_A(BLEND_SRC_DUTY)
+
     rom.LD_A_nn(CHMIX_IDX)
     rom.ADD_A_A(); rom.ADD_A_A()   # *4 (row width)
     rom.LD_C_A(); rom.LD_B_n(0)
     _ld_hl_label(rom, 'style_table')
     rom.ADD_HL_BC()
-    rom.LD_A_HLI(); rom.LD_nn_A(TEMPO_IDX)
-    rom.LD_A_HLI(); rom.LD_nn_A(DENSITY_IDX)
-    rom.LD_A_HLI(); rom.LD_nn_A(SCALE_IDX)
-    rom.LD_A_HL();  rom.LD_nn_A(DUTY_BIAS)
+    rom.INC_HL(); rom.INC_HL()     # skip tempo_idx, density_idx -> HL at scale_idx (row offset 2)
+    rom.LD_A_HL(); rom.LD_nn_A(SCALE_IDX)
+
+    rom.XOR_A(); rom.LD_nn_A(BLEND_STEP)
+
+
+# IP-1130: (BLEND_SRC WRAM addr, STYLE_TABLE row offset, destination WRAM addr, label suffix) for
+# each of the 3 fields _emit_blend_tick interpolates. scale_idx (row offset 2) is deliberately
+# absent -- it is not a blend field, _emit_begin_blend applies it immediately and it is never
+# touched again until the next Start press.
+_BLEND_FIELDS = [
+    (BLEND_SRC_TEMPO, 0, TEMPO_IDX, 'tempo'),
+    (BLEND_SRC_DENSITY, 1, DENSITY_IDX, 'density'),
+    (BLEND_SRC_DUTY, 3, DUTY_BIAS, 'duty'),
+]
+
+
+def _emit_blend_tick(rom):
+    """IP-1130 (roadmap R8, ADS-107/FS-113): called once per frame from engine_tick, alongside
+    song_tick. Steady state (BLEND_STEP already 4, the overwhelming majority of frames) is one
+    comparison and a return -- NFR-1210's negligible-per-frame-cost contract. During an active
+    blend (at most N=16 frames per Start press -- BL-0005-class first guess, not tuned by ear),
+    increments BLEND_STEP then recomputes each of TEMPO_IDX/DENSITY_IDX/DUTY_BIAS as
+    BLEND_SRC_* + ((STYLE_TABLE[CHMIX_IDX].field - BLEND_SRC_*) * BLEND_STEP) >> 2 -- multiply
+    before divide (not divide-then-multiply) so the result is exact at BLEND_STEP==4 regardless
+    of rounding at the intermediate steps (FR-1480's no-overshoot/no-stall-short guarantee).
+    SM83 has neither a multiply nor an arithmetic-shift-right opcode: the product is built via a
+    bounded repeated-addition loop (BLEND_STEP is always 1-4), and the signed divide-by-4 is done
+    by negating a negative operand, shifting the now-nonnegative magnitude with the existing
+    unsigned SRL_A (safe -- every magnitude here is well under 128), then negating back."""
+    rom.label('blend_tick')
+    rom.LD_A_nn(BLEND_STEP)
+    rom.CP_n(4)
+    # IP-1130: JP not JR -- the 3-field interpolation loop below is too long for JR's signed
+    # 8-bit relative range (same reason IP-1090's Scheme-E block already needed JP over JR).
+    rom.JP_NC('bt_done')           # BLEND_STEP >= 4: blend already complete, cheapest exit
+    rom.INC_A()
+    rom.LD_nn_A(BLEND_STEP)
+
+    for src_addr, offset, dst_addr, suffix in _BLEND_FIELDS:
+        # delta = STYLE_TABLE[CHMIX_IDX][offset] - BLEND_SRC_* (signed)
+        rom.LD_A_nn(CHMIX_IDX)
+        rom.ADD_A_A(); rom.ADD_A_A()    # *4 (row width)
+        rom.ADD_A_n(offset)
+        rom.LD_C_A(); rom.LD_B_n(0)
+        _ld_hl_label(rom, 'style_table')
+        rom.ADD_HL_BC()
+        rom.LD_A_HL()                    # A = target byte
+        rom.LD_D_A()                     # D = target
+        rom.LD_A_nn(src_addr)            # A = source
+        rom.LD_E_A()                     # E = source (kept for the final add)
+        rom.LD_A_D()                     # A = target
+        rom.SUB_E()                      # A = target - source = delta
+
+        # numerator = delta * BLEND_STEP (BLEND_STEP already re-incremented, 1-4; bounded loop)
+        rom.LD_C_A()                     # C = delta (repeatedly added)
+        rom.LD_A_nn(BLEND_STEP)
+        rom.LD_B_A()                     # B = loop counter (1-4)
+        rom.XOR_A()                      # A = 0 (accumulator)
+        rom.label(f'bt_mul_{suffix}')
+        rom.ADD_A_C()
+        rom.DEC_B()
+        rom.JR_NZ(f'bt_mul_{suffix}')
+        # A = delta * BLEND_STEP, magnitude at most 7*4=28 -- safe for the signed-divide trick
+
+        # increment = numerator / 4, signed (magnitude-negate-shift-renegate for negatives)
+        rom.BIT_b_A(7)
+        rom.JR_Z(f'bt_pos_{suffix}')
+        rom.CPL(); rom.INC_A()           # A = -numerator (positive magnitude)
+        rom.SRL_A(); rom.SRL_A()         # A = magnitude / 4
+        rom.CPL(); rom.INC_A()           # A = -(magnitude / 4)
+        rom.JR(f'bt_divdone_{suffix}')
+        rom.label(f'bt_pos_{suffix}')
+        rom.SRL_A(); rom.SRL_A()         # A = numerator / 4 (non-negative, safe)
+        rom.label(f'bt_divdone_{suffix}')
+
+        rom.ADD_A_E()                    # A = increment + source
+        rom.LD_nn_A(dst_addr)
+
+    rom.label('bt_done')
+    rom.RET()
 
 
 def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_lo, nr_freq_hi,
@@ -1253,6 +1350,7 @@ def build_engine_asm(rom: ROM):
     rom.CALL('gen_tick_nz')
     rom.CALL('badzone_tick')
     rom.CALL('song_tick')
+    rom.CALL('blend_tick')
     rom.RET()
 
     for (suffix, note_timer, cur_degree, lfsr_state, _seed, nr_lo, nr_hi, oct_delta, tempo_mult,
@@ -1269,6 +1367,7 @@ def build_engine_asm(rom: ROM):
     _emit_badzone_tick(rom)
     _emit_song_tick(rom)
     _emit_mood_update(rom)
+    _emit_blend_tick(rom)
 
     # ── Data tables ───────────────────────────────────────────────────
     rom.label('delta_table')

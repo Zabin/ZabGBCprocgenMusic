@@ -8,7 +8,7 @@ surface (GDS-03 SS1).
 """
 
 from gbc_lib import ROM
-from music_engine import _emit_apply_style
+from music_engine import _emit_begin_blend
 from wram_constants import TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX_IDX
 
 # ── WRAM addresses (GDS-07 SS5) ───────────────────────────────────────
@@ -61,10 +61,12 @@ def build_input_asm(rom: ROM):
     _step_on_bit(rom, J_A, SCALE_IDX, +1, 0x03, 'ai_a', extra_call='mood_update')
     _step_on_bit(rom, J_B, DENSITY_IDX, +1, 0x07, 'ai_b', extra_call='mood_update')
 
-    # Start: step CHMIX_IDX (FR-1060), then immediately apply the newly-selected preset's style
-    # (IP-1080, FR-1240 — tempo/density/scale/duty-bias applied the same frame, not gated to the
-    # next onset the way CHMIX_MASKS's channel-mix/scheme half is, FR-1190). Inlined rather than
-    # reusing _step_on_bit so the style-apply only runs on the actual edge, not every frame.
+    # Start: step CHMIX_IDX (FR-1060), then begin a blend toward the newly-selected preset's
+    # style (IP-1130, roadmap R8, amends FR-1240 — SCALE_IDX still applies the same frame;
+    # TEMPO_IDX/DENSITY_IDX/DUTY_BIAS now glide over the following frames instead of landing
+    # instantly, not gated to the next onset either way, unlike CHMIX_MASKS's channel-mix/scheme
+    # half, FR-1190). Inlined rather than reusing _step_on_bit so the blend only begins on the
+    # actual edge, not every frame.
     rom.LD_A_nn(JOY_NEW)
     rom.BIT_b_A(J_START)
     rom.JR_Z('ai_start')
@@ -72,7 +74,7 @@ def build_input_asm(rom: ROM):
     rom.INC_A()
     rom.AND_n(0x07)
     rom.LD_nn_A(CHMIX_IDX)
-    _emit_apply_style(rom)
+    _emit_begin_blend(rom)
     rom.label('ai_start')
 
     # Select: unconditional reset to the known-good preset (FR-1070), regardless of bad-zone

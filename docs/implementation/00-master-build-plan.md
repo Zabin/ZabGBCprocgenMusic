@@ -279,7 +279,7 @@ unplanned and would each need their own fresh go-ahead.
 
 | IP | Package | FR/NFR cited | Status |
 |---|---|---|---|
-| IP-1130 | Genre Blending — interpolates `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` between `STYLE_TABLE` rows over 4 discrete steps on a Start press (`SCALE_IDX` hard-switches immediately, unchanged); 4 new independent WRAM bytes (`BLEND_SRC_TEMPO`/`DENSITY`/`DUTY`, `BLEND_STEP`); no new input control | `FS-113`/`FEAT-1130`, roadmap R8; `FR-1470`...`FR-1490`, `NFR-1210`...`NFR-1230`; amends `FR-1240` | **READY**, authorization **GRANTED 2026-08-07** ("Yes, build it"). |
+| IP-1130 | Genre Blending — interpolates `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` between `STYLE_TABLE` rows over 4 discrete steps on a Start press (`SCALE_IDX` hard-switches immediately, unchanged); 4 new independent WRAM bytes (`BLEND_SRC_TEMPO`/`DENSITY`/`DUTY`, `BLEND_STEP`); no new input control | `FS-113`/`FEAT-1130`, roadmap R8; `FR-1470`...`FR-1490`, `NFR-1210`...`NFR-1230`; amends `FR-1240` | **IN PROGRESS** 2026-08-07 — authorization `GRANTED 2026-08-07` ("Yes, build it"). |
 
 **Verb inventory.** *Generate* (the interpolation arithmetic itself) and *apply* (writing the
 result to `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS`/`SCALE_IDX`) are both covered by this one package

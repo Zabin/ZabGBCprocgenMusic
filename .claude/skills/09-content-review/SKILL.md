@@ -25,6 +25,21 @@ engine state correctly); it does not confirm what the visualizer actually *shows
 actually *sounds like* to a listener, so a code package that adds/changes visualizer content or
 generated output is not "covered" just because its VR passed.
 
+## Listening-session question design
+
+Before driving the ROM for dimensions 3-4, build the session's question set per
+[`R224`](../../../docs/research/encyclopedia/R224-listening-evaluation-methodology.md) — one
+**manipulation-check question** (isolates whether the change reads as designed, independent of
+taste) plus one **semantic-differential rating** (a bipolar adjective pair, e.g.
+sparse—cluttered) **per tunable parameter actually in scope for this review**, not one
+undifferentiated "does this sound good" verdict. R224 §4 gives the ready-to-use question pairs for
+tempo, register, mode, density, channel-mix/style, bad-zone recovery, motif variation, and
+song-form; reuse those verbatim for any parameter this review's scope touches, and compose new
+pairs in the same manipulation-check + rating shape (grounded, not invented ad hoc) for anything
+R224 doesn't already cover. Record both the question asked and the answer per parameter in the
+report — a finding must be traceable to the specific question that surfaced it, so it routes back
+to the specific constant/table row, not a vague "musicality felt off."
+
 ## What to check (the review dimensions)
 
 1. **Visual fidelity** — build the ROM and drive every affected visualizer pattern/state via
@@ -38,23 +53,29 @@ generated output is not "covered" just because its VR passed.
 3. **Musical correctness** — drive the ROM and capture the sound-register (NR1x-NR5x) sequences
    produced for each reviewed generation mode/preset; compare against the spec's notation (scale/
    mode, tempo, rhythm template, channel assignment). Audible check via emulator where practical,
-   register-level check via `music_data.py`/`music_engine.py` otherwise.
+   register-level check via `music_data.py`/`music_engine.py` otherwise — put each in-scope
+   parameter through its R224 manipulation-check + rating pair (above) rather than a single
+   holistic listen, so a "this sounds off" reaction lands on one constant, not the whole engine.
 4. **Bad-zone behavior** — if the reviewed content touches bad-zone detection or the Select reset:
    drive the engine into the bad zone (per the spec's trigger conditions), confirm the indicator
    and the audible degradation actually appear, then confirm Select produces the documented good
    starting state — not just that a state-machine transition fired, but that the resulting
-   register writes are actually the good-state values the spec names.
+   register writes are actually the good-state values the spec names. Use R224's bad-zone-recovery
+   question pair (never-recovers—over-corrects) rather than a pass/fail judgment — the two-sided
+   scale is deliberate, since either extreme is a defect.
 5. **Documentation coherence** — `memory.md`'s tile/palette/scale quick-refs and `Claude.md`'s
    relevant sections reflect the shipped content; the FS's acceptance criteria all have evidence.
 
 ## Output
 
 **`docs/reviews/content-review-<scope>.md`**: scope + package list (with the commit hash
-reviewed), the screenshots and sound-register captures taken (paths), evidence per dimension, and
-findings as one row each — `Finding | Artifacts involved | Description | Severity | Recommended
-owner` — using the project's Critical/High/Medium/Low scale. A clean review states what was
-actually exercised to earn the "clean." Update `ROADMAP.md`'s reviews row if it tracks review
-documents.
+reviewed), the screenshots and sound-register captures taken (paths), evidence per dimension, the
+R224 question set actually asked with its answer per parameter (`Parameter | Manipulation-check
+question | Answer | Rating question | Answer`), and findings as one row each — `Finding |
+Artifacts involved | Description | Severity | Recommended owner` — using the project's
+Critical/High/Medium/Low scale, with each finding citing the specific R224 question that surfaced
+it. A clean review states what was actually exercised to earn the "clean." Update `ROADMAP.md`'s
+reviews row if it tracks review documents.
 
 ## Quality gate
 

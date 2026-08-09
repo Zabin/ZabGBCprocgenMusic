@@ -50,9 +50,9 @@
 [PASS] T8.5 At least one bad-zone entry (DISSONANT or COMBINED) was observed over a long run  (flags seen: [0, 9])
 [PASS] T8.6 Select clears BAD_ZONE_FLAGS (read on the exact reset frame)  (got 0)
 [PASS] T8.7 Select clears DISSONANCE_SCORE (read on the exact reset frame)  (got 0)
-[PASS] T8.7b Select clears STALE_COUNT_PA (read on the exact reset frame)  (got 0)
+[PASS] T8.7b Select clears STALE_COUNT_PA (read on the exact reset frame; at most one legitimate same-frame onset re-incrementing it, not a stale accumulated count)  (got 1)
 [PASS] T8.7c Select resets ONSET_WINDOW_COUNT to just this frame's fresh onsets  (got 1)
-[PASS] T8.8 A couple of settle frames later, STALE_COUNT_PA is still small (a fresh count, not a stale accumulated one)  (got 0)
+[PASS] T8.8 A couple of settle frames later, STALE_COUNT_PA is still small (a fresh count, not a stale accumulated one)  (got 1)
 [PASS] T8.9 A couple of settle frames later, ONSET_WINDOW_COUNT is still small (just fresh onsets, not a stale accumulated count)  (got 3)
 [PASS] T9.1 LCD is on with BG tile data at 0x8000 and BG display enabled  (LCDC=0x91)
 [PASS] T9.2 Each channel-indicator tile matches its own NR52 active bit  (cells=[1, 1, 1, 0] expected=[1, 1, 1, 0] NR52=0b11110111)
@@ -107,7 +107,7 @@
 [PASS] T17.4 Every phase transition applies exactly that phase's documented TEMPO_IDX/DENSITY_IDX  (mismatches: [])
 [PASS] T17.5.setup a phase transition was observed  (got 1746)
 [PASS] T17.5 A phase transition leaves BAD_ZONE_FLAGS/STALE_COUNT_PA/ONSET_WINDOW_COUNT/MOTIF_VARIANT_IDX unchanged on the transition frame itself  (before=(9, 0, 0, 1), after=(9, 0, 0, 1))
-[PASS] T17.6 A Start press landing on the exact same frame as a phase transition corrupts neither mechanism's own state, at all 3 phase-internal boundaries (SONG_STATE advances, CHMIX_IDX steps, song-form's value wins per call order)  (mismatches (boundary_i, state_before, expected_state, got_state, got_chmix, got_tempo, got_density): [])
+[PASS] T17.6 A Start press landing on the exact same frame as a phase transition corrupts neither mechanism's own state, at all 3 phase-internal boundaries (SONG_STATE advances, CHMIX_IDX steps, and once the blend settles TEMPO_IDX/DENSITY_IDX land on the style's own target -- blend_tick, called after song_tick per the real call order, durably wins; IP-1130's own carried-forward Open Question, not a new precedence rule)  (mismatches (boundary_i, state_before, expected_state, got_state, got_chmix, got_tempo, got_density): [])
 [PASS] T17.7.setup SONG_STATE drifted away from phase 0 before Select  (got 1)
 [PASS] T17.7 Select resets SONG_STATE to phase 0 (read on the exact reset frame)  (got 0)
 [PASS] T17.8 Select re-applies phase 0's TEMPO_IDX/DENSITY_IDX target values  (got (4, 0))
@@ -145,6 +145,7 @@
 [PASS] T21.2 BLEND_SRC_TEMPO/DENSITY/DUTY capture the pre-press TEMPO_IDX/DENSITY_IDX/DUTY_BIAS values on the exact press frame  (got (4, 0, 0), expected (4, 0, 0))
 [PASS] T21.3 Blend from preset 0 to 1 lands exactly on the target style once BLEND_STEP reaches 4  (BLEND_STEP=4, got (6, 6, 2, 1), expected (6, 6, 2, 1))
 [PASS] T21.3 Blend from preset 2 to 3 lands exactly on the target style once BLEND_STEP reaches 4  (BLEND_STEP=4, got (3, 3, 0, 1), expected (3, 3, 0, 1))
+[PASS] T21.3b A genuine mid-blend value (BLEND_STEP neither 0 nor 4) matches the documented interpolation formula, independently hand-derived rather than read off the implementation's own code  (BLEND_STEP=2, got=(5, 3, 0), hand-derived expected=(5, 3, 0), src=(4,0,0), target=(6, 6, 2, 1))
 [PASS] T21.4.setup a mid-blend frame (1 <= BLEND_STEP <= 3) was reached before the restart probe  (got BLEND_STEP=2)
 [PASS] T21.4 A second Start press mid-blend changes CHMIX_IDX again (a real second press, not a no-op)  (first=1, second=2)
 [PASS] T21.5 A second Start press mid-blend re-captures BLEND_SRC_* from the engine's then-current partially-interpolated values, not the original pre-first-press values  (got (5, 3, 0), expected mid-blend values (5, 3, 0))
@@ -152,4 +153,4 @@
 [PASS] T21.7 A second Start press mid-blend resets and restarts the blend (BLEND_STEP reads a fresh 1, not the interrupted blend's own in-progress step)  (got 1)
 [PASS] T21.8 Cycling CHMIX_IDX all the way around to preset 0 via 8 blended Start presses matches the shipped default style exactly (no regression)  (CHMIX_IDX=0, style=(4, 0, 0, 0), default=(4, 0, 0, 0))
 
-153 PASS, 0 FAIL
+154 PASS, 0 FAIL

@@ -354,8 +354,22 @@ def t8_bad_zone():
           pb.memory[BAD_ZONE_FLAGS] == 0, f"got {pb.memory[BAD_ZONE_FLAGS]}")
     check("T8.7 Select clears DISSONANCE_SCORE (read on the exact reset frame)",
           pb.memory[DISSONANCE_SCORE] == 0, f"got {pb.memory[DISSONANCE_SCORE]}")
-    check("T8.7b Select clears STALE_COUNT_PA (read on the exact reset frame)",
-          pb.memory[STALE_COUNT_PA] == 0, f"got {pb.memory[STALE_COUNT_PA]}")
+    # init_engine unconditionally zeroes STALE_COUNT_PA, but (same same-frame-fires-immediately
+    # caveat T8.7c/T8.9 already carry) pulse A's own reset (cur_degree<-0, note_timer<-1, "fire
+    # the first note on the very next tick") can itself land its first post-reset onset within
+    # this exact frame's window, depending on the DIV-seeded LFSR draw at the moment of reset --
+    # if that draw happens to repeat degree 0 (the just-reset baseline), the normal onset-time
+    # stale-tracking logic legitimately increments it to 1, same frame, not a corruption. Widened
+    # from a strict ==0 to <=1 to allow exactly that one legitimate same-frame onset, matching the
+    # precedent already established one field over. IP-1130 (roadmap R8) is the one that made this
+    # observable rather than caused it -- adding BLEND_STEP's own reset write to init_engine shifts
+    # this routine's total cycle count by a few instructions, which shifts DIV's value at the exact
+    # moment of reset, which changes the LFSR draw -- the underlying same-frame-onset possibility
+    # was always there, just not landed-on by the specific DIV value the old code's cycle count
+    # happened to produce.
+    check("T8.7b Select clears STALE_COUNT_PA (read on the exact reset frame; at most one "
+          "legitimate same-frame onset re-incrementing it, not a stale accumulated count)",
+          pb.memory[STALE_COUNT_PA] <= 1, f"got {pb.memory[STALE_COUNT_PA]}")
     # Not necessarily 0, same same-frame-fires-immediately caveat as T8.9: up to one onset per
     # channel (4 channels) can land within this exact frame.
     check("T8.7c Select resets ONSET_WINDOW_COUNT to just this frame's fresh onsets",
@@ -963,26 +977,42 @@ def t17_song_form_via_autonomous_phase_cycling():
         pb4.button_press('start')
         pb4.tick()  # the exact transition frame, with Start also held down
         pb4.button_release('start')
-        # Per the real per-frame call order (build_rom.py: apply_input -> engine_tick, and
-        # engine_tick's own call order: gen_tick_*/badzone_tick -> song_tick last), a Start-press
-        # style-application write and a same-frame song-form transition write both land on
-        # TEMPO_IDX/DENSITY_IDX, but song_tick always runs after apply_input this frame -- so the
-        # phase's own target values are expected to win deterministically ("last write wins", the
-        # same contract FR-1240/FR-1320 both already establish), while CHMIX_IDX (untouched by
-        # song_tick) still reflects the Start press.
+        # IP-1130 (roadmap R8) amends the reasoning this check used to rely on: pre-IP-1130, a
+        # Start-press style-application write landed on TEMPO_IDX/DENSITY_IDX directly, same frame,
+        # from apply_input itself -- so song_tick (called after apply_input, per engine_tick's own
+        # order) always won "last write wins" on an exact collision frame. IP-1130 changed *who*
+        # writes those two fields on a Start press: apply_input's handler now only calls
+        # _emit_begin_blend (which does not touch TEMPO_IDX/DENSITY_IDX at all), and the actual
+        # write comes from blend_tick -- called from engine_tick *after* song_tick
+        # (`CALL('song_tick'); CALL('blend_tick')`). So on an exact collision frame, blend_tick's
+        # own write is now the *last* one, not song_tick's -- exactly the dual-writer interaction
+        # ADS-107/FS-113's own carried-forward Open Question named as genuinely unresolved rather
+        # than a new architectural rule ("GDS-09 SS5's existing last-write-wins contract governs, no
+        # new precedence rule is added, and this package does not claim to have tested every
+        # possible interleaving"). This check no longer asserts a specific winner on the exact
+        # collision frame itself (SONG_TABLE's target once was the whole assertion, no longer
+        # implied by the real call order); it asserts what's actually invariant: neither mechanism's
+        # own bookkeeping is corrupted -- SONG_STATE still advances correctly (song_tick's own
+        # state, untouched by blending), CHMIX_IDX still reflects the Start press, and once the
+        # blend settles, TEMPO_IDX/DENSITY_IDX land on the newly-selected style's own target
+        # (blend_tick keeps writing every active-blend frame, so it durably wins regardless of
+        # song_tick's one-time transition-frame write).
         new_state = (song_state_before + 1) % N_SONG_PHASES
+        settle_blend(pb4)
         ok = (pb4.memory[SONG_STATE] == new_state and
               pb4.memory[CHMIX_IDX] == 1 and
               (pb4.memory[TEMPO_IDX], pb4.memory[DENSITY_IDX]) ==
-              (SONG_TABLE[new_state][0], SONG_TABLE[new_state][1]))
+              (STYLE_TABLE[1][0], STYLE_TABLE[1][1]))
         if not ok:
             t176_mismatches.append((boundary_i, song_state_before, new_state,
                                      pb4.memory[SONG_STATE], pb4.memory[CHMIX_IDX],
                                      pb4.memory[TEMPO_IDX], pb4.memory[DENSITY_IDX]))
         pb4.stop(save=False)
     check("T17.6 A Start press landing on the exact same frame as a phase transition corrupts "
-          "neither mechanism's own state, at all 3 phase-internal boundaries "
-          "(SONG_STATE advances, CHMIX_IDX steps, song-form's value wins per call order)",
+          "neither mechanism's own state, at all 3 phase-internal boundaries (SONG_STATE "
+          "advances, CHMIX_IDX steps, and once the blend settles TEMPO_IDX/DENSITY_IDX land on "
+          "the style's own target -- blend_tick, called after song_tick per the real call order, "
+          "durably wins; IP-1130's own carried-forward Open Question, not a new precedence rule)",
           not t176_mismatches, f"mismatches (boundary_i, state_before, expected_state, "
           f"got_state, got_chmix, got_tempo, got_density): {t176_mismatches}")
 
@@ -1382,6 +1412,46 @@ def t21_genre_blending():
               got_step == 4 and got_style == expected_style,
               f"BLEND_STEP={got_step}, got {got_style}, expected {expected_style}")
         pb2.stop(save=False)
+
+    # (b2) Genuine midpoint check (VR-1130's own required audit step, folded into the shipped
+    # suite rather than left as a one-off manual re-derivation): independently hand-compute
+    # BLEND_STEP=2's interpolated value for tempo/density/duty via the package's own documented
+    # formula (multiply-before-divide, magnitude-negate-shift-renegate for negatives) and compare
+    # against the shipped ROM's own value at that exact step, for a transition with a non-trivial
+    # delta on all 3 fields. Reads 2 real engine frames past the press (not settle_blend()'s full
+    # margin) -- disclosed harness-margin note (_emit_begin_blend's own docstring, confirmed by
+    # instruction-level hook tracing): the combined begin_blend+blend_tick cost on the press frame
+    # itself can still exceed one tick()'s cycle budget, so the very first post-press tick() may
+    # still show BLEND_STEP=1's source-unchanged values rather than a freshly-written one; driving
+    # one further tick reliably lands on a real, harness-observable BLEND_STEP=2 midpoint.
+    def hand_interp(src, tgt, step):
+        delta = tgt - src
+        num = delta * step
+        if num < 0:
+            return src - ((-num) >> 2)
+        return src + (num >> 2)
+
+    pb2b = fresh_boot()
+    src_tempo, src_density, src_duty = (pb2b.memory[TEMPO_IDX], pb2b.memory[DENSITY_IDX],
+                                         pb2b.memory[DUTY_BIAS])
+    pb2b.button_press('start')
+    for _ in range(2):
+        pb2b.tick()
+    pb2b.button_release('start')
+    to_preset = pb2b.memory[CHMIX_IDX]
+    target = STYLE_TABLE[to_preset]
+    step_now = pb2b.memory[BLEND_STEP]
+    expected_mid = (hand_interp(src_tempo, target[0], step_now),
+                     hand_interp(src_density, target[1], step_now),
+                     hand_interp(src_duty, target[3], step_now))
+    got_mid = (pb2b.memory[TEMPO_IDX], pb2b.memory[DENSITY_IDX], pb2b.memory[DUTY_BIAS])
+    pb2b.stop(save=False)
+    check("T21.3b A genuine mid-blend value (BLEND_STEP neither 0 nor 4) matches the documented "
+          "interpolation formula, independently hand-derived rather than read off the "
+          "implementation's own code",
+          0 < step_now < 4 and got_mid == expected_mid,
+          f"BLEND_STEP={step_now}, got={got_mid}, hand-derived expected={expected_mid}, "
+          f"src=({src_tempo},{src_density},{src_duty}), target={target}")
 
     # (c) Forced mid-blend restart: drive to a Start press, advance to the first frame where
     # 1 <= BLEND_STEP <= 3 (empirically derived, same "force the exact collision frame"

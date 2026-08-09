@@ -483,11 +483,20 @@ R9-equivalent catalog row.
   `input_map.py`'s Start handler and `engine_tick` respectively) · FS `FS-113` · IP `IP-1130` ·
   Test `test_rom.py` `T21` (`T21.1`/`T21.2` FR-1470, `T21.3` FR-1480, `T21.4`-`T21.7` FR-1490,
   `T21.8`/`T4.7`/`T15.1`-`T15.4` FR-1240's surviving `SCALE_IDX` guarantee; `NFR-1220` verified by
-  inspection — 4 bytes, `0xC070`-`0xC073`, per `GDS-07` §6; `NFR-1230`'s own audible-quality half
-  remains explicitly deferred to `09-content-review`, never claimed by `T21`). Awaiting
-  `09-package-verification`. `NFR-1210`'s own Verification Method (WRAM-assertion-testable,
-  audible judgment deferred) previewed what `06-feature-specification`'s Acceptance Criteria field
-  looked like once R8 reached that stage — confirmed consistent, not re-decided here.
+  inspection — now 7 bytes, `0xC070`-`0xC076`, per `GDS-07` §6 (grew from 4 after `VR-1130`'s F1
+  remediation added `BLEND_DELTA_TEMPO`/`DENSITY`/`DUTY`); `NFR-1230`'s own audible-quality half
+  remains explicitly deferred to `09-content-review`, never claimed by `T21`). **Updated
+  2026-08-08**: `VR-1130` returned this package with a Critical finding (`F1` — the per-frame
+  `STYLE_TABLE` re-derivation genuinely exceeded the VBlank budget on active-blend frames,
+  confirmed by `VIS_ENTRY_LY` measurement, not merely a display artifact) and a Low-Medium finding
+  (`F2` — a stale package-doc Risks field). `F1` remediated: deltas now precomputed once in
+  `_emit_begin_blend`; a second, independent latent defect surfaced and fixed in the same pass
+  (`BLEND_STEP` was never explicitly initialized, corrupting a boot/Select-reset if left stale);
+  `test_rom.py`'s `T21.3b` added, independently hand-deriving a genuine mid-blend value against the
+  shipped ROM — the coverage gap that let `F1` ship undetected. `NFR-1210`'s own Verification
+  Method (WRAM-assertion-testable, audible judgment deferred) previewed what
+  `06-feature-specification`'s Acceptance Criteria field looked like once R8 reached that stage —
+  confirmed consistent, not re-decided here. Re-awaiting `09-package-verification` (fresh session).
 
 No Critical/High finding. This delta is ready for `05-feature-decomposition` to add an
 R8-equivalent catalog row (`FEAT-1130`, per the release plan's own forward placeholder).

@@ -26,7 +26,7 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers)
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 153 checks across T1-T21
+                    sound registers + WRAM engine state) — 154 checks across T1-T21
 ```
 
 ### Data layout, WRAM map
@@ -325,8 +325,27 @@ exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
   untouched) — same self-healing-lag class as the settings-indicator display's own note above, now
   also disclosed for the channel-activity indicator tiles (`T9.3`, tolerating exactly a single-
   frame skew, never two consecutive).
+  **`VR-1130` F1 remediation (2026-08-08):** the original active-blend design re-derived each
+  field's delta from `STYLE_TABLE` every single active-blend frame; independent verification found
+  this genuinely exceeded the VBlank budget on those frames (measured via `VIS_ENTRY_LY` reading
+  `0` — mid active-display, nowhere near VBlank — not a display artifact). Fixed by precomputing
+  each field's delta once, in `_emit_begin_blend` (`BLEND_DELTA_TEMPO`/`DENSITY`/`DUTY`,
+  `0xC074`-`0xC076`), removing the per-frame `STYLE_TABLE` lookup from `_emit_blend_tick` entirely.
+  Fixing this also surfaced and closed a second, independent latent defect: `BLEND_STEP` was never
+  explicitly initialized, so a boot or Select-reset could leave `blend_tick` free to keep
+  "blending" using stale source/delta values and corrupt the freshly-reset
+  `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` on the following frames — `init_engine` now explicitly
+  resets `BLEND_STEP` to `4` (settled/no-active-blend) on both boot and Select. One further
+  disclosed, understood, bounded timing effect remains: the *combined* `begin_blend`+`blend_tick`
+  cost on the Start-press frame itself can still exceed one harness `tick()` call's cycle budget,
+  confirmed via `pyboy` instruction-level hook tracing — the blend's first interpolation write can
+  become externally observable one `tick()` call later than the press, though `_emit_begin_blend`'s
+  own direct writes (`BLEND_SRC_*`/`BLEND_DELTA_*`/`SCALE_IDX`) always land same-frame, and the
+  final landing-exactly-on-target guarantee (`FR-1480`) is unaffected regardless. `T21.3b` now
+  independently hand-derives a genuine mid-blend value against the shipped ROM, closing the
+  coverage gap that let the original defect ship undetected.
 
-**153/153 `test_rom.py` checks pass** (T1-T21). An 8000+ frame stress run with continuous input
+**154/154 `test_rom.py` checks pass** (T1-T21). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

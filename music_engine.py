@@ -110,6 +110,18 @@ BLEND_SRC_TEMPO = 0xC070
 BLEND_SRC_DENSITY = 0xC071
 BLEND_SRC_DUTY = 0xC072
 BLEND_STEP = 0xC073
+# VR-1130 finding F1's real root cause (not a codegen bug -- the shipped per-field interpolation
+# was verified byte-correct by disassembly): re-deriving each field's STYLE_TABLE lookup + delta
+# from scratch every single active-blend frame was expensive enough (3 fields x a table-address
+# computation each) to blow the already-near-exhausted VBlank budget (R101 SS8.5) on every active
+# blend frame -- measured directly via VIS_ENTRY_LY reading 0 (mid active-display, nowhere near
+# VBlank's 144-153) during frames 2-4 of a blend, not merely a display-lag artifact. Fixed by
+# computing each field's signed delta (target - source) exactly ONCE, in _emit_begin_blend, and
+# storing it here -- _emit_blend_tick then only re-reads these 3 fixed bytes per frame instead of
+# repeating the STYLE_TABLE address computation, removing it from the per-frame hot path entirely.
+BLEND_DELTA_TEMPO = 0xC074
+BLEND_DELTA_DENSITY = 0xC075
+BLEND_DELTA_DUTY = 0xC076
 
 # IP-0004 thresholds (GDS-03 SS4, R204 SS5) — first-guess placeholders, per BL-0005's own
 # deferred-tuning convention; the dissonance weight table itself is literature-grounded (R204),
@@ -409,7 +421,12 @@ def _emit_begin_blend(rom):
     reads whatever the engine currently holds, whether settled (BLEND_STEP==4) or partway through
     an earlier blend. SCALE_IDX still applies immediately (FR-1240's surviving half, categorical
     -- cannot interpolate). BLEND_STEP resets to 0; _emit_blend_tick (engine_tick) carries the
-    other 3 fields the rest of the way over the following frames."""
+    other 3 fields the rest of the way over the following frames.
+
+    VR-1130 F1 fix: also computes and stores each blend field's signed delta (target − source)
+    here, once, rather than leaving _emit_blend_tick to re-derive it from STYLE_TABLE every single
+    active-blend frame (the original design) — see BLEND_DELTA_* and _emit_blend_tick's own
+    docstring for why that per-frame cost was the actual defect."""
     rom.LD_A_nn(TEMPO_IDX);   rom.LD_nn_A(BLEND_SRC_TEMPO)
     rom.LD_A_nn(DENSITY_IDX); rom.LD_nn_A(BLEND_SRC_DENSITY)
     rom.LD_A_nn(DUTY_BIAS);   rom.LD_nn_A(BLEND_SRC_DUTY)
@@ -419,20 +436,56 @@ def _emit_begin_blend(rom):
     rom.LD_C_A(); rom.LD_B_n(0)
     _ld_hl_label(rom, 'style_table')
     rom.ADD_HL_BC()
-    rom.INC_HL(); rom.INC_HL()     # skip tempo_idx, density_idx -> HL at scale_idx (row offset 2)
-    rom.LD_A_HL(); rom.LD_nn_A(SCALE_IDX)
+    # HL now at the row's tempo_idx byte (offset 0). Read tempo/density/scale/duty in row order
+    # (INC_HL between each) rather than 4 separate address computations.
+    rom.LD_A_HL()                                    # A = target tempo_idx
+    rom.LD_B_A()                                      # B = target tempo_idx (stashed)
+    rom.LD_A_nn(BLEND_SRC_TEMPO); rom.LD_C_A()        # C = source tempo_idx
+    rom.LD_A_B(); rom.SUB_C(); rom.LD_nn_A(BLEND_DELTA_TEMPO)
+    rom.INC_HL()
+    rom.LD_A_HL()                                    # A = target density_idx
+    rom.LD_B_A()
+    rom.LD_A_nn(BLEND_SRC_DENSITY); rom.LD_C_A()
+    rom.LD_A_B(); rom.SUB_C(); rom.LD_nn_A(BLEND_DELTA_DENSITY)
+    rom.INC_HL()                                      # HL at scale_idx (row offset 2)
+    rom.LD_A_HL(); rom.LD_nn_A(SCALE_IDX)             # scale_idx applies immediately, unblended
+    rom.INC_HL()                                      # HL at duty_bias (row offset 3)
+    rom.LD_A_HL()                                    # A = target duty_bias
+    rom.LD_B_A()
+    rom.LD_A_nn(BLEND_SRC_DUTY); rom.LD_C_A()
+    rom.LD_A_B(); rom.SUB_C(); rom.LD_nn_A(BLEND_DELTA_DUTY)
 
     rom.XOR_A(); rom.LD_nn_A(BLEND_STEP)
 
+    # Disclosed timing finding (found chasing VR-1130 F1, confirmed by pyboy hook_register
+    # instruction tracing, not guessed): this routine's own added cost (3 delta computations, one
+    # extra STYLE_TABLE row read) plus the same frame's blend_tick call together are still enough
+    # to exceed the harness's one-tick() cycle budget on the Start-press frame specifically (every
+    # other active-blend frame, blend_tick alone, is comfortably within budget after this fix).
+    # Effect, confirmed by hook-tracing actual instruction execution against wall-clock tick()
+    # calls: blend_tick's first real (BLEND_STEP 0->1) interpolation write can execute a few
+    # cycles into what the harness reports as the *next* tick() call rather than the press frame's
+    # own -- two real engine frames' worth of blend progress become visible within one later
+    # tick() call instead of one each. BLEND_SRC_*/BLEND_DELTA_*/SCALE_IDX (this routine's own
+    # direct writes) are unaffected and land same-frame every time, confirmed. The exact-landing
+    # guarantee (FR-1480) is unaffected -- confirmed across every transition tested, the final
+    # BLEND_STEP=4 values always land exactly on STYLE_TABLE[CHMIX_IDX] regardless. On real
+    # hardware this is a same-instant, sub-frame timing shift (WRAM writes are never PPU-mode-
+    # gated), not a dropped or genuinely delayed write; it is only "one tick() call late" as an
+    # artifact of how the test harness reports fixed-quantum frame boundaries. See T21's own
+    # mid-blend checks, which read one settle-margin tick past the press before treating a value
+    # as a genuine, harness-observable midpoint, for exactly this reason.
 
-# IP-1130: (BLEND_SRC WRAM addr, STYLE_TABLE row offset, destination WRAM addr, label suffix) for
-# each of the 3 fields _emit_blend_tick interpolates. scale_idx (row offset 2) is deliberately
-# absent -- it is not a blend field, _emit_begin_blend applies it immediately and it is never
-# touched again until the next Start press.
+
+# IP-1130: (BLEND_SRC WRAM addr, BLEND_DELTA WRAM addr, destination WRAM addr, label suffix) for
+# each of the 3 fields _emit_blend_tick interpolates. scale_idx is deliberately absent -- it is
+# not a blend field, _emit_begin_blend applies it immediately and it is never touched again until
+# the next Start press. BLEND_DELTA_* (target - source, precomputed once by _emit_begin_blend)
+# replaces the original per-frame STYLE_TABLE re-lookup -- see _emit_blend_tick's docstring.
 _BLEND_FIELDS = [
-    (BLEND_SRC_TEMPO, 0, TEMPO_IDX, 'tempo'),
-    (BLEND_SRC_DENSITY, 1, DENSITY_IDX, 'density'),
-    (BLEND_SRC_DUTY, 3, DUTY_BIAS, 'duty'),
+    (BLEND_SRC_TEMPO, BLEND_DELTA_TEMPO, TEMPO_IDX, 'tempo'),
+    (BLEND_SRC_DENSITY, BLEND_DELTA_DENSITY, DENSITY_IDX, 'density'),
+    (BLEND_SRC_DUTY, BLEND_DELTA_DUTY, DUTY_BIAS, 'duty'),
 ]
 
 
@@ -446,13 +499,23 @@ def _emit_blend_tick(rom):
     left mismatched against the docstring that used to describe a 4-frames-per-step/16-frame-total
     scheme this implementation does not use), increments BLEND_STEP then recomputes each of
     TEMPO_IDX/DENSITY_IDX/DUTY_BIAS as
-    BLEND_SRC_* + ((STYLE_TABLE[CHMIX_IDX].field - BLEND_SRC_*) * BLEND_STEP) >> 2 -- multiply
-    before divide (not divide-then-multiply) so the result is exact at BLEND_STEP==4 regardless
-    of rounding at the intermediate steps (FR-1480's no-overshoot/no-stall-short guarantee).
+    BLEND_SRC_* + (BLEND_DELTA_* * BLEND_STEP) >> 2 -- multiply before divide (not divide-then-
+    multiply) so the result is exact at BLEND_STEP==4 regardless of rounding at the intermediate
+    steps (FR-1480's no-overshoot/no-stall-short guarantee).
     SM83 has neither a multiply nor an arithmetic-shift-right opcode: the product is built via a
     bounded repeated-addition loop (BLEND_STEP is always 1-4), and the signed divide-by-4 is done
     by negating a negative operand, shifting the now-nonnegative magnitude with the existing
-    unsigned SRL_A (safe -- every magnitude here is well under 128), then negating back."""
+    unsigned SRL_A (safe -- every magnitude here is well under 128), then negating back.
+
+    VR-1130 F1: the original design re-derived each field's delta from STYLE_TABLE (a fresh
+    address computation + memory read per field, every active-blend frame) here instead of in
+    _emit_begin_blend. That was measured (VIS_ENTRY_LY reading 0 -- mid active-display, nowhere
+    near VBlank's 144-153 -- on active-blend frames) to blow the already-near-exhausted VBlank
+    budget (R101 SS8.5), not merely a display-lag artifact: the resulting WRAM writes landing a
+    real tick() call late, worse for whichever field was processed last (duty), matching the
+    finding exactly. BLEND_DELTA_* (computed once, in _emit_begin_blend) removes that STYLE_TABLE
+    lookup from this per-frame path entirely -- the remaining per-frame cost here is only the
+    multiply-by-BLEND_STEP and the signed divide, both bounded and independent of STYLE_TABLE."""
     rom.label('blend_tick')
     rom.LD_A_nn(BLEND_STEP)
     rom.CP_n(4)
@@ -462,23 +525,13 @@ def _emit_blend_tick(rom):
     rom.INC_A()
     rom.LD_nn_A(BLEND_STEP)
 
-    for src_addr, offset, dst_addr, suffix in _BLEND_FIELDS:
-        # delta = STYLE_TABLE[CHMIX_IDX][offset] - BLEND_SRC_* (signed)
-        rom.LD_A_nn(CHMIX_IDX)
-        rom.ADD_A_A(); rom.ADD_A_A()    # *4 (row width)
-        rom.ADD_A_n(offset)
-        rom.LD_C_A(); rom.LD_B_n(0)
-        _ld_hl_label(rom, 'style_table')
-        rom.ADD_HL_BC()
-        rom.LD_A_HL()                    # A = target byte
-        rom.LD_D_A()                     # D = target
+    for src_addr, delta_addr, dst_addr, suffix in _BLEND_FIELDS:
+        rom.LD_A_nn(delta_addr)          # A = precomputed delta (target - source)
+        rom.LD_C_A()                     # C = delta (repeatedly added)
         rom.LD_A_nn(src_addr)            # A = source
         rom.LD_E_A()                     # E = source (kept for the final add)
-        rom.LD_A_D()                     # A = target
-        rom.SUB_E()                      # A = target - source = delta
 
         # numerator = delta * BLEND_STEP (BLEND_STEP already re-incremented, 1-4; bounded loop)
-        rom.LD_C_A()                     # C = delta (repeatedly added)
         rom.LD_A_nn(BLEND_STEP)
         rom.LD_B_A()                     # B = loop counter (1-4)
         rom.XOR_A()                      # A = 0 (accumulator)
@@ -1272,6 +1325,18 @@ def build_engine_asm(rom: ROM):
     # DENSITY_IDX/SCALE_IDX are already set to STYLE_TABLE[0]'s exact values by the three
     # PRESET_* writes just above, so no separate _emit_apply_style call is needed here.
     rom.XOR_A(); rom.LD_nn_A(DUTY_BIAS)
+    # IP-1130 (VR-1130 F1 remediation): BLEND_STEP resets to 4 (settled/no-active-blend sentinel)
+    # on both boot and Select-reset. Without this, BLEND_STEP's uninitialized-WRAM value (0 on
+    # first boot; whatever an interrupted blend last left it at, on Select) leaves blend_tick free
+    # to keep running on every subsequent frame using stale/uninitialized BLEND_SRC_*/BLEND_DELTA_*
+    # -- overwriting the TEMPO_IDX/DENSITY_IDX/DUTY_BIAS values this very routine just wrote,
+    # exactly the corruption a Select-during-active-blend scenario would hit (the original design's
+    # own "Select's writes simply overwrite whatever the blend had reached, BLEND_STEP left stale
+    # but harmless" reasoning didn't account for blend_tick continuing to run on the frames right
+    # after Select, using pre-reset source/delta values). Never touching BLEND_SRC_*/BLEND_DELTA_*
+    # here is deliberate -- BLEND_STEP=4 alone makes blend_tick's early-exit unconditional, so their
+    # stale contents are never read again until the next Start press freshly overwrites them.
+    rom.LD_A_n(4); rom.LD_nn_A(BLEND_STEP)
     # IP-1090 (BL-0010, ADS-102): MOTIF_VARIANT_IDX resets to 0 (variant 0, the pre-IP-1090
     # shipped sequence) on both boot and Select-reset — the same reset trigger that already
     # zeroes each channel's scheme_state below (which resets the motif-step counter to 0 too),

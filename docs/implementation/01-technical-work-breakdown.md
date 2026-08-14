@@ -403,3 +403,57 @@ for iteration through planning stages, and this project's own standing rule is t
 package, however thoroughly, is never itself authorization to build it. **Recorded: authorization
 `NOT GRANTED`.** `IP-1120` is `READY` (fully specified, its two dependency Features both
 `VERIFIED`) but not authorized — the pipeline's next step is the G3 gate itself, not a build.
+
+## TWBS — `IP-9040` (2026-08-14, `BL-0111`, `10-integration-review`'s R7 tranche finding F2)
+
+**No-split decision.** The fix is two `CALL('mood_update')` additions inside two already-existing,
+already-`VERIFIED` routines (`_emit_begin_blend`, `_emit_blend_tick`, both `music_engine.py`) —
+no new WRAM, no new routine, no new file. A single tightly-scoped package matches the size of the
+defect; splitting a two-line fix into more than one package would be pure overhead.
+
+**Verb inventory.** Only *generate* applies (both call sites recompute `AROUSAL`/`VALENCE` from
+already-current state) — no *render* (`visuals.py` still has no consumer, unaffected by this
+package, per `IP-1120`'s own still-standing non-scope), no *apply* (nothing new is steered), no
+*persist*, no *review* (two derived numeric bytes, not art/music data). Same shape as `IP-1120`'s
+own verb inventory, since this package is closing a gap in that same capability's write coverage,
+not introducing a new one.
+
+**Supersession sweep — the actual finding this package exists to fix.** `BL-0111` *is* the result
+of a supersession sweep `IP-1130`'s own planning never ran: `10-integration-review` grepped every
+current write site touching `TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX` tree-wide (not just within
+`IP-1120`'s own 6 named sites) and found `IP-1130`'s `_emit_begin_blend`/`_emit_blend_tick` write
+all three without ever calling `mood_update` — exactly `IP-1120`'s own Risks field's named "7th
+write path" hazard, materialized by a package that shipped after it. Re-ran the same sweep this
+pass, tree-wide, once more before authoring: confirmed these are the **only** two write sites to
+any of the three fields that don't already call `mood_update` (the 6 `IP-1120`-named sites still
+do; `init_engine`'s own writes still do) — closing both closes the gap completely, no third site
+missed.
+
+**Placement, not just presence.** `_emit_begin_blend`'s call lands immediately after its own
+`SCALE_IDX` write (mirroring `IP-1120`'s own convention of calling `mood_update` right after the
+triggering write lands) — at that point `TEMPO_IDX`/`DENSITY_IDX` are still their pre-press
+values (only `BLEND_SRC_*` has been captured, not yet applied — `SCALE_IDX` is the one field that
+changes immediately on a Start press), so `AROUSAL` correctly stays at its pre-press value on the
+press frame itself while `VALENCE` correctly updates immediately, matching each field's own
+already-established instant-vs-gradual semantics exactly. `_emit_blend_tick`'s call lands inside
+the active-blend branch, after the 3-field interpolation loop writes `TEMPO_IDX`/`DENSITY_IDX`/
+`DUTY_BIAS` for that step, **before** falling through to `bt_done`'s early-exit label — this
+means the call only executes on the frames `BLEND_STEP` is actually incrementing (1-4), never on
+the overwhelming steady-state majority of frames (`BLEND_STEP` already `4`), preserving
+`NFR-1170`'s zero-added-per-frame-cost contract exactly as `IP-1120`'s original 6 sites do.
+
+**Timing risk, named explicitly.** `VR-1130`'s own F1 finding measured that `_emit_blend_tick`'s
+per-frame cost was tight enough on active-blend frames to matter (the original per-frame
+`STYLE_TABLE` re-derivation blew the budget; the `BLEND_DELTA_*` precompute fix brought it back
+within budget). `mood_update` adds roughly a dozen more instructions to that same per-active-blend-
+frame path. This is real added cost on a path already shown to be budget-sensitive — Risks field
+below names it explicitly and requires `08`/`09` to re-measure `VIS_ENTRY_LY` on an active-blend
+frame with this addition in place, not merely assume the earlier margin still holds.
+
+**Authorization — explicit judgment call.** No standing grant covers this. The session's earlier
+grants (`IP-9030`'s re-confirmed basis; `IP-8010`/`IP-8020`'s "Continue include refactoring";
+`IP-1120`'s "Yes proceed"; `IP-1130`'s "Yes, build it.") were each reactive answers to a specific
+flagged question about a specific, already-named package — none extends to fresh remediation work
+authored today. This defect was found by review, not by the user, and nothing in the current,
+user-approved release plan (`01-release-plan.md`) named it, since it didn't exist to name until
+this session's `10-integration-review` surfaced it. **Recorded: authorization `NOT GRANTED`.**

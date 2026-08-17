@@ -159,3 +159,37 @@ no longer be restoring an unchanged baseline).
 **Working-tree state:** all code/test/doc changes from this attempt were reverted before ending
 the run — no partial implementation is committed. `IP-9040` remains `BLOCKED` on the Master Build
 Plan and `packages/INDEX.md`, pointing here (v3).
+
+### Addendum — deferred-recompute redesign tried (throwaway experiment, 2026-08-17), made it worse
+
+Before escalating, the deferred-recompute redesign named above as the first candidate was
+actually built and measured (uncommitted, thrown away after — same convention as every other
+grounding experiment this package's history uses): one new WRAM byte (`AROUSAL_DEFERRED`,
+`0xC077`), a cheap flag-check-and-flush at the top of `_emit_blend_tick` (before its `BLEND_STEP
+>= 4` early exit, so the flush still fires on the frame immediately after settling), and the
+interpolation loop's own AROUSAL write replaced with setting the flag instead of writing
+immediately — deferring every AROUSAL recompute by exactly one `blend_tick` call, uniformly,
+which is within `FR-1410`'s own explicit "no more than one frame after" tolerance.
+
+**Result: this measured *worse*, not better.** Even the plain single-blend case — which v2's own
+inline design had already brought cleanly within budget — regressed under the deferred design
+(`VIS_ENTRY_LY` read `0` on an intermediate step), and the mid-blend-restart case remained
+regressed too. The extra per-frame flush-check cost (cheap in isolation — one WRAM read, one
+`OR_A`, one conditional branch) was still enough to tip an already-razor-thin per-frame budget
+over on some frame, on top of not actually eliminating any of v2's own remaining cost (the flush,
+when it does fire, still does the same read-add-write work v2's inline recompute already did —
+deferring *when* it runs, not *whether* it costs anything).
+
+**What this confirms:** the genre-blending write path's per-active-blend-frame instruction budget
+is tight enough that this project's toolchain currently has **no further headroom to add ANY
+per-frame cost to it at all** — not a design problem this package's own remaining candidates can
+engineer around, a hard resource ceiling. `IP-9040`'s remaining options are no longer "try a
+cheaper implementation" (three real attempts — v1's full call, v2's inline halved recompute, this
+deferred redesign — have now converged on the same wall) but genuinely: (a) accept a documented,
+narrow `FR-1410` exception for this one collision-frame class (a real Requirements-tier decision,
+not something `07`/`08` should decide unilaterally — it changes what "done" means for a baselined,
+shipped contract), or (b) a materially larger effort outside a conformance-remediation package's
+own scope (e.g., reducing `_emit_begin_blend`'s or `_emit_blend_tick`'s own *existing*,
+pre-`IP-9040` cost to free up headroom — real optimization work on `IP-1130`'s own shipped
+mechanism, which is a different, larger package than this one). **Escalating to the user via
+`00-pipeline-manager`'s own NEEDS-USER path rather than attempting a fourth implementation guess.**

@@ -457,3 +457,89 @@ flagged question about a specific, already-named package — none extends to fre
 authored today. This defect was found by review, not by the user, and nothing in the current,
 user-approved release plan (`01-release-plan.md`) named it, since it didn't exist to name until
 this session's `10-integration-review` surfaced it. **Recorded: authorization `NOT GRANTED`.**
+
+## TWBS — `IP-9040` v2 re-scope (2026-08-17, re-scoping after v1's Blocking Report)
+
+**No-split decision, unchanged.** Still one package, same two call sites, same files — v1's fix
+shape (two `mood_update`-derived recomputes inside `_emit_begin_blend`/`_emit_blend_tick`) was
+correct in principle; only the *implementation cost* of getting `AROUSAL`/`VALENCE` correct at
+each site needed to shrink. No new file, no new routine, no new WRAM byte.
+
+**Grounding, not guessing — three claims independently measured before re-authoring** (throwaway,
+uncommitted experimental builds, same convention `VR-9030`/`VR-1130` used for their own live
+`pyboy` measurements; nothing from these experiments was left in the tree):
+
+1. **Isolated each v1 call site's own cost.** `_emit_begin_blend`'s full `CALL('mood_update')`
+   alone (press-frame only, not per-active-blend-frame) measured **within budget** on both a
+   plain single blend and a mid-blend-restart (`VIS_ENTRY_LY` 152-153 throughout). `_emit_blend_
+   tick`'s full `CALL('mood_update')` alone (every active-blend frame) measured **the actual
+   regression** — `VIS_ENTRY_LY` 0-1 on both scenarios, isolating v1's Blocking Report finding to
+   one of its two sites, not both.
+2. **A full `mood_update()` call recomputes both `AROUSAL` and `VALENCE` at every site, but each
+   site only ever writes inputs to one of the two.** `_emit_begin_blend` only writes `SCALE_IDX`
+   (`TEMPO_IDX`/`DENSITY_IDX` are read but not written there) — it only needs `VALENCE`'s
+   recompute, not `AROUSAL`'s (no write, no `FR-1410` obligation to touch it). `_emit_blend_tick`
+   only writes `TEMPO_IDX`/`DENSITY_IDX` — it only needs `AROUSAL`'s recompute, not `VALENCE`'s
+   (`SCALE_IDX` is never touched there). Replacing each site's full `mood_update()` `CALL`/`RET`
+   with an **inline, half-sized recompute** (the one field each site's own writes actually
+   obligate) — reusing registers already live in `_emit_blend_tick`'s own interpolation loop
+   (`tempo`'s just-written value stashed in the otherwise-free `D` register, added to `density`'s
+   own value the moment it lands in `A`, written to `AROUSAL` immediately — before `duty`'s own
+   iteration even begins, since duty is irrelevant to `AROUSAL`) instead of two fresh WRAM re-
+   reads — measured **within budget on every ordinary single-blend frame, all 4 interpolation
+   steps, matching `FR-1410` exactly with no CPU overhead beyond the ~6-7 lean instructions each
+   site now adds.**
+3. **The mid-blend-restart collision frame remains a genuine, specific, narrower residual risk,
+   honestly disclosed rather than declared solved.** Even with the minimized inline design above,
+   the exact frame a second Start press lands mid-blend (`_emit_begin_blend` and `_emit_blend_
+   tick` both firing fully, same frame, `FR-1490`'s own scenario) still measured `VIS_ENTRY_LY`
+   dropping to `0` — out of range — while the *first* press's own begin_blend+blend_tick(step
+   0→1) collision frame (functionally the same shape) measured in-budget (152). The size of the
+   swing (153→0, not a marginal few cycles) plus the asymmetry between two structurally similar
+   collision frames is consistent with the already-disclosed, general ~30-frame-periodic engine-
+   wide characteristic (`BL-0106`) landing unluckily on this specific restart timing, not a defect
+   in the minimized design's own logic — but this is a hypothesis, not independently confirmed
+   this pass, and doesn't change what Task 6 below must still do.
+
+**Why the deferred-recompute idea (compute `AROUSAL` for last frame's write, one frame late,
+exploiting `FR-1410`'s own explicit "no more than one frame after" tolerance) is named but NOT
+adopted as this package's design:** cleanly flushing the *final* settle-frame's own deferred value
+without ever running the recompute on a genuinely idle steady-state frame (which would violate
+`NFR-1170`'s zero-unconditional-per-frame-cost contract) requires a sentinel/flag distinguishing
+"settled, recompute pending" from "settled, already flushed" — realistically a new `BLEND_STEP`
+value (5) or a new WRAM byte, either of which risks crossing condition 3 of the G3 pre-
+authorization path ("no different approach than the original design already committed to") and
+changes `BLEND_STEP`'s own existing observable contract that `test_rom.py`'s `T21`/`T22` suites
+already assert exact values against. Named here as a candidate for `08` to revisit only if the
+minimized design's own residual restart-collision risk (point 3 above) turns out not to clear
+budget in the real build — not prescribed, since it wasn't required to prove out the general case.
+
+**Files to Create/Modify, updated from v1**: same two routines, same two files
+(`music_engine.py` only) — only the *body* of each `CALL('mood_update')` site changes, from a full
+`CALL`/`RET` into `mood_update` to an inline, half-sized, single-field recompute reusing already-
+live registers. `AROUSAL`/`VALENCE` WRAM addresses, `mood_update`'s own label/body, and its 6
+existing `IP-1120` call sites are all unchanged and untouched.
+
+**Task 6, re-scoped and widened**: v1's Task 6 asked for "an active-blend frame" (singular,
+generic). v2's Task 6 must independently re-measure `VIS_ENTRY_LY` across, at minimum: (a) every
+intermediate step of a plain single blend (the case now measured clean); (b) the initial press
+frame itself (`BLEND_STEP` 0→1, begin_blend+blend_tick collision — measured clean, but with the
+final shipped instruction sequence, not this pass's exact throwaway experiment); (c) **the mid-
+blend-restart collision frame specifically** (`FR-1490`'s own scenario) — the one case this pass
+could not close within budget with the minimized design alone. If (c) still regresses in the real
+08 build, the correct response is another Blocking Report (or the deferred-recompute redesign
+above, evaluated fresh against condition 3), not a silent absorb — same standing convention this
+package's own v1 already established.
+
+**Authorization (G3), re-verified fresh against v2's actual design, not inherited from v1.** All 4
+conditions of the `00-pipeline-manager` conformance-remediation pre-authorization path re-checked:
+(1) `IP-1130` (the package this remediates) is release-plan-covered (`01-release-plan.md` §2.2,
+R8, v1.0 scope) and separately carries its own explicit G3 grant (commit `351c0cf`) — unchanged
+from v1's own basis, still holds. (2) The finding (`BL-0111`) is still a conformance gap against
+the already-baselined `FR-1410` — v2 doesn't change what's being restored, only how cheaply.
+(3) v2's fix still lands inside `IP-1130`'s own `music_engine.py` mechanism/file footprint — no
+new file, no new routine, no new WRAM byte, same two call sites, only their bodies changed from a
+shared-routine `CALL` to an inline recompute of the same underlying formula `mood_update` itself
+already uses — this is a leaner instantiation of the *same* mechanism, not a different one.
+(4) Severity unchanged, Medium-High, below Critical. **Qualifies — G3 granted on that basis, both
+bases (original `IP-1130` authorization + `BL-0111`) cited again below**, same as v1.

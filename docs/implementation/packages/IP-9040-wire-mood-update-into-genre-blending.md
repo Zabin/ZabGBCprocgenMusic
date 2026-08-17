@@ -17,9 +17,73 @@
 | **Risks** | **Timing risk, the central one**: `VR-1130`'s own F1 finding showed `_emit_blend_tick`'s per-active-blend-frame cost is budget-sensitive (the original per-frame `STYLE_TABLE` re-derivation blew the VBlank budget; the `BLEND_DELTA_*` precompute fix brought it back within margin). `mood_update` adds roughly a dozen more instructions to that same path, on every active-blend frame (not just the press frame) — a real, not hypothetical, addition to an already-tight budget. Mitigation: Implementation Task 6 requires measuring `VIS_ENTRY_LY` on an active-blend frame with this change in place before calling the package done; if the budget is exceeded, the correct response is a Blocking Report (same precedent `IP-9030` v1 set), not a workaround improvised mid-implementation. **Scope discipline**: task 8's four folded-in doc corrections must stay doc-only — none require touching `music_engine.py`'s actual blend logic beyond the docstring narrowing (8c), and none should be treated as license to revisit `IP-1130`'s own shipped mechanism further. **`T17.6`'s already-correct state (8d)**: if re-reading the comment during implementation finds it does *not* match this package's own claim above, stop and report rather than silently either editing it to match a possibly-wrong assumption or leaving a real stale claim uncorrected. **ROM budget**: two `CALL` instructions (~6 bytes total) plus `mood_update`'s own body executing more often — negligible ROM-byte cost, the real cost is per-frame CPU time on active-blend frames only (Risks' central point above). |
 | **Rollback Considerations** | Fully additive at the instruction level: two `CALL` insertions, no field removed or renamed, no existing behavior changed for any frame that isn't an active-blend frame. Reverting is a straightforward commit revert. The four folded-in doc corrections (task 8) are independently valuable and should not be reverted alongside a code-only rollback, same convention `IP-9030`'s own Rollback Considerations established for its own doc-correction tasks. |
 
-### Authorization (G3) — not granted, flagged for the user
+### Authorization (G3) — GRANTED, pre-authorized conformance-remediation path
 
-**Recorded: authorization `NOT GRANTED`.** No standing grant on record covers this fresh
-remediation work — see this package's own TWBS entry (`01-technical-work-breakdown.md`) for the
-full reasoning. `IP-9040` is `READY` (fully specified, both dependencies `VERIFIED`) but not
-authorized — the next step is the G3 gate itself, not a build.
+**Recorded: authorization GRANTED 2026-08-17**, under the `00-pipeline-manager` skill's
+conformance-remediation pre-authorization path (user policy set 2026-08-14, codified in
+`.claude/skills/00-pipeline-manager/SKILL.md`'s G3 gate-check, commit `b41d32a`). Both bases cited
+per that rule: (1) original authorization — `IP-1130` (the package this remediates) was
+release-plan-covered (`01-release-plan.md` §2.2, R8, v1.0 scope) and additionally carried its own
+explicit G3 grant on record (commit `351c0cf`); (2) finding — `BL-0111` (`10-integration-review`'s
+R7 verification tranche, finding F2), a conformance gap against the already-baselined `FR-1410`.
+All four of the path's conditions were verified before build: original package release-plan
+covered (yes); finding is a conformance gap against an already-baselined FR, not new scope (yes);
+fix stays inside `IP-1130`'s own mechanism/file footprint, `music_engine.py` only (yes); severity
+Medium-High, below Critical (yes).
+
+### Blocking Report — 2026-08-17
+
+**Reason:** Implementation Task 6 (this package's own explicit contingency) requires measuring
+`VIS_ENTRY_LY` on an active-blend frame with the `mood_update` calls in place, and filing a
+Blocking Report rather than a workaround if the budget is exceeded. Both `CALL('mood_update')`
+insertions were implemented exactly as specified (after a mid-routine clobbering bug was caught
+and corrected in `_emit_begin_blend` — see below), the ROM built, and `T22`'s own new suite passed
+6 of 7 checks — but `T22.7` failed on a restarted-blend scenario, and independent measurement
+confirms a genuine `VIS_ENTRY_LY` regression: on an active-blend frame with this package's calls
+in place, `VIS_ENTRY_LY` read `1` and `0` (outside the required 144-153 VBlank range) on a plain
+single blend, and `1`/`0` again on the restarted-blend scenario `T22.7` exercises — exactly the
+central risk this package's own Risks field named in advance (`mood_update` adds roughly a dozen
+instructions to `_emit_blend_tick`'s already-budget-sensitive per-active-blend-frame path,
+previously brought back within margin only by `VR-1130` F1's `BLEND_DELTA_*` precompute fix).
+
+**Implementation-time correction, not itself the blocking issue (recorded for the eventual
+retry):** the package doc's own Files to Create/Modify field specified the `_emit_begin_blend`
+call landing "immediately after the `SCALE_IDX` write specifically," mid-routine. `mood_update`
+clobbers `A`/`B`/`C`/`HL` (it is not register-preserving, same convention every one of its 6
+existing call sites already relies on — each calls it only once it no longer needs its own working
+registers) — but `_emit_begin_blend`'s row traversal keeps `HL` parked at each field's own row
+offset between reads, and the duty-bias read/delta computation immediately following the
+originally-specified insertion point still needed `HL`/`A`/`B`/`C` intact. Placing the call there
+verbatim corrupted the duty-bias delta computation, breaking `T21.3`/`T21.3b`/`T21.8` (all
+duty-bias-specific mismatches). Moving the call to the end of `_emit_begin_blend` (after every
+`HL`/`A`/`B`/`C`-using computation completes, still before the routine returns) fixed this without
+changing the frame-level semantics the original placement reasoning cared about — `SCALE_IDX` has
+already landed and `TEMPO_IDX`/`DENSITY_IDX` are still untouched regardless of where within this
+routine the call lands, so `AROUSAL`/`VALENCE`'s pre-press-vs-instant behavior is unaffected. This
+correction is independent of the blocking issue below and should carry forward into the retry.
+
+**Missing dependency:** none — both dependencies (`IP-1120`, `IP-1130`) are `VERIFIED` and
+unaffected. The gap is a timing/budget one, not a missing artifact.
+
+**Required action:** re-derive a cheaper way to satisfy `FR-1410` for the genre-blending write
+path that doesn't add `mood_update`'s full ~dozen-instruction cost to every active-blend frame.
+Candidates for the next planning pass to evaluate (not prescribed — `07`'s own judgment call):
+(a) call `mood_update` only on the frame `BLEND_STEP` reaches 4 (blend settles) plus the press
+frame, rather than every active-blend frame — trades exact per-frame `FR-1410` conformance during
+the blend for conformance at press-time and landing-time only, a scope question for `04`/`06` to
+weigh against the requirement's literal "within one frame" wording; (b) a cheaper, purpose-built
+recompute inline in `_emit_blend_tick` that reuses values already in registers from the
+interpolation loop instead of a full `CALL`/`RET` plus `mood_update`'s own independent WRAM
+re-reads; (c) re-measure whether `_emit_begin_blend`'s own single per-press call (not
+per-active-blend-frame) is within budget on its own — the failing measurement above bundles both
+call sites' cost together and was not isolated per-site before this report was filed, so isolating
+them is real remaining diagnostic work for whoever picks this back up.
+
+**Recommended owner:** `07-implementation-planning`, re-scoping `IP-9040` (v2) with one of the
+above approaches or an isolated per-site budget measurement first; needs its own fresh G3 pass
+through the pre-authorization path once re-scoped, re-checking the "stays inside the original
+package's own mechanism/file footprint" condition against whatever approach is chosen.
+
+**Working-tree state:** all code/test/doc changes from this attempt were reverted before ending
+the run — no partial implementation is committed. `IP-9040` is set `BLOCKED` on the Master Build
+Plan and `packages/INDEX.md`, pointing here.

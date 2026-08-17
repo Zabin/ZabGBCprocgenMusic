@@ -193,3 +193,42 @@ own scope (e.g., reducing `_emit_begin_blend`'s or `_emit_blend_tick`'s own *exi
 pre-`IP-9040` cost to free up headroom — real optimization work on `IP-1130`'s own shipped
 mechanism, which is a different, larger package than this one). **Escalating to the user via
 `00-pipeline-manager`'s own NEEDS-USER path rather than attempting a fourth implementation guess.**
+
+### Resolution — 2026-08-17 — `DEFERRED`, closed out without building
+
+The user was presented all three options named above plus the addendum's third, "accept and
+document" option (via `00-pipeline-manager`'s `BL-0113` escalation) and **chose to defer
+entirely**: leave `AROUSAL`/`VALENCE` stale on the mid-blend-restart collision frame specifically
+(the one frame class that failed all three real attempts), documented as a known, accepted
+limitation rather than fixed, rather than accepting a `FR-1410` exception or funding a separately-
+scoped optimization package against `IP-1130`'s own existing cost. Neither option was needed —
+neither `AROUSAL` nor `VALENCE` has a real consumer today, so nothing observes the staleness
+either way; the decision costs nothing at present.
+
+**Disposition:** `IP-9040` is set `DEFERRED` on the Master Build Plan and `packages/INDEX.md` (was
+`BLOCKED, NEEDS-USER`) — not `BLOCKED`, since nothing further is stuck pending engineering; a
+decision was made not to pursue the fix now. `BL-0111` (the underlying `FR-1410` conformance
+finding) and `BL-0113` (this escalation) are both re-dispositioned `DEFERRED` in the backlog with
+the same trigger.
+
+**Revisit trigger:** roadmap R9 gives `AROUSAL`/`VALENCE` their first real consumer. At that
+point, re-open this package (a v4 attempt) with two live options rather than three, since the
+"accept and document" option will have been exercised as long as it usefully could be: either
+enough other R7/R8-era engine work has by then been optimized to free per-frame budget headroom
+for one of v1's/v2's already-designed recompute shapes, or the collision-frame gap has become
+genuinely player-visible enough to justify the Requirements-tier `FR-1410` exception or the
+larger `IP-1130`-cost optimization package, both already scoped as candidates above.
+
+**Folded-in doc corrections, closed out separately from the code fix (2026-08-17):** `BL-0107`
+was investigated in v1 and found already resolved (the `test_rom.py` `T17.6` comment already
+states the accurate account — no edit needed). `BL-0108` (`NFR-1220`'s WRAM-byte-count text,
+`docs/requirements/01-functional-requirements.md`) and `BL-0109` (`IP-1130`'s own Risks field
+`N=16`→`N=4`, `docs/implementation/packages/IP-1130-genre-blending.md`) are pure documentation,
+no production source involved — applied directly in this close-out pass, independent of the code
+fix's own deferral. `BL-0106` (narrowing `_emit_begin_blend`'s docstring in `music_engine.py`,
+production source) needs `08-code-implementation` and is not worth a standalone package for one
+comment — left `SCHEDULED` for the next natural touch of that routine.
+
+**Working-tree state:** this close-out pass is doc-only (this package doc, the Master Build Plan,
+`packages/INDEX.md`, `NFR-1220`'s body text, `IP-1130`'s Risks field). No production source
+touched, no ROM rebuild required, full test suite unaffected.

@@ -91,10 +91,11 @@ NR11 = 0xFF11; NR13 = 0xFF13; NR14 = 0xFF14; NR52 = 0xFF26
 
 from music_engine import PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX, PRESET_SCALE_IDX
 from music_engine import PRESET_DENSITY_IDX, PRESET_CHMIX_IDX
-from music_engine import STYLE_TABLE, DUTY_BIAS
-from music_engine import MOTIF_TABLE, N_VARIANTS
-from music_engine import SONG_TABLE, N_SONG_PHASES
-from music_engine import VALENCE_TABLE
+from music_engine import DUTY_BIAS
+from music_data import STYLE_TABLE
+from music_data import MOTIF_TABLE, N_VARIANTS
+from music_data import SONG_TABLE, N_SONG_PHASES
+from music_data import VALENCE_TABLE
 
 results = []
 PASS = 0
@@ -274,7 +275,7 @@ def t6_pulse_b_and_wave():
 
 # ── T7: Noise channel + density (IP-0003) ─────────────────────────────
 def t7_noise_density():
-    from music_engine import DENSITY_K
+    from patterns import DENSITY_K
 
     pb = fresh_boot()
     onset_counts = {}

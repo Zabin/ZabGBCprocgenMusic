@@ -19,11 +19,16 @@ gbc_lib.py       — ROM class (assembler opcodes) + color math + header writing
 wram_constants.py — shared WRAM constants (5 param indices, 5 PRESET_* values, BAD_ZONE_FLAGS),
                     dependency-free by design (IP-8020, BL-0065) so music_engine.py and
                     visuals.py can both import it without an import cycle
+tiles.py         — visualizer tile pixel art + BG palette data (IP-8030, BL-0089), dependency-free
+patterns.py      — Euclidean rhythm-pattern generation + density/step-timing data (IP-8030,
+                    BL-0089), imports only music_data.py's TEMPO_TABLE
+music_data.py    — curated scale/tempo/style/song/motif/valence tables (IP-8030, BL-0089),
+                    dependency-free
 music_engine.py  — all sound-channel generation logic (4 channels), bad-zone detection,
-                    preset/table data, PSG register writes
+                    PSG register writes (preset/table data now lives in music_data.py/patterns.py)
 input_map.py     — joypad edge detection + the input->parameter mapping (never writes PSG regs)
 visuals.py       — tile/palette visualizer, read-only consumer of engine state (never writes
-                    engine state or PSG registers)
+                    engine state or PSG registers); tile/palette data now lives in tiles.py
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
                     sound registers + WRAM engine state) — 154 checks across T1-T21
@@ -123,13 +128,15 @@ all always-on, no new input control:
 ## How to Change Things
 
 ### Tune a preset table or threshold
-Edit the relevant table in `music_engine.py` (`TEMPO_BPM`, `OCTAVE_ROOT_HZ`, `SCALE_SEMITONES`,
-`DELTA_TABLE`, `DENSITY_K`, `DISSONANCE_WEIGHT_BY_IC`, the `*_THRESHOLD` constants, the `PRESET_*`
-constants) — no other file needs to change; `build_rom.py` regenerates everything from these
-tables at build time. **These are still first-guess placeholders** (`BL-0005`), not tuned by ear.
+Edit the relevant table: `TEMPO_BPM`, `OCTAVE_ROOT_HZ`, `SCALE_SEMITONES`, `DELTA_TABLE`,
+`DISSONANCE_WEIGHT_BY_IC` in `music_data.py`; `DENSITY_K` in `patterns.py`; the `*_THRESHOLD`
+constants and the `PRESET_*` constants stay in `music_engine.py`/`wram_constants.py` respectively
+(IP-8030, BL-0089) — no other file needs to change; `build_rom.py` regenerates everything from
+these tables at build time. **These are still first-guess placeholders** (`BL-0005`), not tuned
+by ear.
 
 ### Add a new scale/mode
-Add an entry to `SCALE_SEMITONES` and `SCALES` in `music_engine.py` (exactly 8 semitone-offset
+Add an entry to `SCALE_SEMITONES` and `SCALES` in `music_data.py` (exactly 8 semitone-offset
 entries, extending into the next octave past each scale's own unique pitch count) —
 `SCALE_IDX`'s wrap mask (`0x03` today, 4 scales) must be widened if the list grows past a
 power-of-two boundary; check `input_map.py`'s `_step_on_bit` call for `SCALE_IDX`.
@@ -145,11 +152,13 @@ per-channel `STALE_COUNT_*`, overload via the rolling onset window) — see
 `docs/research/encyclopedia/R204-bad-zone-detection-heuristics.md` for the grounding.
 
 ### Change the visualizer
-`visuals.py` — tile data (`_tile_off_bytes`/`_tile_on_bytes`), the 4 channel-indicator cells
-(`CHANNEL_CELLS`), or the calm/bad-zone palettes (`CALM_PALETTE`/`BAD_PALETTE`).
+`tiles.py` — tile data (`_tile_off_bytes`/`_tile_on_bytes`) or the calm/bad-zone palettes
+(`CALM_PALETTE`/`BAD_PALETTE`); `visuals.py` — the 4 channel-indicator cells (`CHANNEL_CELLS`)
+and every routine that reads engine state to render (IP-8030, BL-0089: tile/palette *data* moved
+to `tiles.py`, `visuals.py` keeps the rendering logic and imports from it).
 
 ### Change channel-mix presets
-`CHMIX_MASKS` in `music_engine.py` (8 entries, bit0=pulse A/bit1=pulse B/bit2=wave/bit3=noise,
+`CHMIX_MASKS` in `music_data.py` (8 entries, bit0=pulse A/bit1=pulse B/bit2=wave/bit3=noise,
 matching `NR52`'s own bit order) — preset 0 must stay `0b1111` (every pre-existing test assumes
 all channels active at boot/reset) and every entry must stay nonzero (an all-silent preset has no
 recovery path short of Select). Gating itself lives in `_emit_channel_gen`'s and
@@ -158,7 +167,7 @@ adding that channel's `dac_reg`/`dac_on`/`bit_index` to its `CHANNELS` entry (or
 non-`CHANNELS` channel like noise, following `_emit_noise_gen`'s own inline pattern).
 
 ### Change Scheme E's motif table or scheme assignment
-`MOTIF_TABLE` in `music_engine.py` (8 absolute scale-degree targets, 0-7, shared by every
+`MOTIF_TABLE` in `music_data.py` (8 absolute scale-degree targets, 0-7, shared by every
 Scheme-E channel) — a first-guess placeholder shape, not tuned by ear (`BL-0005`). Which
 `CHMIX_IDX` presets assign Scheme E to which channel is `CHMIX_MASKS`'s bits4-6 (pa=4, pb=5,
 wv=6, 0=Scheme W/1=Scheme E) — preset 0 must stay all-Scheme-W (no regression to the shipped
@@ -167,7 +176,7 @@ note-selection step (`IP-1070`/`BL-0020`) — extending it to a new scheme means
 branch there, keyed off a new bit in the same spare-bit range (`ADR-0001`).
 
 ### Change style-preset values
-`STYLE_TABLE` in `music_engine.py` (8 rows, one per `CHMIX_IDX` preset — independent of
+`STYLE_TABLE` in `music_data.py` (8 rows, one per `CHMIX_IDX` preset — independent of
 `CHMIX_MASKS`, `ADS-101` SS2 — each `(tempo_idx, density_idx, scale_idx, duty_bias)`) — first-guess
 placeholder values, not tuned by ear (`BL-0005`). Index 0 must stay identical to
 `PRESET_TEMPO_IDX`/`PRESET_DENSITY_IDX`/`PRESET_SCALE_IDX`/`duty_bias=0` (no regression to the
@@ -176,7 +185,7 @@ from `input_map.py`'s Start-press handler immediately after `CHMIX_IDX` steps �
 `CHMIX_MASKS`'s channel-mix/scheme half, style values apply the same frame, not at next onset.
 
 ### Change motif variants
-`MOTIF_TABLE` in `music_engine.py` (now `N_VARIANTS=4` rows of 8 bytes each — variant 0 must stay
+`MOTIF_TABLE` in `music_data.py` (now `N_VARIANTS=4` rows of 8 bytes each — variant 0 must stay
 byte-identical to the original shipped sequence, `FR-1300`) and `MOTIF_VARIANT_SELECTOR` (4
 signed-delta entries, LFSR-indexed, shaped like `DELTA_TABLE`, first-guess retention-biased
 weighting, not tuned by ear — `BL-0042`). Variant selection happens only at a motif-cycle
@@ -185,7 +194,7 @@ boundary (motif step wraps 7→0) inside `_emit_channel_gen`'s Scheme-E branch (
 channel's own LFSR (otherwise idle while running Scheme E), introducing no new randomness source.
 
 ### Change song-form phases
-`SONG_TABLE` in `music_engine.py` (4 rows of 4 bytes — `tempo_idx`, `density_idx`, `duration_lo`,
+`SONG_TABLE` in `music_data.py` (4 rows of 4 bytes — `tempo_idx`, `density_idx`, `duration_lo`,
 `duration_hi`, duration in frames — first-guess placeholder values/durations, not tuned by ear,
 `BL-0005`). Phase 0 (INTRO) must stay identical to `PRESET_TEMPO_IDX`/`PRESET_DENSITY_IDX` (no
 regression to boot/Select-reset behavior — this was a real regression caught and fixed during
@@ -196,7 +205,7 @@ regression to boot/Select-reset behavior — this was a real regression caught a
 selection (disjoint WRAM fields). No new input control.
 
 ### Change settings-indicator tile patterns
-`_bar_tile_bytes(n)` in `visuals.py` (8 fill levels, 0-7, one bar-height glyph each — first-guess
+`_bar_tile_bytes(n)` in `tiles.py` (8 fill levels, 0-7, one bar-height glyph each — first-guess
 pixel design, not tuned by eye, same `BL-0005`-class deferral as every other visual/preset-value
 decision). `SETTINGS_CELLS` (5 tilemap cells, immediately after `CHANNEL_CELLS`) each display one
 base control's current index (`TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX`) as a

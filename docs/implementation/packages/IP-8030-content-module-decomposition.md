@@ -31,3 +31,75 @@ open at the same entry stage, and the debt is stated as an observable cost (bloc
 critical path). `08-refactoring` may now build this package, subject to its own eligibility
 re-check immediately before running (quiescence, tree-green-as-found, no release bucket mid-close
 overlapping `visuals.py`/`music_engine.py`/`test_rom.py`).
+
+### Refactoring Summary (`08-refactoring`, 2026-08-17)
+
+**Eligibility re-checked and cleared** immediately before the first edit: package `READY` + G3
+`GRANTED` (above); pipeline quiescent (Master Build Plan swept, no `IN PROGRESS`/`COMPLETE`-but-
+unverified package touching `visuals.py`/`music_engine.py`/`test_rom.py`); tree green as-found
+(rebuilt clean, 32768 bytes, valid header, full suite 154/154 before any edit); no release bucket
+mid-close overlapping these files.
+
+**Baseline** (captured before the first edit): ROM SHA-256 `81d689bdbf98dfde160337db0544a158ed77356b2d5cdee7a15541083563dacd`,
+32768 bytes. Full `test_rom.py`: **154 PASS, 0 FAIL**, all 154 check names recorded.
+
+**Files Created**: `tiles.py`, `patterns.py`, `music_data.py` (repo root). **Files Modified**:
+`visuals.py` (4 tile/palette items removed, import added), `music_engine.py` (21 moved names
+removed, 2 import statements added, `NOISE_STEPS`/`DENSITY_K`/`_euclidean_pattern` region and
+the preset-tables region replaced with pointer comments), `test_rom.py` (5 import lines
+repointed: 4 module-level, 1 function-local), `Claude.md` (module-overview table + 9 "How to
+Change Things" quick-reference entries repointed to the file each moved table/function now
+actually lives in — Step 6 traceability, not merely the package's own optional module-overview
+suggestion). **Files Deleted**: none.
+
+**Two unstated tensions between this package's own Definition-of-Done and Interfaces fields,
+resolved rather than blocked on** (both are pure-arithmetic/compile-time-constant substitutions,
+independently verified to produce byte-identical values, so equivalence is unaffected):
+1. The DoD requires all three new modules import nothing from `gbc_lib.py`, but the Interfaces
+   field's `CALM_PALETTE`/`BAD_PALETTE` were originally built via `gbc_lib.rgb15(r,g,b)`. Resolved
+   by keeping a private 2-line duplicate of that same pure bit-packing formula (`_rgb15`) inside
+   `tiles.py` rather than importing `gbc_lib.py` or hardcoding the packed integers as unexplained
+   magic numbers. Verified: `tiles._rgb15`-derived values match `gbc_lib.rgb15`'s own output
+   exactly (both palettes, all 8 colors).
+2. The DoD also bars importing `wram_constants.py`, but `STYLE_TABLE`/`SONG_TABLE`'s rows were
+   originally built from `PRESET_TEMPO_IDX`/`PRESET_DENSITY_IDX`/`PRESET_SCALE_IDX` (imported from
+   `wram_constants.py` in the pre-refactor tree). Resolved by substituting the literal values
+   directly (`4`, `0`, `0` respectively — verified identical to `wram_constants.py`'s own current
+   values) with an explanatory comment at each site, since these are compile-time Python
+   constants, not runtime-varying state.
+
+`patterns.py` imports `TEMPO_TABLE` from `music_data.py` (for `NOISE_STEP_TABLE`'s derivation) —
+not barred by the DoD's enumerated list (`music_engine.py`/`visuals.py`/`input_map.py`/
+`build_rom.py`/`gbc_lib.py`/`wram_constants.py`/`test_rom.py`) and does not reintroduce the
+`GDS-03` §1 import cycle (`music_data.py` does not import from `patterns.py`).
+
+**Equivalence Evidence**: post-refactor ROM SHA-256 **`81d689bdbf98dfde160337db0544a158ed77356b2d5cdee7a15541083563dacd`
+— byte-identical to baseline**, 32768 bytes, valid header. Full suite: **154 PASS, 0 FAIL**,
+check-name set diffed line-for-line against the baseline list — **identical**. Supersession sweep
+(Task 7, re-run against the real tree rather than trusting the planning-pass sweep unchanged):
+grepped the whole tree for every one of the 21 moved names' old qualified forms
+(`music_engine.<name>`, `from music_engine import <name>`) and the 5 moved `visuals.py` items —
+zero stray references found beyond the 5 `test_rom.py` import lines already repointed. All three
+new modules independently confirmed dependency-free (`tiles.py`: zero imports; `patterns.py`:
+imports only `music_data.py`; `music_data.py`: zero imports, per the resolution above).
+
+**Migration Map**: no ID or filename was renamed — this is a pure relocation of existing plain
+Python names into new files, same names, same values. `music_engine.py`'s `TEMPO_BPM`,
+`TEMPO_TABLE`, `OCTAVE_ROOT_HZ`, `SCALE_SEMITONES`, `SCALES`, `SEMITONE_TABLE_DATA`,
+`DISSONANCE_WEIGHT_BY_IC`, `DELTA_TABLE`, `VALENCE_TABLE`, `STYLE_TABLE`, `SONG_TABLE`,
+`N_SONG_PHASES`, `ARPEGGIO_OFFSETS`, `DUTY_BY_DEGREE`, `MOTIF_TABLE`, `N_VARIANTS`,
+`MOTIF_VARIANT_SELECTOR`, `CHMIX_MASKS` → now declared in `music_data.py`, importable from there.
+`music_engine.py`'s `_euclidean_pattern`, `NOISE_STEPS`, `DENSITY_K`, `NOISE_STEP_TABLE` → now in
+`patterns.py`. `visuals.py`'s `_tile_off_bytes`, `_tile_on_bytes`, `_bar_tile_bytes`,
+`CALM_PALETTE`, `BAD_PALETTE` → now in `tiles.py`.
+
+**Outstanding Issues (found, not fixed — filed for `00-intake`)**: (1) `GDS-09` §1's "three of
+those five do not exist here" paragraph is now stale (this package created exactly those three
+files) — the package's own Documentation Updates field named this as owed to
+`03-architecture-design-synthesis`, out of this refactoring package's own write scope, not
+touched here. (2) `01-release-plan.md` §2.5's own prose referencing "`GDS-09` §2's... note" should
+be checked against the corrected section number once (1) lands — same field, same deferral.
+Neither blocks R12.5 or any other work; both are pure doc-coherence follow-ups.
+
+**Master Build Plan**: `IP-8030` set `COMPLETE` (never `VERIFIED` — that transition belongs
+exclusively to `09-package-verification`).

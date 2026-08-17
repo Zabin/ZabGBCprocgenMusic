@@ -10,10 +10,11 @@ are active — cheaper than per-pixel procedural rendering and a natural fit for
 hardware.
 """
 
-from gbc_lib import ROM, rgb15
+from gbc_lib import ROM
 from wram_constants import (TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX_IDX,
                              BAD_ZONE_FLAGS, PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX,
                              PRESET_SCALE_IDX, PRESET_DENSITY_IDX, PRESET_CHMIX_IDX)
+from tiles import _tile_off_bytes, _tile_on_bytes, _bar_tile_bytes, CALM_PALETTE, BAD_PALETTE
 
 LCDC = 0x40
 BCPS = 0x68
@@ -59,33 +60,6 @@ LY = 0xFF44   # PPU current-scanline register; 144-153 is VBlank (R102)
 # included, not only on frames with heavy input work. This is one more duplicated plain-int WRAM
 # constant on the debt BL-0065 already tracks -- deliberate, not a new pattern.
 VIS_ENTRY_LY = 0xC061
-
-
-def _tile_off_bytes():
-    return [0x00] * 16  # solid color index 0 (background) for all 8 rows
-
-
-def _tile_on_bytes():
-    return [0xFF, 0xFF] * 8  # solid color index 3 (brightest palette slot) for all 8 rows
-
-
-def _bar_tile_bytes(n):
-    """IP-1110: an 8x8 2bpp glyph with the bottom n rows filled (color index 3) and the
-    remaining 8-n rows blank (color index 0) — a "how full is this" shape, no text/font
-    rendering needed (ADS-104 SS3)."""
-    rows = []
-    for row in range(8):
-        filled = row >= (8 - n)
-        rows.extend([0xFF, 0xFF] if filled else [0x00, 0x00])
-    return rows
-
-
-# Two BG palette-0 color sets (R205 SS5's "2-3 restrained tones" guidance): calm (blue/green)
-# vs. bad-zone (red), swapped each frame based on BAD_ZONE_FLAGS bit3 — the visualizer's only
-# reaction to bad-zone state for this minimal v1 pass (a distinct tile/animation reacting to
-# bad-zone, beyond a color swap, is a reasonable IP-0006+/backlog follow-up, not built here).
-CALM_PALETTE = [rgb15(0, 0, 0), rgb15(0, 8, 16), rgb15(4, 16, 24), rgb15(10, 28, 20)]
-BAD_PALETTE = [rgb15(0, 0, 0), rgb15(16, 0, 0), rgb15(24, 4, 4), rgb15(31, 10, 6)]
 
 
 def _emit_write_palette(rom, colors):

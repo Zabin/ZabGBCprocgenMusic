@@ -543,3 +543,82 @@ shared-routine `CALL` to an inline recompute of the same underlying formula `moo
 already uses — this is a leaner instantiation of the *same* mechanism, not a different one.
 (4) Severity unchanged, Medium-High, below Critical. **Qualifies — G3 granted on that basis, both
 bases (original `IP-1130` authorization + `BL-0111`) cited again below**, same as v1.
+
+## TWBS — `IP-8030` (2026-08-17, `BL-0089`, module-decomposition refactor)
+
+**Origin.** `BL-0089` (filed 2026-08-07, full-repo audit): `08-content-authoring`'s declared write
+scope names `tiles.py`/`patterns.py`/`music_data.py`; none exists — content data lives inline in
+`visuals.py` (tile pixel bytes) and `music_engine.py` (every scale/tempo/style/song/motif/rhythm
+table). `GDS-09` §1 records this honestly at the interface level ("three of those five do not
+exist here... `visuals.py` owns its tile bytes inline... `music_engine.py` owns its own data
+tables as module-level Python constants"). **The user decided 2026-08-07: create the three
+modules** — extract the data out, restoring the decomposition `GDS-03`/`GDS-09` always described,
+over the two cheaper alternatives (repoint the skill scope at where content actually lives, or
+retire/narrow the skill). This is the release plan's own named critical-path prerequisite
+"immediately before R12.5" (`01-release-plan.md` §2.5) — R12.5's retuning pass needs a working
+`08-content-authoring` write surface to retune *through*, which does not exist today.
+
+**No design work owed here — this is execution of an already-made decision, not a fresh one.**
+The split below is this planning pass's own judgment call (the user specified *that* the modules
+should exist, not their exact per-table membership); recorded explicitly rather than left
+implicit, since a guessed split is exactly the kind of drift stage 08 would otherwise discover
+mid-implementation.
+
+**Split, by content category, not by size:**
+
+- **`tiles.py`** — visualizer tile pixel art + palette color data: `_tile_off_bytes()`,
+  `_tile_on_bytes()`, `_bar_tile_bytes(n)` (currently `visuals.py:64-80`), `CALM_PALETTE`/
+  `BAD_PALETTE` (currently `visuals.py:87-88`). All four are pure, `rom`-independent — no ROM
+  object dependency, straightforward move.
+- **`patterns.py`** — rhythm-pattern generation: `_euclidean_pattern(k, n)` (currently
+  `music_engine.py:369-377`, pure function, no `rom` dependency), `DENSITY_K`, `NOISE_STEP_TABLE`
+  (currently `music_engine.py:362-366`). `NOISE_STEPS` (the `n=16` default) moves alongside since
+  `_euclidean_pattern`'s own default argument needs it.
+- **`music_data.py`** — scale/mode/pitch/style/song/motif tables, the "curated musical building
+  blocks" the content-authoring skill's scope names: `TEMPO_BPM`/`TEMPO_TABLE`, `OCTAVE_ROOT_HZ`,
+  `SCALE_SEMITONES`/`SCALES`, `SEMITONE_TABLE_DATA`, `DISSONANCE_WEIGHT_BY_IC`, `DELTA_TABLE`,
+  `VALENCE_TABLE`, `STYLE_TABLE`, `SONG_TABLE`/`N_SONG_PHASES`, `ARPEGGIO_OFFSETS`,
+  `DUTY_BY_DEGREE`, `MOTIF_TABLE`/`N_VARIANTS`, `MOTIF_VARIANT_SELECTOR`, `CHMIX_MASKS`
+  (currently scattered `music_engine.py:99-360`, per-table line numbers in the package's own
+  Files to Create/Modify field — re-verify against the tree at implementation time, this planning
+  pass's own line numbers may have shifted).
+
+**Deliberately staying in `music_engine.py` (not content, engine wiring):** `CHANNELS` (ties
+WRAM/register constants together with behavioral parameters, keyed to `music_engine.py`'s own
+local WRAM address names — moving it would need those addresses re-exported and risks a real
+import cycle, for a table that is wiring, not tunable musical content); `LFSR_POLY`/
+`LFSR_SEED_PA`/`PB`/`WV` (algorithmic seeds, not musical content); `DIV`, `PRESET_*` (already
+live in `wram_constants.py`, `IP-8020`). Named explicitly so a future pass doesn't assume these
+were simply missed.
+
+**Naming convention decision.** `GDS-09` §1 records the *reference project's* expected interface
+names (`build_tile_data()`, `ALL_PATTERNS`, `music_data()`) as never having existed in this
+project. This package does **not** adopt those wrapper-function/registry names — it uses plain
+module-level constants in each new file, the same convention this project's own `wram_constants.py`
+(`IP-8020`, `BL-0065`) already established for its own content-adjacent split. Inventing a
+function/registry wrapper solely to match the reference project's naming, when this project's own
+shipped convention is flat constants, would add ceremony without changing behavior — `GDS-09`
+itself favors "record plainly rather than documenting interfaces that aren't there." Once this
+package lands, `GDS-09` §1's "three of those five do not exist" note becomes stale and needs a
+follow-up correction pass (owned by `03-architecture-design-synthesis`, not this package — refactor
+packages don't edit the GDS ladder).
+
+**Verb inventory:** N/A — a structural relocation of existing data, not a new capability spanning
+runtime verbs.
+
+**Supersession sweep:** every other module's imports of the moved names were checked
+(`build_rom.py`, `test_rom.py`, `input_map.py`, `gbc_lib.py`). `build_rom.py`/`input_map.py`/
+`gbc_lib.py` import only functions/register constants from `music_engine.py`/`visuals.py`, never
+the moved data tables — clean, nothing to update there. `test_rom.py` imports `STYLE_TABLE`,
+`MOTIF_TABLE`/`N_VARIANTS`, `SONG_TABLE`/`N_SONG_PHASES`, `VALENCE_TABLE` (module-level, lines
+94-97) and `DENSITY_K` (function-local, line 277) directly `from music_engine import ...` — these
+5 import lines must be repointed to `music_data`/`patterns` respectively; this is the one real
+call-site update the sweep found, named in Files to Create/Modify below. No other tree-wide
+reference to the old locations survives (a leftover `from music_engine import STYLE_TABLE` would
+`ImportError` immediately, not silently pass — the equivalence contract's own full-suite run is
+sufficient to catch a missed site).
+
+**No split within this package** — the three new modules are one coherent Definition of Done (one
+equivalence contract covering all three, one full-suite pass); splitting by target file would
+triple the review overhead for no independent value, since none of the three can be verified in
+isolation without the others.

@@ -19,15 +19,15 @@
 
 ### Authorization (G3) — refactoring go-ahead
 
-**Status: `NOT GRANTED`.** Per this project's standing rule, refactoring packages are never
-pre-authorized by release-plan coverage alone — `BL-0089`'s own disposition already names this
-explicitly ("it also requires its own G3 authorization (refactoring packages are never
-pre-authorized)"). This package is fully specified and `READY` (all dependencies clear, no
-blocking condition), but **`08-refactoring` may not build it without an explicit user go-ahead**,
-separate from — and not satisfied by — the user's earlier 2026-08-07 design decision on *what*
-`BL-0089` should become (that decided the shape of the fix; it did not authorize spending a build
-cycle on it now). Scheduling conditions for authoring this package (per `00-pipeline-manager`'s
-own refactoring-scheduling rules) are otherwise met: the `refactor`-type backlog entry is
-`SCHEDULED` with the user aware of it, no Critical/High bug is open at the same entry stage, and
-the debt is stated as an observable cost (blocks R12.5's own critical path). Authoring itself
-needed no G3 — only the next `08-refactoring` invocation does.
+**Status: `GRANTED` 2026-08-17.** The user was asked directly, via `00-pipeline-manager`'s Step 4
+gate check, whether `IP-8030` may build now — a plain yes/no, per this field's own prior wording
+("needs an explicit user go-ahead before `08-refactoring` may build it"). **The user said yes.**
+This is distinct from — and in addition to — the user's earlier 2026-08-07 design decision on
+*what* `BL-0089` should become (that decided the shape of the fix; this authorizes spending a
+build cycle on it now). Scheduling conditions for authoring this package (per
+`00-pipeline-manager`'s own refactoring-scheduling rules) were already met at authoring time: the
+`refactor`-type backlog entry was `SCHEDULED` with the user aware of it, no Critical/High bug was
+open at the same entry stage, and the debt is stated as an observable cost (blocks R12.5's own
+critical path). `08-refactoring` may now build this package, subject to its own eligibility
+re-check immediately before running (quiescence, tree-green-as-found, no release bucket mid-close
+overlapping `visuals.py`/`music_engine.py`/`test_rom.py`).

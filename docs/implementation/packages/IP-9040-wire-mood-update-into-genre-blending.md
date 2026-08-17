@@ -103,3 +103,59 @@ package's own mechanism/file footprint" condition against whatever approach is c
 **Working-tree state:** all code/test/doc changes from this attempt were reverted before ending
 the run — no partial implementation is committed. `IP-9040` is set `BLOCKED` on the Master Build
 Plan and `packages/INDEX.md`, pointing here.
+
+### v2 record (superseded by v3 below, preserved verbatim for history)
+
+v2's own design (inline `VALENCE`-only recompute in `_emit_begin_blend`, inline `AROUSAL`-only
+recompute in `_emit_blend_tick`) is documented above in the main field table. Its own TWBS entry
+(`01-technical-work-breakdown.md`) records the grounding measurement that produced it.
+
+### Blocking Report — v3 — 2026-08-17
+
+**Reason:** v2's own Implementation Task 6 named the mid-blend-restart collision frame (`FR-1490`)
+as the one case its planning-time grounding experiment could not confirm clean, and required
+re-measuring it in the real, committed build before calling the package done. That re-measurement
+was done: the v2 design (inline recomputes) was implemented exactly as specified, the ROM built,
+and `T22`'s new suite passed 6 of 7 checks — but **`T22.7` failed again, on the exact same
+scenario v1 also failed on**, and independent `VIS_ENTRY_LY` measurement confirms the same
+regression class: on the mid-blend-restart collision frame specifically, `VIS_ENTRY_LY` read `0`
+(outside the required 144-153 VBlank range) at the exact frame `BLEND_STEP` reaches 4, self-
+healing to `153` one tick later — every other frame class (plain single-blend intermediate steps,
+the initial press-frame collision) measured clean, exactly matching the v2 planning pass's own
+grounding experiment's result. **v2's inline half-sized design did narrow the problem** (from
+regressing on *every* active-blend frame of *any* blend, v1's own finding, to regressing only on
+the specific frame both `_emit_begin_blend` and `_emit_blend_tick` fire fully-loaded on the same
+frame, which only happens on a Start press landing mid-blend) — but did not eliminate it. Per this
+package's own explicit contingency (both v1's and v2's Risks fields), this is a Blocking Report,
+not a further improvised trim.
+
+**Missing dependency:** none — both dependencies (`IP-1120`, `IP-1130`) are `VERIFIED` and
+unaffected. Still a timing/budget gap, not a missing artifact.
+
+**Required action:** the two remaining, previously-named-but-not-yet-attempted candidates are the
+deferred-recompute redesign (exploiting `FR-1410`'s own explicit "no more than one frame after"
+tolerance to move the collision-frame recompute onto a later, non-colliding frame) and a
+requirements-tier scope conversation (whether `FR-1410`'s literal "within one frame" wording
+should carry an explicit, narrow exception for this one collision-frame class, which — if
+adopted — would need routing through `04-requirements-engineering`, not absorbed silently here,
+since it changes what's baselined rather than restoring it, and a package resting on a changed
+requirement no longer automatically qualifies for the conformance-remediation pre-authorization
+path's condition 2). Both were named as candidates in v1's own Blocking Report and v2's own TWBS
+entry; neither has been attempted. The deferred-recompute redesign's own known difficulty (a
+settled/flushed sentinel is needed to avoid violating `NFR-1170`'s zero-idle-cost contract, and
+that sentinel risks changing `BLEND_STEP`'s own existing observable contract, which several
+`test_rom.py` suites already assert exact values against) should be worked out concretely — with
+its own throwaway grounding measurement, same convention this pass and v2's own planning pass
+both used — before a v4 implementation attempt, not discovered again mid-build.
+
+**Recommended owner:** `07-implementation-planning`, re-scoping `IP-9040` (v3→v4) with the
+deferred-recompute redesign fully worked out and grounded before authoring, or — if that redesign
+turns out not to be practically achievable within `NFR-1170`'s own constraint — escalating the
+"one frame after" wording question to `04-requirements-engineering`/the user as a genuine
+Requirements-tier open question (at which point this remediation would need its own fresh,
+explicit go-ahead rather than continuing to qualify for the pre-authorized path, since it would
+no longer be restoring an unchanged baseline).
+
+**Working-tree state:** all code/test/doc changes from this attempt were reverted before ending
+the run — no partial implementation is committed. `IP-9040` remains `BLOCKED` on the Master Build
+Plan and `packages/INDEX.md`, pointing here (v3).

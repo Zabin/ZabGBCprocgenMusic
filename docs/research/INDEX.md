@@ -67,7 +67,8 @@ into R108 SS4).
 | R221 | Emotional/energy parameter mapping | [encyclopedia/R221-emotional-energy-parameter-mapping.md](encyclopedia/R221-emotional-energy-parameter-mapping.md) | ✅ Authored 2026-07-22 (MSTR-001 §9 thread — valence-arousal model mapped onto Driftune's existing tempo/density/scale/dissonance-score state) |
 | R222 | Visual evolution conventions | [encyclopedia/R222-visual-evolution-conventions.md](encyclopedia/R222-visual-evolution-conventions.md) | ✅ Authored 2026-07-26 (`BL-0034` — palette-swap-only day/night/seasonal theming is the established, hardware-precedented technique, Pokemon Gold/Silver cited; grounds `CAP-14`/R9's design half, VRAM-budget half still owed to `02-research-gbc-hardware`) |
 | R223 | Audio-visual synchronization conventions | [encyclopedia/R223-audio-visual-synchronization.md](encyclopedia/R223-audio-visual-synchronization.md) | ✅ Authored 2026-07-26 (`BL-0035` — pitch is the highest-confidence mapping dimension, green-channel-preferential intensity mapping, one-frame sync lag confirmed perceptually acceptable, corroborating `VR-0006`'s own prior finding) |
-| R224 | Listening-evaluation methodology: structured, per-parameter critique elicitation | [encyclopedia/R224-listening-evaluation-methodology.md](encyclopedia/R224-listening-evaluation-methodology.md) | ✅ Authored 2026-08-08 (`BL-0097` — grounds `09-content-review`'s first-ever question-set design: one manipulation-check + one semantic-differential rating per tunable parameter) |
+| R224 | Listening-evaluation methodology: structured, per-parameter critique elicitation | [encyclopedia/R224-listening-evaluation-methodology.md](encyclopedia/R224-listening-evaluation-methodology.md) | ✅ Authored 2026-08-08 (`BL-0097` — grounds `09-content-review`'s first-ever question-set design: one manipulation-check + one semantic-differential rating per tunable parameter); **§7 addendum 2026-08-19 (`BL-0120`) — adds the holistic (non-parameter-scoped) dimension the original question set structurally excluded, plus the strong-beat-sonority measurement correction** |
+| R225 | Harmonic coordination: shared chord context across independent voices | [encyclopedia/R225-harmonic-coordination-shared-chord-context.md](encyclopedia/R225-harmonic-coordination-shared-chord-context.md) | ✅ Authored 2026-08-19 (`BL-0119` — re-grounds `R211` §5's now-overtaken "don't attempt chord-progression harmony" deferral, **which §9 of that topic now formally withdraws**, into a concrete SM83-tractable mechanism: a 1-3 byte shared chord-root context, a sparse tonic-biased transition table, root/fifth bass, chord-tone-on-strong-beat melody, cadence-as-chord-constraint; costed against newly-measured onset schedules — 95.1 % of frames execute no pitched-onset branch) |
 
 Superseded: [R200-generative-music-design.md](R200-generative-music-design.md) (content split
 across R201-R204, R206-R207).
@@ -78,6 +79,15 @@ shipped bias); **R214 §8** (`BL-0010` — L-systems for motif recurrence, deep-
 concrete bounded-depth/weighted-rule design constraint); **R219 §8** (`BL-0036` — Celtic/Seasonal/
 Holiday genre-coverage gap, Celtic joins the Folk/World tier, Holiday found high-confidence and
 uniquely cheap, Seasonal reclassified as a preset-rotation concern not a genre).
+
+**Addenda landed 2026-08-19** (`BL-0119`/`BL-0120`, the harmonic-coordination pass): **R211 §9** —
+the first *withdrawal* addendum in the R200 tier (§5's "do not attempt chord-progression harmony"
+bullet struck, replacement position pointed at R225), following R101 §8.5/R102 §3b's
+supersede-don't-erase discipline; **R212 §7** cross-link recording R225 §3f as a partial reversal of
+its cadence negative result; **R224 §7** — the holistic, non-parameter-scoped review dimension plus
+the strong-beat-sonority metric correction (research half of `BL-0120`; the `09-content-review`
+skill-definition half is explicitly **not** closed and is out of every pipeline stage's write
+scope).
 
 > **Forward-trace convention (`MSTR-001` C10) — established 2026-07-26 (`BL-0067`).** Every topic
 > carries a `## 6b. Forward trace` section naming the shipped code it fed, or an explicitly-named

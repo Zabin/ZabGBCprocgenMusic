@@ -166,5 +166,83 @@ run, not by any `IP-xxxx`. Not stale — a live, named dependency of a scheduled
 R204 (bad-zone detection — the dissonance/stale/overload thresholds this topic's question set
 targets directly), R206 (button-parameter mapping — the mechanical isolation this method leans on),
 R220 (style evolution/song-form — `STYLE_TABLE`/`SONG_TABLE`, both named above), R221
-(emotional/energy mapping — `VALENCE_TABLE`, the mode rating question), `09-content-review`
+(emotional/energy mapping — `VALENCE_TABLE`, the mode rating question), R225 (harmonic
+coordination — the defect §7 below shows this topic's original question set could not surface, and
+the source of §7b's metric correction), `09-content-review`
 (the downstream consumer), `BL-0097`/`BL-0005` (the tuning-debt findings this topic answers).
+
+## 7. Addendum — 2026-08-19: the holistic dimension this question set structurally excluded (`BL-0120`)
+
+**The finding, stated against this topic's own §4.** Every question §4 recommends is a
+*per-parameter manipulation check* scoped to one control. That was a deliberate optimization — §4's
+last bullet argues the manipulation-check "is what routes a finding to a *specific* constant" —
+and it worked exactly as designed. It also, by construction, left no question that could be
+answered "the underlying music is not harmonized," because no such question is about a parameter.
+
+This is not theorized. The first human listening pass
+([`docs/reviews/content-review-human-listening.md`](../../reviews/content-review-human-listening.md))
+ran all six §4 parameters with a real listener and returned three clean / three findings — while
+the engine's three pitched channels were random-walking with no shared harmonic context at all
+(`BL-0119`: near-uniform vertical interval distribution, **36.1 % harsh pairs**). The instrument
+returned "3 clean" on the project's largest musical defect. A blind spot in the measuring
+instrument is worse than a known gap in coverage.
+
+**The correction is additive, not a replacement.** §4's per-parameter structure stays; it is good
+at what it is for. What was missing was already named in this topic's own §2 citation: the
+game-music-evaluation source named **two** questions — the manipulation check *and* whether the
+result "leads to a more enjoyable experience" — and §4 kept only the first. The AI-music evaluation
+survey §2 already cites is explicit that the subjective axes are *plural* and include
+"harmonious… musically structured, and coherent" as **separate rated dimensions**
+[arXiv 2308.13736 — Comprehensive Survey for Evaluation Methodologies of AI-Generated Music](https://ar5iv.labs.arxiv.org/html/2308.13736)
+— dimensions no per-parameter question in §4 asks about.
+
+### 7a. Recommended holistic dimension — questions deliberately scoped to *no* control
+
+Asked **once per review pass, before the per-parameter battery** (so the listener's attention has
+not yet been narrowed to one axis), on free listening with no button presses:
+
+| Question | What it can surface that §4 cannot |
+|---|---|
+| "Is there a melodic idea you could hum back after listening?" | Absence of motif/phrase identity (`BL-0010`, `R214` §8) |
+| "Does it feel like it's going somewhere, or like it's wandering?" | Absence of form/cadence/resolution (`R212`, `R225` §3f) |
+| "Do the voices sound like they're playing *together*, or like separate things happening at once?" | **The `BL-0119` defect** — harmonic coordination (`R225`) |
+| "Is there anywhere it feels like it breathes, or is it continuous?" | Absence of rests/phrase boundaries (`R225` §3f) |
+| "Would you leave this on for five minutes? For twenty?" | The actual product question (`MSTR-001`) |
+
+Paired ratings, in §4's already-adopted 7-point semantic-differential format: **coherent—chaotic**,
+**purposeful—aimless**, **together—uncoordinated**, **memorable—forgettable**.
+
+Two disciplines carry over from §4 and must not be dropped: ask the holistic questions **first**
+(they are contaminated by prior parameter-focused listening, not the reverse), and accept that
+their findings route **upstream** — to `02`/`03`, not to a constant. A holistic finding that cannot
+be routed to a table row is not a defective finding; §4's routability optimization is precisely
+what must not be re-applied here.
+
+### 7b. Metric correction: measure strong-beat sonorities separately from the aggregate
+
+A second, narrower methodology finding, from `R225` §5f. `BL-0119` diagnosed the harmonic gap with
+an aggregate interval-class histogram over *all* sounding channel pairs. That was the right
+instrument for detecting the **absence** of coordination and is the wrong one for verifying its
+**presence**: a chord-tone/passing-tone design deliberately sounds non-chord tones on weak beats,
+so its aggregate histogram improves only modestly (modelled 32.6 %→28.5 % harsh) while the
+**strong-beat** sonorities — where §3e-grounded convention says harmony is actually perceived —
+improve from 32.6 % to **14.9 %**. Any future objective check of harmonic quality must partition
+onsets by metric strength before counting, or it will under-report a working design as a failing
+one.
+
+### Addendum sources
+- [arXiv 2308.13736 — Comprehensive Survey for Evaluation Methodologies of AI-Generated Music](https://ar5iv.labs.arxiv.org/html/2308.13736)
+  (already cited in §2; re-read here for the plural-subjective-dimension claim specifically).
+  **Needs fetch-verification** — `WebFetch` was blocked by the egress proxy for every primary
+  source attempted this pass; same evidence grade as `R225`'s citations.
+- `BL-0119`/`BL-0120` (`docs/pipeline/backlog.md`), `docs/reviews/content-review-human-listening.md`
+  (the demonstrated miss), `R225` §3e/§5f (the metric correction). Internal evidence.
+
+### Addendum scope note — the other half of `BL-0120` is not this skill's to write
+
+`BL-0120` is split-ownership (the same class as `BL-0089`'s precedent). This addendum closes the
+**research half** — the grounded question set above. The other half is adding a corresponding
+review dimension to the `09-content-review` skill definition so the questions are actually asked;
+that file lives under `.claude/skills/` and is outside every pipeline stage's write scope. It is
+**not done** and routes to the skill-definition owner. Recording that explicitly so the split is
+not mistaken for completion.

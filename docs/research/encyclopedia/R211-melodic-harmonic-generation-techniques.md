@@ -156,7 +156,7 @@ absence is small. Both are now measured, and both point the other way:
   thirds — **has already shipped** (`IP-1060`) and is already inside that budget. The missing piece
   is one shared root byte, not a new subsystem.
 - **"A shared harmonic-context WRAM field" was named here as the reason not to do it.** It is now
-  the recommendation. `wram_constants.py` has free space at `0xC020`-`0xC037`, `0xC040`-`0xC04F`
+  the recommendation. `GDS-07` records the next free WRAM address as `0xC077`, with gaps at `0xC040`-`0xC04F`
   and `0xC062`-`0xC067`; WRAM was never the constraint.
 
 **What is NOT withdrawn.** §3's concepts stand and are this project's earliest correct statement of

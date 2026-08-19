@@ -331,10 +331,12 @@ Nothing in this topic is implemented. What *is* implemented and directly relevan
 One byte — **current chord root as a scale degree** — is the minimum that makes every voice
 coordinate, and it is what §3d's mode-independent root/fifth bass and §3g's already-shipped
 `ARPEGGIO_OFFSETS` both consume directly. A second byte (progression position / phrase counter)
-and a third (chord quality or cadence flag) are the plausible extent. `wram_constants.py`'s map
-has free space at `0xC020`-`0xC037` (between `ARP_DEGREE_SCRATCH` and `MOTIF_STEP_PA`), at
-`0xC040`-`0xC04F`, and at `0xC062`-`0xC067` — no WRAM pressure exists and none of this is a reason
-to compress the design.
+and a third (chord quality or cadence flag) are the plausible extent. `GDS-07` records the next free
+address as `0xC077`, with further gaps at `0xC040`-`0xC04F` and `0xC062`-`0xC067` — no WRAM
+pressure exists and none of this is a reason to compress the design. (`0xC020`-`0xC037` looks
+free from `wram_constants.py` alone but is **not**: `GDS-07` §4 reserves it for the `HIST_PA`/
+`HIST_PB`/`HIST_WV` repetition-history buffers — unused in the shipped ROM but deliberately not
+reclaimed, per `BL-0013`'s own reconciliation. Do not take it.)
 
 **Do not** make the shared field a derived expression recomputed by each reader (e.g. "chord =
 `SONG_STATE_TIMER_HI` mod 4"). It costs arithmetic at every read site, on the exact per-onset paths

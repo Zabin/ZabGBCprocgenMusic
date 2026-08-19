@@ -478,9 +478,11 @@ Three things to take from this, each of which changes what the ADS should specif
 
 ## 6. Feature Mapping
 
-No `IP-xxxx` depends on this topic yet. It is authored to be consumed by
+No `IP-xxxx` depends on this topic yet. It was authored to be consumed by
 `03-architecture-design-synthesis` as the grounding for an `ADS` on harmonic coordination
-(`BL-0119`'s own routing), which would then feed `04`→`05`→`06`→`07` in the normal order. It
+(`BL-0119`'s own routing) — **which happened the same day: [`ADS-108`](../../architecture/ADS-108-harmonic-coordination.md)
+and [`ADR-0003`](../../architecture/adr/ADR-0003-scheme-selection-moves-to-a-parallel-scheme-table.md)** —
+and would then feed `04`→`05`→`06`→`07` in the normal order. It
 directly touches, if that work is ever authorized: `music_data.py` (a new `CHORD_TABLE` +
 transition table), `music_engine.py` (`_emit_channel_gen`'s note-selection step, the wave
 channel's role, `_emit_badzone_tick`'s relationship to it), and `wram_constants.py` (1-3 new
@@ -490,9 +492,14 @@ fields). It changes nothing by itself.
 
 *Convention established 2026-07-26 (`BL-0067`), per [GDS-10 §4](../../architecture/10-requirements-traceability-matrix.md): every research topic records, at the topic itself, either the shipped code it fed or an explicitly-named exception. Maintained where the topic lives rather than in a central matrix.*
 
-⛔ **NOT TRACED — authored 2026-08-19, no downstream consumer yet.** Expected first consumer is an
-`ADS` for harmonic coordination at `03-architecture-design-synthesis`. This row is honest, not a
-placeholder: if that `ADS` is not authored, this topic has fed nothing and should say so.
+🟡 **PARTIAL — traced to architecture, not yet to code (authored and consumed the same day,
+2026-08-19).** Consumed in full by
+[`ADS-108` — Harmonic Coordination via a Shared Chord Context](../../architecture/ADS-108-harmonic-coordination.md)
+and by [`ADR-0003`](../../architecture/adr/ADR-0003-scheme-selection-moves-to-a-parallel-scheme-table.md):
+§3a→`ADS-108` D1, §5b→D3, §3a/§3b→D4, §3c/§5c→D5, §3h→D6 (the load-bearing cost decision),
+§3d/§3e/§5f→D9, §5e→D8, §3f→D10, §5f→D12. **No code descends from it yet and none is authorized
+(G3)** — the honest state is "grounded a design, has not yet grounded an implementation." Update
+this row when/if an `FS`/`IP` chain ships.
 
 ## 7. Related Topics
 

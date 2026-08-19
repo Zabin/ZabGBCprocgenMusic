@@ -35,4 +35,10 @@ WRAM control byte, no new input control.
 
 ## Superseded by
 
-Nothing yet — accepted, not superseded.
+Not superseded — **amended 2026-08-19 by [`ADR-0003`](ADR-0003-scheme-selection-moves-to-a-parallel-scheme-table.md)**.
+This ADR's principle (scheme selection is keyed by the `CHMIX_IDX` preset index Start already
+steps; no new control) stands unchanged. Its *bit-packing mechanism* is replaced: the third
+scheme (`ADS-108`'s Scheme H) needs two bits per channel, which the mask byte cannot carry — the
+exact "future third per-preset concern would need to renegotiate the packing" outcome this ADR's
+own Consequences section predicted. Scheme bits move to a parallel `SCHEME_TABLE` keyed by the
+same index.

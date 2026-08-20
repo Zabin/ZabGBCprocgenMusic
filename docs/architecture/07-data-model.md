@@ -113,12 +113,26 @@ This section is appended rather than renumbered so `IP-0001`'s own commit diff a
 stays a clean addition — a live doc, corrected in place per the pipeline's own discipline (`GDS-07`
 must match the shipped bytes, not drift the way the reference project's `Claude.md` once did).
 
+| `0xC077` | `CHORD_IDX` | Added `IP-1140` (`FS-114`/`FEAT-1150`, `BL-0119`, `ADS-108` as amended by its §11/D13), 2026-08-20. Which row of `CHORD_TABLE` is currently sounding (0-3) — **the shared harmonic context**, and the field that makes the three pitched channels play the same music rather than three independent walks. Structurally distinct from every other field in this map: a **read-mostly broadcast field with exactly one writer** (the harmonic clock inside `gen_tick_pa`'s existing onset branch) and three readers (each pitched channel, each at its own onset). Deliberately *not* a member of §1.2's steering-index family, which tolerates three writers under a last-write-wins contract — a second writer here would reintroduce the coordination ambiguity the field exists to remove (`ADS-108` D1/§3). |
+| `0xC078` | `CHORD_ONSET_CTR` | Added `IP-1140`, 2026-08-20. Pulse-A onsets remaining before the chord advances, reloaded to `N_CHORD_ONSETS` (4). Counts **onsets, not frames**, which is what makes harmonic rhythm track `TEMPO_IDX`/`SONG_TABLE` automatically instead of drifting out of phase with them (`FR-1530`). |
+| `0xC079` | `CHORD_TOGGLE` | Added `IP-1140`, 2026-08-20. Packed: **bit0** wave-channel root/fifth alternation; **bit1** pulse A's strong/weak onset parity (set = strong); **bits2-3** the chord-tone slot (0-2) pulse A last took, published for the harmony voice to place itself one slot above (`SLOT_NEXT`); bits4-7 spare. Both bit0 and bit1 are **toggled before they are tested**, so `init_engine`'s initial value (`0b01`) is the complement of the wanted first behaviour — an off-by-one here was a real shipped-then-caught defect during `IP-1140`'s own implementation, found by `T5.5`'s re-authored assertion. |
+
 ## §6 Headroom
 
-Fields span `0xC000`-`0xC076` (91 bytes used of the block, updated 2026-08-08 for `IP-1130`'s
-`BLEND_DELTA_TEMPO`/`DENSITY`/`DUTY`, `VR-1130` F1 remediation) with the next free address at
-`0xC077` — ample headroom before any bank-switching question (a non-goal per MSTR-001 §4) becomes
-relevant.
+Fields span `0xC000`-`0xC079` (94 bytes used of the block, updated 2026-08-20 for `IP-1140`'s
+`CHORD_IDX`/`CHORD_ONSET_CTR`/`CHORD_TOGGLE`; previously `0xC000`-`0xC076`, 91 bytes, 2026-08-08
+for `IP-1130`'s `BLEND_DELTA_*`) with the next free address at `0xC07A` — ample headroom before any
+bank-switching question (a non-goal per MSTR-001 §4) becomes relevant. Note that `0xC07A` is the
+address `ADS-108` D10 *reserves* for increment 2's `PHRASE_POS` (phrase structure, rests and
+cadence — `CR-0003`); it is genuinely free today, but a future package claiming it for anything
+else should know it was spoken for.
+
+**ROM tables added by `IP-1140`** (not WRAM, recorded here because §3's own convention is that a
+package's data-table additions are traceable from this document): `chord_table` 48 B,
+`chord_transition` 16 B, `melody_pick` 4 B, `slot_next` 4 B, `passing_table` 4 B = **76 B**, within
+`NFR-1250`'s ~100 B allowance. `harmony_pick`, named in `FS-114`, was never shipped — it was
+replaced by `slot_next` during implementation after measurement found two independent draws put
+pulse A and pulse B in unison 28% of the time.
 
 ## §7 Reset-to-preset constants (GDS-03 §5)
 

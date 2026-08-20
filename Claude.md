@@ -55,6 +55,11 @@ roadmap R9, separately blocked); see `T20`.
 genre-blending state: `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` now glide toward a newly-selected
 `STYLE_TABLE` row over `BLEND_STEP`'s 0-4 progress instead of landing instantly; `SCALE_IDX` still
 hard-switches the same frame as the Start press. See `T21` and the Known Good Behavior note below.
+**`CHORD_IDX`/`CHORD_ONSET_CTR`/`CHORD_TOGGLE` at `0xC077`-`0xC079` (`IP-1140`, `BL-0119`)** —
+the **shared harmonic context**: which chord is sounding, how many pulse-A onsets until it
+advances, and packed bass-alternation / strong-weak-parity / published-melody-slot bits. One
+writer, three readers, all reads at onsets. This is what makes the three pitched channels play the
+same music; see the Known Good Behavior entry below.
 **No SRAM** — this project makes no save/battery commitment (MSTR-001 C2).
 
 ### Input mapping (GDS-03 SS3)
@@ -174,6 +179,24 @@ wv=6, 0=Scheme W/1=Scheme E) — preset 0 must stay all-Scheme-W (no regression 
 default). Scheme E's onset-timing/pitch-selection logic itself lives in `_emit_channel_gen`'s
 note-selection step (`IP-1070`/`BL-0020`) — extending it to a new scheme means adding another
 branch there, keyed off a new bit in the same spare-bit range (`ADR-0001`).
+
+### Change the harmony (chords, progression, voice roles)
+`CHORD_TABLE` in `music_data.py` — 4 scales x 4 chords x 3 tones, flattened, entries are scale
+degrees 0-7, addressed `scale*12 + chord*3 + slot`. **Hand-authored on purpose, and re-deriving it
+at runtime by stacking thirds would be a bug, not an optimization**: `SCALE_SEMITONES` rows are 8
+entries whose 8th duplicates the 1st and every degree is masked `AND 0x07`, so third-stacking
+across the octave seam puts the V chord's fifth a scale step wrong (degree 4+4=8 masks to 0/C where
+the correct pitch is D). Pentatonic has its own rows — stacked thirds yield no triads in a 5-note
+scale, so those four are idiomatic sonorities rather than derived.
+`CHORD_TRANSITION` (4 rows x 4 entries, indexed by 2 LFSR bits — the weighting lives in the
+*distribution of entries*, exactly like `DELTA_TABLE`); `MELODY_PICK`/`SLOT_NEXT` (which chord tone
+each pulse voice takes); `PASSING_TABLE` (the melody's weak-onset step — **not** `DELTA_TABLE`,
+which is 50% "hold" and produced a leap-then-hold melody when it was tried here);
+`N_CHORD_ONSETS` (chord length, must stay a power of two — the counter wraps with a plain `AND`).
+Per-voice roles are `CHANNEL_ROLES` in `music_engine.py`; the rules themselves are the three limbs
+in `_emit_channel_gen`'s note-selection block. First-guess values throughout (`BL-0005` class).
+**Anything added here must stay inside an existing onset branch** — see `NFR-1240` and the VBlank
+note below.
 
 ### Change style-preset values
 `STYLE_TABLE` in `music_data.py` (8 rows, one per `CHMIX_IDX` preset — independent of
@@ -354,12 +377,45 @@ exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
   independently hand-derives a genuine mid-blend value against the shipped ROM, closing the
   coverage gap that let the original defect ship undetected.
 
-**154/154 `test_rom.py` checks pass** (T1-T21). An 8000+ frame stress run with continuous input
+- **Harmonic coordination via a shared chord context (`IP-1140`, `BL-0119`/`FS-114`/`FEAT-1150`,
+  `ADS-108` as amended by its §11/D13 + `ADR-0004`) — THE BOOT SOUND CHANGED, DELIBERATELY.** This
+  is the first change in this project's history that is not additive to the shipped baseline, and
+  it is the answer to the project owner's own "the music doesn't sound good yet." `BL-0119` measured
+  the cause: three pitched channels random-walking with no shared harmonic state, so every note was
+  in key and nothing coordinated what the notes were in key *together*. All three pitched channels
+  now derive their notes from one shared `CHORD_IDX` that advances every 4 pulse-A onsets through a
+  sparse, tonic-biased transition table (V returns to I three times in four; V never retrogresses
+  to IV). The wave channel alternates the chord's root and fifth instead of wandering by step;
+  pulse A takes a chord tone on strong onsets and a passing step on weak ones; pulse B takes the
+  chord tone one slot above whichever pulse A published, so the two can never double into unison.
+  **The unharmonized independent walk is no longer reachable on any preset** — the project owner
+  explicitly released the preset-0 no-regression standard as arbitrary and self-imposed
+  (`GDS-04` §4.1 carries the dated amendment: the invariant's *fixed-point* half stands, its
+  *historical-no-regression* half is released), which is what let harmony *become* the default
+  instead of sitting beside it as a third scheme. Scheme E is untouched and remains unharmonized.
+  **Cost discipline** — the whole mechanism lives inside onset branches that already existed;
+  `engine_tick`'s call list is unchanged and **nothing unconditional was added to the per-frame
+  path** (`NFR-1240`; `IP-9040` was abandoned over exactly that, `BL-0113`). Measured on
+  chord-transition frames, `VIS_ENTRY_LY` stays at 152-153, inside VBlank.
+  **Measured result** (boot defaults, 3600 frames, pitch classes derived from degrees rather than
+  from the engine's own one-frame-lagged `SEMI_*` bytes): harsh vertical intervals on
+  **strong-beat sonorities 23.3% → 12.2%**, weak-beat 36.6% → 30.6%, aggregate 30.0% → 21.5%.
+  The strong-beat figure is the acceptance instrument (`NFR-1270`/`BL-0122`) — a chord-tone/
+  passing-tone melody sounds non-chord tones on weak beats *on purpose*, so the aggregate would
+  report a working design as a near-failure. `R225` §5f's simulation predicted exactly this shape.
+  Bad-zone activity dropped from 34/121 to 15/121 sampled onsets with no threshold retuning.
+  **Still not built, and still audible as missing**: there are no rests anywhere and no formal
+  phrase boundaries (`CR-0003`); the melody alternates leap and step rather than sustaining long
+  phrases. A human listening pass is what decides whether this is now pleasant — a green suite has
+  never once predicted that, which is the whole point of `BL-0097`/`BL-0120`.
+
+**171/171 `test_rom.py` checks pass** (T1-T22). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 
-**Explicitly not built**: chord-progression/
-song-form composition, session-length-adaptive drift, non-default preset tuning by ear, a proper
+**Explicitly not built**: ~~chord-progression~~ (**built 2026-08-20, `IP-1140`** — see the
+harmonic-coordination entry above) /
+song-form composition, phrase structure/rests/cadence (`CR-0003`), session-length-adaptive drift, non-default preset tuning by ear, a proper
 `visuals.py` beyond the 4-tile/2-palette MVP — see `docs/pipeline/backlog.md` (`BL-0005`,
 `BL-0011`) for named, deferred candidates.
 

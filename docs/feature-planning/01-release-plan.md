@@ -221,10 +221,34 @@ a feature it depends on.
 | FEAT-1120 Emotional/energy layer | **R7** | 🟡 `COMPLETE`, unverified |
 | *FEAT-1130 Genre blending* (not yet catalogued) | **R8** | ⬜ Needs a catalog row |
 | *FEAT-1140 Visual evolution* (not yet catalogued) | **R9** | ⬜ Needs a catalog row; gated |
+| **FEAT-1150 Harmonic coordination** | **MVP-critical remediation — jumps the R-queue** | 🟢 Catalogued 2026-08-20; spec/plan/build in flight |
 
-The last two rows are **forward placeholders, not catalog entries** — `05-feature-decomposition`
+The two italic rows are **forward placeholders, not catalog entries** — `05-feature-decomposition`
 must add real `FEAT-1130`/`FEAT-1140` rows when R8/R9 reach decomposition. Named here so the
 sequencing is visible, marked italic so they are not mistaken for existing rows.
+
+**`FEAT-1150` is bucketed ahead of R8 and R9 deliberately, and the reasoning is recorded rather
+than assumed.** It is not a roadmap release; it is remediation of `BL-0119` — the project's largest
+measured quality gap and the direct, measured cause of the project owner's own verdict that the
+music does not sound good. Three facts put it ahead of the queue:
+
+1. **It is the only open item that can move the product's central quality question.** `BL-0119`'s
+   own routing note is explicit that no amount of tuning work (`BL-0005`, `BL-0102`, `BL-0117`,
+   `BL-0118`) reaches it: retuning changes how the engine *flees* bad harmony, not whether it
+   *constructs* good harmony. R8's blending and R9's visuals are both real value on top of an
+   engine whose vertical harmony is uncoordinated.
+2. **The project owner directed it explicitly**, on 2026-08-20 — *"I'd like to get to a pleasant
+   sounding music as soon as possible. Iterate pipeline until it is deemed pleasant and ready for
+   human ears to review."* That is a sequencing instruction, and this skill's release-plan
+   assignments are subordinate to it.
+3. **Its dependencies are all satisfied.** `FEAT-1070`'s scheme mechanism is `VERIFIED` and shipped;
+   `ADS-108` (amended) and `ADR-0004` are decided; `FR-1500`-`FR-1590`/`NFR-1240`-`NFR-1270` are
+   baselined. Nothing in R8 or R9 blocks it, and it blocks neither of them — the graph edge does not
+   exist in either direction, so re-ordering costs nothing structurally.
+
+It does, uniquely in this plan, **change shipped behavior rather than adding to it** (the boot sound
+changes; `T5`/`T6`-class assertions need re-authoring). That is authorized, not accidental — see
+`FEAT-1150`'s own catalog row and `GDS-04` §4.1's dated amendment.
 
 ---
 

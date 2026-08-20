@@ -1,6 +1,9 @@
 # ADR-0003 — Scheme Selection Moves Out of `CHMIX_MASKS` Into a Parallel `SCHEME_TABLE`
 
-- **Date:** 2026-08-19 · **Status:** Accepted · **Amends (does not reverse):** [`ADR-0001`](ADR-0001-scheme-selection-rides-chmix-preset-space.md)
+- **Date:** 2026-08-19 · **Status:** ⚠️ **Superseded 2026-08-20 by
+  [`ADR-0004`](ADR-0004-harmonic-coordination-replaces-the-default-walk-in-place.md), before
+  implementation — nothing was ever built against it** · **Amends (does not reverse):**
+  [`ADR-0001`](ADR-0001-scheme-selection-rides-chmix-preset-space.md)
 
 ## Context
 
@@ -52,5 +55,20 @@ channel (`ADS-100`'s worked example, covered by shipped tests) and preset 0's al
 
 ## Superseded by
 
-Nothing — accepted. `ADR-0001` is **amended, not superseded**: its decision that scheme selection
-rides `CHMIX_IDX` stands; only its bit-packing mechanism is replaced.
+[`ADR-0004`](ADR-0004-harmonic-coordination-replaces-the-default-walk-in-place.md), 2026-08-20 —
+**before any implementation. No `SCHEME_TABLE` was ever created and `CHMIX_MASKS` was never
+migrated.**
+
+This ADR's reasoning is correct *given its premise*: three schemes need two bits per channel, and
+`ADR-0001`'s packing has one. The premise did not survive. The third scheme ("Scheme H") existed
+only because [`GDS-04` §4.1](../04-domain-model.md)'s index-0 invariant was read as forbidding any
+change to preset 0's audible behavior, forcing harmonic coordination to live *beside* the default
+rather than *become* it. The project owner released that reading on 2026-08-20 (quoted in
+[`ADS-108` §11.1](../ADS-108-harmonic-coordination.md)); harmonic coordination now replaces the
+default scheme's note selection in place, leaving the reachable scheme set at two values — which
+`ADR-0001`'s one bit already carries.
+
+Retained on file rather than deleted: the bit-space analysis remains the recorded design should a
+genuine *fourth* per-preset concern ever exhaust the packing. `ADR-0001` is **reaffirmed, not
+superseded** — its decision that scheme selection rides `CHMIX_IDX`, and its bit-packing mechanism,
+both stand unchanged.

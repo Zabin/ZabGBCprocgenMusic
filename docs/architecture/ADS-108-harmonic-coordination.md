@@ -315,3 +315,147 @@ aggregate would report a working design as a failing one.
 | D10 | **Phrase structure, rests and cadence are increment 2, with their shape reserved here.** | `R225` §3f makes them cheap (two forced `CHORD_IDX` values at known counter positions; a rest is a skipped trigger write) — but they multiply the verification surface, and the three voice rules are audible without them. Reserving the shape (a `PHRASE_POS` byte, the HC/PAC constraints) stops increment 2 re-litigating the design. | Shipping everything at once (a large, hard-to-verify increment against an unforgiving budget); deferring without recording the shape (loses `R225` §3f's reversal of `R212`'s negative result). |
 | D11 | **Increment 1 does not change boot behavior; preset 0 stays all-Scheme-W and the default flip is a separate, evidence-gated step.** | `GDS-04`'s index-0 invariant and a body of shipped tests both assume today's boot sound. Changing what the ROM sounds like at boot should be an explicit, separately-authorized decision with heard evidence behind it, not a side effect of landing a mechanism. | Flipping preset 0 in the same increment (breaks the invariant and a test body in the same change that introduces the mechanism, so a regression could not be attributed); never flipping it (leaves the user's actual complaint unanswered — which is why the flip is *scheduled*, not merely allowed). |
 | D12 | **Verification is on strong-beat sonorities, partitioned by metric strength.** | `R225` §5f/`R224` §7b: the aggregate histogram is the right instrument for detecting the *absence* of coordination and the wrong one for verifying its *presence*, because weak-beat non-chord tones are deliberate. | Reusing `BL-0119`'s aggregate metric as the acceptance criterion (would report the design as a near-failure at 28.5 % when the figure it moves is 14.9 %). |
+
+---
+
+## 11. Amendment — 2026-08-20: the released invariant, and the parallel scheme it deletes
+
+**Status:** ✅ Amended 2026-08-20 · **Owned by:** `03-architecture-design-synthesis` ·
+**Produces:** [`ADR-0004`](adr/ADR-0004-harmonic-coordination-replaces-the-default-walk-in-place.md),
+which supersedes [`ADR-0003`](adr/ADR-0003-scheme-selection-moves-to-a-parallel-scheme-table.md).
+
+### 11.1 Why this document is being reopened
+
+`ADS-108` as authored above rests, in six separate places (§1's "Honest scope statement," §2.5,
+§2.7, §7 constraint 4, D11, §8 R7), on one premise: **preset 0's audible behavior may not change.**
+That premise came from `GDS-04` §4.1's index-0 invariant. It is the reason harmonic coordination
+was designed as a *parallel* Scheme H sitting beside the default rather than *as* the default, and
+it is therefore the reason `CHMIX_MASKS` ran out of bits — which is the entire reason `ADR-0003`'s
+`SCHEME_TABLE` migration exists.
+
+**The user has released that premise**, in these words:
+
+> "Don't hold the preset 0 to an arbitrary standard, it was developed by you at a previous
+> iteration.
+> Use your judgement on when it is best to start each, I'd like to get to a pleasant sounding music
+> as soon as possible.
+> Iterate pipeline until it is deemed pleasant and ready for human ears to review."
+
+This is not a tuning preference; it removes a stated architectural constraint. Reopening the design
+on the record — rather than letting a downstream stage quietly build something `ADS-108` argues
+against — is what §10's own "an unrecorded decision effectively didn't happen" discipline requires.
+`GDS-04` §4.1 is amended in step (see §11.5); this section does not release an invariant that its
+owning level still asserts.
+
+### 11.2 The question, stated precisely
+
+Does harmonic coordination need to be a *third* per-channel scheme (Scheme H) selected by a new
+`SCHEME_TABLE`, or can it replace the note-selection step of the *existing default* scheme
+(Scheme W) in place?
+
+The two are not different musical designs. They are the same mechanism — `CHORD_IDX`,
+`CHORD_TABLE`, `CHORD_TRANSITION`, the three per-voice rules of §2.6 — carried by two different
+selection structures. Everything in §2.1-§2.4, §3, §5's `FR-1500`-`FR-1560` and §6 is unaffected by
+the answer. What the answer decides is §2.5, `FR-1570`, `FR-1580`, `ADR-0003`, and `BL-0123`'s
+entire refactoring package.
+
+### 11.3 Decision — D13: harmonic coordination replaces the default scheme's note selection in place
+
+**The chord-derived note selection becomes what the default scheme does. No third scheme, no
+`SCHEME_TABLE`, no `CHMIX_MASKS` migration.** `ADR-0001`'s one-bit-per-channel packing (bits 4-6,
+`0` = default, `1` = Scheme E) is retained unchanged; the meaning of the `0` value changes from
+"unharmonized LFSR walk" to "chord-derived selection." Scheme E is untouched — still selected by
+bit value `1`, still unharmonized, exactly the deferral §8 R3 already recorded.
+
+**Reasoning, in the order the reasons actually bind:**
+
+1. **The parallel structure existed only to protect preset 0.** §2.5 does not argue that three
+   schemes are musically desirable; it argues that a third scheme is *needed* because Scheme H must
+   coexist with an untouchable default. With the premise gone, the requirement to coexist goes with
+   it. Reread as a standalone argument, §2.5 says "we need two bits per channel because we need
+   three values" — and the third value existed only to keep the first one reachable.
+2. **Three values are not needed, because the third value is now unwanted.** An unharmonized
+   independent random walk is `BL-0119`'s measured defect, not a mode worth spending a bit to
+   preserve. Retaining it as selectable would keep, as shipped behavior, the exact thing this
+   increment exists to remove. Before/after comparison — the one legitimate reason to want both —
+   is available from git at zero ROM cost by rebuilding the prior commit.
+3. **Scheme E already occupies the "other" slot and is explicitly staying unharmonized.** §8 R3
+   defers harmonizing Scheme E to increment 2. The reachable scheme *set* in increment 1 is
+   therefore {harmonized default, Scheme E} — two values, one bit, which is precisely what
+   `ADR-0001` already provides. `ADR-0003` would migrate a table to make room for a value
+   increment 1 does not create.
+4. **It answers the user's actual complaint in increment 1 rather than increment 2.** §1's own
+   scope statement concedes that increment 1 "does not change what the ROM sounds like at boot,"
+   and §8 R7 records the risk that this "reads as the work being done." Under D13 that risk is
+   deleted rather than mitigated: the mechanism and the audible improvement land together, in one
+   package, measurable by one before/after comparison. The user's directive names speed to audible
+   improvement as the optimization target.
+5. **It removes a whole package of non-regression risk instead of managing it.** `BL-0123` and §8
+   R1 both treat the `CHMIX_MASKS`→`SCHEME_TABLE` migration as real structural surgery on shipped,
+   tested code needing its own `IP-8xx0` package, its own equivalence oracle, and its own
+   verification pass — all of it delivering, by construction, **zero** audible change. Under D13
+   that work is not sequenced earlier or made cheaper; it does not exist. The safest structural
+   surgery is the kind that is not performed.
+6. **The code shape is strictly smaller.** `_emit_channel_gen` already converges both existing
+   schemes on a single `gt_delta_ready_{suffix}` label carrying a signed delta in `B`. Chord-derived
+   selection produces a *target degree*, and the `SUB_D` idiom Scheme E's own motif lookup already
+   uses converts a target into exactly that delta. The change is therefore a **replacement of the
+   LFSR-delta block on the existing fall-through path**, not a new branch: no added scheme test, no
+   widened table read, and §2.6's cost analysis holds a fortiori. `NFR-1240` (nothing unconditional
+   per frame) is satisfied more easily under D13 than under §2.5, not less.
+
+**What is given up, recorded honestly.** The unharmonized walk stops being reachable in the shipped
+ROM. Three shipped-behavior assumptions break with it: the boot sound changes; `T5`/`T6`-class tests
+that assert the specific ±1 stepwise degree walk stop describing the engine and must be re-authored
+against the new contract; and any future "turn harmony off" ask needs a bit rather than reusing an
+existing one. The first two are exactly what the user's release authorizes and expects. The third is
+a genuine, accepted cost — mitigated by the fact that `CHMIX_MASKS` bit 7 is still spare, so the
+door `ADR-0001` left open remains open, and `ADR-0003` stays on file as the recorded design should a
+*fourth* per-preset concern ever need it.
+
+### 11.4 Consequences for this document
+
+| Clause | Disposition under D13 |
+|---|---|
+| §2.5 (Scheme H + `SCHEME_TABLE`) | **Withdrawn.** Retained above as superseded reasoning, not as the design. Its bit-space analysis remains correct *given* three schemes; D13 removes the third. |
+| §2.6 (per-voice rules) | **Unchanged**, now applied to the default scheme. "Scheme H" in that table reads "the default scheme." |
+| §2.7 (default-preset flip deferred) | **Withdrawn.** There is nothing to flip: the default *is* the harmonized path. `CR-0005` is absorbed into increment 1. |
+| §7 constraint 4 (index-0 invariant) | **Amended** — see §11.5. The determinism half stands; the historical-no-regression half is released. |
+| §8 R1 (migration risk) | **Deleted with its cause.** No migration is performed. |
+| §8 R2 (pulse B octave move) | **Widened, not narrowed** — it now applies at boot rather than only on Scheme-H presets. A deliberate change to the shipped mix, disclosed here rather than discovered in review. |
+| §8 R3 (Scheme E unharmonized) | **Unchanged and now sharper**: preset 6 mixes an unharmonized Scheme-E wave against harmonized pulses. Disclosed; increment 2's named path (transpose the motif by the chord root) is unaffected. |
+| §8 R5 (bad-zone fights the generator) | **Unchanged and now increment-1-critical**, because the harmonized path is the boot path. `FR-1590`'s structural answer is not optional polish here. |
+| §8 R7 (increment 1 doesn't answer the complaint) | **Deleted.** Increment 1 now answers it. |
+| D7, D11 | **Superseded by D13** (D7's `ADR-0003` superseded by `ADR-0004`). |
+| D1-D6, D8-D10, D12 | **Unchanged.** D8 (bad-zone stays, scope-aware) and D12 (strong-beat-partitioned verification) are load-bearing under D13 exactly as written. |
+| §5 `FR-1570`/`FR-1580` | Routed to `04-requirements-engineering` for amendment; see §11.6. |
+
+### 11.5 The index-0 invariant, narrowed rather than deleted
+
+`GDS-04` §4.1 conflates two rules under one name, and only one of them is released:
+
+- **(a) The fixed-point rule** — *index 0 of every steering-index-keyed table equals the boot
+  preset's values, so boot and Select-reset land on identical, deterministic, known-good state.*
+  **This stands, unchanged and load-bearing.** It is what `IP-1100`'s ten-test regression actually
+  proved: phase 0 diverging from the boot preset broke boot/Select agreement *with each other*, not
+  agreement with any historical recording. Every new index-keyed table this increment adds still
+  inherits it.
+- **(b) The historical-no-regression rule** — *the boot preset's audible result must never differ
+  from what previously shipped.* **Released**, by the user's own words quoted in §11.1, as
+  self-imposed. It never had an independent architectural justification; it was (a)'s reputation
+  borrowed by a different claim.
+
+The distinction matters beyond this increment: a future mechanism may now change the boot *sound*
+deliberately, but still may not give index 0 a row that disagrees with the boot preset.
+
+### 11.6 Routing
+
+- `04-requirements-engineering` — amend `FR-1570` (withdraw: no `SCHEME_TABLE` migration) and
+  `FR-1580` (withdraw: boot behavior *is* what changes); reconcile `FR-1260`'s index-0 guarantee
+  with §11.5's (a)/(b) split; move `CR-0005` into scope. Follow that document's own append-only
+  dated Delta Review convention.
+- `07-implementation-planning` — `BL-0123`'s `IP-8xx0` refactoring package is **not owed**; close it
+  as obviated rather than scheduling it.
+- `09-package-verification` — D12/`NFR-1270`'s strong-beat partition is now the acceptance
+  instrument for a change audible at boot, so the before/after comparison is against the prior
+  commit's ROM rather than against a non-default preset.

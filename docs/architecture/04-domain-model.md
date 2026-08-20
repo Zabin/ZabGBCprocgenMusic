@@ -196,6 +196,33 @@ and was reverted. The invariant is recorded here at domain altitude precisely be
 kind of rule each new mechanism's author is tempted to treat as optional, and the tree has already
 demonstrated once what that costs.
 
+#### Amendment 2026-08-20 — the invariant was two rules under one name; one of them is released
+
+`ADS-108` §11.5 (`ADR-0004`) found that the paragraphs above conflate two distinct claims, and that
+downstream design work had been binding itself to the weaker one on the strength of the stronger
+one's evidence. They are separated here:
+
+- **(a) The fixed-point rule — STANDS, unchanged and load-bearing.** *Index 0 of every
+  steering-index-keyed table equals the boot preset's corresponding values, so that boot and
+  Select-reset land on identical, deterministic, known-good state no matter how many index-keyed
+  mechanisms the engine accumulates.* This is what the statement in bold above actually says, and it
+  is what the `IP-1100` regression actually proved: phase 0 diverging from the boot preset broke
+  boot and Select-reset's agreement **with each other**, not their agreement with any historical
+  recording. Every new index-keyed table still inherits this without exception.
+- **(b) The historical-no-regression rule — RELEASED.** *The boot preset's audible result must never
+  differ from what previously shipped.* This is a different claim, never independently justified at
+  this altitude, which had accumulated (a)'s authority by proximity — and which by 2026-08 had
+  become the binding constraint on the project's largest tracked quality defect (`BL-0119`), forcing
+  harmonic coordination to be designed as a parallel scheme beside the default rather than as the
+  default. The project owner released it explicitly on 2026-08-20: *"Don't hold the preset 0 to an
+  arbitrary standard, it was developed by you at a previous iteration… I'd like to get to a pleasant
+  sounding music as soon as possible."*
+
+**Practical effect.** A mechanism may now change what the ROM *sounds like* at boot, deliberately
+and on the record. It still may not give index 0 a row that disagrees with the boot preset — a table
+whose index 0 diverges from `PRESET_*` remains a defect, exactly as before. Where the boot preset's
+own values change, every index-0 row changes with them, in the same package, or (a) is violated.
+
 ## §5 Bad-zone state
 
 The **bad zone** is a derived judgement about whether the music has drifted somewhere unpleasant.

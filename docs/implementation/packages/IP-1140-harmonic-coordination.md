@@ -54,3 +54,102 @@ and would otherwise look like the pipeline deciding them for itself:
   the boot sound.
 - **`CR-0005`** (the default-preset flip) **moves from deferred into scope**, absorbed into the
   amended `FR-1580` rather than remaining a separately-gated later step.
+
+
+---
+
+## Implementation record — 2026-08-20 (`COMPLETE`, not `VERIFIED`)
+
+**171/171 full suite (`T1`-`T22`). ROM 32768 bytes, valid header. `visuals.py`, `input_map.py`,
+`gbc_lib.py`, `build_rom.py`, `patterns.py`, `tiles.py`, `wram_constants.py` untouched (diff-
+confirmed). `engine_tick`'s call list is unchanged — no new per-frame call was added anywhere.**
+
+### Measured result (the acceptance instrument, not the suite)
+
+Boot defaults, 3600 frames, vertical-interval distribution across sounding pitched-channel pairs,
+sampled at pulse-A onsets, **partitioned by metric strength** per `NFR-1270`/`BL-0122`:
+
+| | strong-beat | weak-beat | aggregate |
+|---|---|---|---|
+| before (`3ade5a8`) | 23.3 % | 36.6 % | 30.0 % |
+| after | **12.2 %** | 30.6 % | 21.5 % |
+
+`R225` §5f's simulation predicted 14.9 % on strong-beat sonorities and a much smaller aggregate
+move; both parts of that prediction hold. m2/M7 and tritone are the components that collapse.
+Bad-zone activity fell from 34/121 to 15/121 sampled onsets **with no threshold retuning** — the
+generator stopped producing the dissonance rather than the detector being told to tolerate it,
+which is the distinction `BL-0119` drew between a negative constraint and a positive generator.
+`VIS_ENTRY_LY` on chord-transition frames: 152-153, inside VBlank (`NFR-1260`).
+
+### A measurement-instrument correction that changes the reported baseline
+
+The first driver derived intervals from the engine's own `SEMI_PA`/`PB`/`WV` bytes. Those are
+written by `badzone_tick`, which `engine_tick` calls **after** `gen_tick`, while `pb.tick()`
+returns between the two — the documented `R305`/`BL-0069` mid-frame sampling artifact. It was
+therefore comparing this onset's degrees against last onset's semitones and manufacturing intervals
+that were never sounded. Pitch classes are now derived in Python from degrees read at the same
+instant, through `SEMITONE_TABLE_DATA`. **Both baselines were re-measured with the corrected
+instrument**; the figures above are the corrected ones. The uncorrected run reported 33.3 % → 15.0 %
+— a similar-looking improvement built on a broken measurement, which is worth recording because it
+would have been easy to bank.
+
+### Deviations from `FS-114`, each driven by measurement rather than convenience
+
+1. **Pulse B's `octave_delta` stays 0** (`FS-114` specified `0 → -1` for `FR-1560`'s octave half).
+   `FS-114` justified it as a build-time parameter costing no runtime work. That is true of the
+   onset write and false of the system: `_emit_arpeggio_tick` runs **every frame** for pulse A/B and
+   rewrites the frequency register from its own note-table lookup, which hardcodes `octave_delta=0`
+   — so the onset would write the low octave and `arp_tick` would overwrite it the next frame,
+   making the change inaudible rather than merely imperfect. Teaching `arp_tick` the offset costs 3
+   **unconditional per-frame** instructions, which `NFR-1240` forbids and which is the exact cost
+   class `IP-9040` was abandoned over (`BL-0113`). Withheld rather than paid, because the interval
+   benefit it was reaching for is obtained by construction anyway: both pulses draw from the same
+   triad, so a manufactured seventh is unreachable. **Follow-on candidate**: a cached per-channel
+   note-table-index byte would make `arp_tick`'s lookup *cheaper* than it is today and carry the
+   offset — a redesign beyond this package, filed for `07`.
+2. **`HARMONY_PICK` replaced by `SLOT_NEXT`.** As specified, pulse A and pulse B drew independently
+   from differently-weighted pick tables. Measured: they landed on the same pitch class **28 % of
+   pulse-A onsets**, up from 13 % before the feature — they share an octave, so a quarter of the
+   texture was two voices sounding as one. Pulse B now takes the slot one above whichever pulse A
+   published in `CHORD_TOGGLE` bits2-3. Unison is now structurally impossible (measured 0 %), and
+   the result is parallel thirds/sixths. This reads the **shared context**, not pulse A's private
+   state, so `FR-1500` holds — `ADS-108` D1 forbids pairwise negotiation over private state
+   (which needs inter-channel ordering guarantees) and explicitly endorses coordination flowing
+   through a shared field. The ordering it does rely on is already guaranteed and already relied
+   upon: `engine_tick` calls `gen_tick` in `CHANNELS` order, pulse A before pulse B, and `BL-0121`
+   measured the two as phase-locked onto the same frame.
+3. **`PASSING_TABLE` added for the melody's weak limb.** As specified, weak onsets reused
+   `DELTA_TABLE` (`[-1, 0, 0, +1]`, deliberately 50 % "hold"). Measured: the melody got *less*
+   shaped even as the harmony improved — mean directional run length fell 1.86 (pre-feature) to
+   1.26, and the repeated-note rate stayed at 30 %, i.e. leap-then-hold rather than a line.
+   `DELTA_TABLE`'s hold bias is right for an unaccompanied drunk walk and wrong for a note whose
+   only job is to connect two chord tones. With `PASSING_TABLE` (always ±1): repeated-note rate
+   **30 % → 4 %**, longest static run 8 → 3, and real 4-note figures now recur (`5,4,5,0` five times
+   in a 183-onset run) where the pre-feature recurring figures were `(7,7,7,7)` and `(0,0,0,0)`.
+   `DELTA_TABLE` itself is untouched and still serves Scheme E and every bad-zone recovery path.
+
+### A real defect the re-authored tests caught
+
+`CHORD_TOGGLE` was initialized `0b11`. Both its bass and parity bits are **toggled before they are
+tested**, so the initial value must be the complement of the wanted first behaviour — `0b11` made
+the first post-reset onset a *weak* passing tone where `FS-114` specifies a chord tone. Fixed to
+`0b01`. This is precisely the failure a loosened `T5.5` would have missed: the old `T5.5` asserted
+"`CUR_DEGREE_PA` ∈ {0, 1, 7}" from `DELTA_TABLE` reasoning that no longer describes the engine, and
+would have passed on the wrong value.
+
+### Outstanding, routed rather than fixed here
+
+- **No rests, no phrase boundaries** (`CR-0003`). Reduced but not removed as a listening complaint;
+  the melody alternates leap and step rather than sustaining phrases. Out of scope by design.
+- **Weak-beat sonorities are 30.6 % harsh.** By construction — passing tones are non-chord tones —
+  but it is the largest remaining number and a candidate for `09-content-review`'s ear.
+- **`DISSONANCE_THRESHOLD` untouched** (`ADS-108` §9 OQ1). Bad-zone activity more than halved
+  without retuning; whether the threshold is now *too* permissive is a listening question.
+- **`FR-1560`'s literal wording** still says "distinct from the melody role's currently-sounding
+  chord tone." The shipped `SLOT_NEXT` design now genuinely satisfies that in substance, but by a
+  mechanism `FS-114` OQ2 argued was impossible. `04-requirements-engineering` should reword it at
+  its next natural touch to describe derivation-from-the-shared-slot rather than a cross-channel
+  read.
+- **Fresh-session `09-package-verification` is owed** and is not waived by the standing G3 grant.
+- **`09-content-review`** with `R224` §7a's holistic dimension is the other half of acceptance;
+  WAV clips were captured for a human listening pass.

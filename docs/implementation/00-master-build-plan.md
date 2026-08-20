@@ -282,6 +282,7 @@ unplanned and would each need their own fresh go-ahead.
 |---|---|---|---|
 | IP-1130 | Genre Blending — interpolates `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` between `STYLE_TABLE` rows over 4 discrete steps on a Start press (`SCALE_IDX` hard-switches immediately, unchanged); 7 new independent WRAM bytes (`BLEND_SRC_TEMPO`/`DENSITY`/`DUTY`, `BLEND_STEP`, `BLEND_DELTA_TEMPO`/`DENSITY`/`DUTY`); no new input control | `FS-113`/`FEAT-1130`, roadmap R8; `FR-1470`...`FR-1490`, `NFR-1210`...`NFR-1230`; amends `FR-1240` | **VERIFIED** 2026-08-09 — see [VR-1130](verification/VR-1130-genre-blending.md) (re-verification pass, commit `f6fd243`). 154/154 full-suite tests (`T1`-`T21`), ROM budget independently re-measured (4477 used/28291 free). The F1 remediation's core claims independently re-derived and confirmed: the `BLEND_DELTA_*` precompute fix is correct (hand-derived at `BLEND_STEP=3`/preset 1→2, a value+pair the shipped `T21.3b` doesn't itself cover, exact match), `BLEND_STEP`'s explicit boot/Select initialization is correct (confirmed against a side-by-side rebuild of the pre-remediation commit, which shows the previously-undiagnosed boot-time spurious mini-blend genuinely existed and self-corrected by coincidence), and the mid-blend-restart contract (`FR-1490`) holds under a 4th independently-constructed sequence. **Three non-blocking findings, none a functional defect**: (1) Medium — the remediation's own disclosed timing-effect narrative ("the combined `begin_blend`+`blend_tick` cost on the Start-press frame itself") is scoped too narrowly; independent `hook_register` tracing shows the same `{0-then-2 calls per harness tick()}` pattern is a general, ~30-frame-periodic engine-wide characteristic present even with zero blend activity, not something confined to or caused by the press frame — `FR-1480`'s exact-landing guarantee is unaffected in every case tested, but the causal attribution in the commit message/code comments/this row is inaccurate and should be corrected; the underlying ~30-frame periodicity itself is pre-existing and outside this package's scope. (2) Low-Medium — the `T17.6` test-change's own stated justification ("blend_tick... runs after song_tick" as if newly true) is factually wrong: that call order was already present in the original `7c9ccb2` implementation, independently confirmed by rebuilding it; the test change's *result* is correct, only its reasoning is misattributed. (3) Low — `NFR-1220`'s body text still says "4" new WRAM bytes where the RTM's own note three lines below correctly says "7". **Resolved 2026-08-17** (`IP-9040` close-out pass, `BL-0109`): the package doc's own Risks field (`IP-1130-genre-blending.md:17`) corrected to disclose the as-shipped `N=4`, applied directly as a pure doc edit once `IP-9040` itself was deferred without building (see `IP-9040`'s own row below). The disclosed `T9.3` `NR52`/visuals self-healing race is unchanged (unrelated root cause, `visuals.py` still untouched). |
 | IP-9040 | Wire `mood_update` into genre blending — **v2 re-scope**: inline, half-sized `VALENCE`-only recompute in `_emit_begin_blend` and `AROUSAL`-only recompute in `_emit_blend_tick` (`music_engine.py`), replacing v1's full `CALL('mood_update')` at both sites, closing the same gap `10-integration-review`'s R7 tranche review found (`IP-1130`'s blend write path never recomputed `AROUSAL`/`VALENCE`, violating `FR-1410`) at roughly half the per-site instruction cost. No new WRAM, no new routine. Folded in 4 already-`SCHEDULED` `VR-1130` doc corrections (`BL-0106`-`0109`) | `BL-0111` (Medium-High); folds in `BL-0106`/`BL-0107`/`BL-0108`/`BL-0109` (doc-only); v1/v2's regressions tracked as `BL-0112`/`BL-0113` | **DEFERRED** 2026-08-17 (was `BLOCKED, NEEDS-USER`) — closed out, not implemented. Three independently-measured attempts (v1 full call, v2 inline halved recompute, a throwaway deferred-recompute redesign) all regressed the mid-blend-restart collision frame's VBlank budget — the last attempt made it *worse*, confirming a hard resource ceiling, not a design problem further engineering could route around within this package's own footprint-preserving scope. Escalated to the user as `BL-0113`; **the user chose to defer entirely** rather than accept a documented `FR-1410` exception or fund a separate larger optimization package against `IP-1130`'s own existing cost. `AROUSAL`/`VALENCE` remain stale on the mid-blend-restart collision frame specifically — documented, not fixed. **Revisit trigger: roadmap R9 gives `AROUSAL`/`VALENCE` a real consumer** (see `BL-0111`/`BL-0113`, both re-dispositioned `DEFERRED` in step). Of the 4 folded-in doc corrections: `BL-0107` was found already resolved (no edit needed); `BL-0108`/`BL-0109` (pure documentation, no production source) were applied directly as part of this close-out pass; `BL-0106`'s `music_engine.py` docstring narrowing (production source, needs `08-code-implementation`) stays `SCHEDULED` for the next natural touch of `_emit_begin_blend` rather than warranting a standalone package for one comment. Dependencies (`IP-1120`, `IP-1130`) both `VERIFIED`, unaffected — this package simply will not be built at this time. See the package doc's own v3 Blocking Report + addendum + closing Resolution section. |
+| IP-1140 | **Harmonic coordination via a shared chord context** — one shared `CHORD_IDX` in WRAM every pitched channel reads at its own onset; a hand-authored per-scale `CHORD_TABLE` of scale degrees (not runtime third-stacking, which is *incorrect* against the shipped 8-entry `AND 0x07` degree space); a 4-chord sparse tonic-biased weighted `CHORD_TRANSITION`; harmonic rhythm counted in **pulse-A onsets, not frames** (N=4), with the clock inside pulse A's **existing** onset branch — **no new `engine_tick` call, nothing unconditional per frame**; bass = root/fifth alternating, melody = chord tone on strong onsets and ±1 step on weak, harmony = chord tone an octave below (pulse B's `octave_delta` 0→-1). 3 new WRAM bytes (`0xC077`-`0xC079`), 4 new ROM tables (72 B). Bad-zone recovery kept and made scope-aware (`FR-1590`): dissonance no longer overrides a strong-onset chord tone; stuck and overload unchanged. **The one package in this plan that deliberately changes the shipped boot sound.** Per `ADS-108` §11/D13 + `ADR-0004` (superseding `ADR-0003` **before implementation** — no `SCHEME_TABLE` was ever created, no `CHMIX_MASKS` migration performed, `ADR-0001`'s one-bit packing reaffirmed in full), chord-derived selection *replaces* the default scheme's note selection rather than sitting beside it as a third scheme. `T5`/`T6`-class ±1-walk assertions are re-authored **in this package**, not deferred | `FS-114`/`FEAT-1150`, `BL-0119`; `FR-1500`...`FR-1560`, `FR-1580` (as amended), `FR-1590`, `NFR-1240`...`NFR-1270`. **`FR-1570` withdrawn unimplemented — not covered, must not be claimed.** `FR-1180` unchanged | **READY** — [package](packages/IP-1140-harmonic-coordination.md). G3 granted 2026-08-20 (see below). Acceptance is **not** a green suite: `NFR-1270`'s strong-beat-partitioned interval measurement against the immediately-preceding commit's ROM, plus `09-content-review`'s holistic dimension (`R224` §7a) |
 
 **Verb inventory.** *Generate* (the interpolation arithmetic itself) and *apply* (writing the
 result to `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS`/`SCALE_IDX`) are both covered by this one package
@@ -314,6 +315,43 @@ both new routines to `music_engine.py` and the one call-site change to `input_ma
 `AskUserQuestion` once R8's full planning chain (`03`→`07`) was complete, and chose "Yes, build
 it." Recorded as the basis rather than assumed — a fresh, specific grant for `IP-1130`, not a
 reuse of any earlier grant in this session.
+
+**G3 authorization for `IP-1140`: GRANTED 2026-08-20 — a standing grant for the harmonic-coordination
+increment, recorded with its exact wording and its exact limits.** The project owner's own words this
+session, verbatim:
+
+> "Don't hold the preset 0 to an arbitrary standard, it was developed by you at a previous
+> iteration.
+> Use your judgement on when it is best to start each, I'd like to get to a pleasant sounding music
+> as soon as possible.
+> Iterate pipeline until it is deemed pleasant and ready for human ears to review."
+
+Recorded as a standing G3 authorization covering the packages that implement harmonic coordination
+(`BL-0119`; `FR-1500`-`FR-1590`/`NFR-1240`-`NFR-1270`) — `IP-1140` and any follow-on remediation
+package this increment's own measurement produces — so the iterate loop does not stop for a fresh
+grant per package. This uses the same standing-forward-authorization convention already recorded
+above for `IP-1080`/`IP-1090` and `IP-1110`, and is **cited as the basis rather than assumed**, per
+`IP-1090`'s own insistence that no package's G3 basis is ever assumed silently even when it rides a
+standing instruction.
+
+**Limits, stated so they are as legible as the grant.** It does not extend outside this increment;
+it does not waive `09-package-verification`'s fresh-session independence rule; it does not waive G5's
+permanent gates; and it does not pre-authorize a refactoring package (`IP-8xx0`) — this plan's
+standing rule that refactoring packages are never pre-authorized is untouched, and is moot here
+because `BL-0123`'s migration package is **obviated** by `ADR-0004`, not deferred.
+
+**Two authorization-shaped decisions the same directive settled**, recorded here rather than left to
+look like the pipeline deciding them for itself:
+
+- **The preset-0 / index-0 no-regression standard is released.** The owner rejected it explicitly as
+  arbitrary and self-imposed. `GDS-04` §4.1 carries the dated amendment separating the invariant's
+  *fixed-point* half — index 0 equals the boot preset, so boot and Select-reset agree with each
+  other, which is what `IP-1100`'s ten-test regression actually proved — from its
+  *historical-no-regression* half, which is released. `FR-1580` was reversed in place on that basis.
+  `IP-1140` is **expected** to change the boot sound.
+- **`CR-0005`** (the default-preset flip to harmonized generation) **moves from deferred into
+  scope**, absorbed into the amended `FR-1580` rather than remaining a separately-gated later step.
+  `ADS-108` D11's staged flip is superseded by D13.
 
 ## G5 gate (every stage-08 run)
 

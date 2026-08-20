@@ -22,7 +22,9 @@ from music_data import (TEMPO_BPM, TEMPO_TABLE, OCTAVE_ROOT_HZ, SCALE_SEMITONES,
                          SEMITONE_TABLE_DATA, DISSONANCE_WEIGHT_BY_IC, DELTA_TABLE,
                          VALENCE_TABLE, STYLE_TABLE, SONG_TABLE, N_SONG_PHASES,
                          ARPEGGIO_OFFSETS, DUTY_BY_DEGREE, MOTIF_TABLE, N_VARIANTS,
-                         MOTIF_VARIANT_SELECTOR, CHMIX_MASKS)
+                         MOTIF_VARIANT_SELECTOR, CHMIX_MASKS,
+                         CHORD_TABLE, CHORD_TRANSITION, MELODY_PICK, HARMONY_PICK,
+                         N_CHORDS, N_CHORD_ONSETS)
 from patterns import _euclidean_pattern, NOISE_STEPS, DENSITY_K, NOISE_STEP_TABLE
 
 # ── WRAM addresses (GDS-07) ──────────────────────────────────────────
@@ -125,6 +127,20 @@ BLEND_DELTA_TEMPO = 0xC074
 BLEND_DELTA_DENSITY = 0xC075
 BLEND_DELTA_DUTY = 0xC076
 
+# IP-1140 (FS-114/FEAT-1150, BL-0119, ADS-108 SS2.1 as amended by its SS11/D13): the shared
+# harmonic context — the whole of the coordination mechanism's runtime state, three bytes.
+# CHORD_IDX is a read-mostly broadcast field: ONE writer (pulse A's onset branch, where the
+# harmonic clock lives) and three readers (each pitched channel, each at its own onset). Keeping
+# it single-writer is deliberate — a second writer would reintroduce exactly the coordination
+# ambiguity this design exists to remove, unlike GDS-04's steering-index family which tolerates
+# three writers under a last-write-wins contract.
+CHORD_IDX = 0xC077        # 0-3, which CHORD_TABLE row is currently sounding
+CHORD_ONSET_CTR = 0xC078  # pulse-A onsets remaining before the chord advances (counts ONSETS,
+                          # not frames — FR-1530, so harmonic rhythm tracks tempo for free)
+CHORD_TOGGLE = 0xC079     # bit0: wave-channel root/fifth alternation.  bit1: pulse A's
+                          # strong/weak onset parity (set = strong). Packed into one byte rather
+                          # than two, per ADS-108 SS2.1.
+
 # IP-0004 thresholds (GDS-03 SS4, R204 SS5) — first-guess placeholders, per BL-0005's own
 # deferred-tuning convention; the dissonance weight table itself is literature-grounded (R204),
 # these threshold *numbers* are not yet tuned by ear.
@@ -194,6 +210,24 @@ LFSR_SEED_WV = 0x3C
 # (0-7); bit7 unused)
 CHANNELS = [
     ('pa', NOTE_TIMER_PA, CUR_DEGREE_PA, LFSR_STATE,    LFSR_SEED_PA, NR13, NR14, 0, 1, STALE_COUNT_PA, NR11, ARP_STATE_PA, NR12, 0xF3, 0, 4, MOTIF_STEP_PA),
+    # IP-1140 / FR-1560, octave-separation half: DELIBERATELY NOT IMPLEMENTED, and the reason is
+    # a hard budget constraint rather than an oversight. FS-114 specified pulse B's octave_delta
+    # moving 0 -> -1 (R225 SS5f: octave separation, not degree separation, is what avoids
+    # manufactured sevenths) on the grounds that it is a build-time parameter costing no runtime
+    # work. That is true of _emit_channel_gen's onset write — and false of the system as a whole:
+    # _emit_arpeggio_tick runs EVERY FRAME for pulse A/B and rewrites the frequency register from
+    # its own note-table lookup, which hardcodes octave_delta=0 (see its own comment at that
+    # lookup). With octave_delta=-1 here, the onset would write the low octave and arp_tick would
+    # overwrite it with the high one on the very next frame — so the change would be inaudible, not
+    # merely imperfect. Teaching arp_tick the offset costs 3 UNCONDITIONAL per-frame instructions,
+    # which NFR-1240 forbids outright and which is the exact cost class that got IP-9040 abandoned
+    # (BL-0113). Withheld rather than paid, because the interval benefit it was reaching for is
+    # already obtained by construction under IP-1140: pulse A and pulse B now both draw from the
+    # SAME 3-tone triad, and two distinct tones of one triad are always a 3rd/4th/5th/6th apart —
+    # a manufactured seventh is unreachable, which is the outcome R225 SS5f's octave separation
+    # existed to buy. Recorded as a package finding for a follow-on (a cached per-channel
+    # table-index byte would make arp_tick's lookup *cheaper* than it is today AND carry the
+    # offset, but that is a redesign beyond this package's scope).
     ('pb', NOTE_TIMER_PB, CUR_DEGREE_PB, LFSR_STATE_PB, LFSR_SEED_PB, NR23, NR24, 0, 1, STALE_COUNT_PB, NR21, ARP_STATE_PB, NR22, 0xF3, 1, 5, MOTIF_STEP_PB),
     # Wave channel: bass/timbre role (R207 finding, BL-0008) — anchored one octave index lower
     # (floored at 0) and half the note rate (tempo_mult=2), matching bass lines moving less often
@@ -205,6 +239,16 @@ CHANNELS = [
     # get Scheme E (IP-1070) — ADS-100's own example names a Scheme-E wave bass motif explicitly.
     ('wv', NOTE_TIMER_WV, CUR_DEGREE_WV, LFSR_STATE_WV, LFSR_SEED_WV, NR33, NR34, -1, 2, STALE_COUNT_WV, None, None, NR30, 0x80, 2, 6, MOTIF_STEP_WV),
 ]
+
+# IP-1140 (FS-114/FEAT-1150): each pitched channel's harmonic ROLE, which is what decides how its
+# note is derived from the shared chord (FR-1540/1550/1560, ADS-108 SS2.6/D9). Kept as a separate
+# mapping rather than a 18th field in CHANNELS because it is a property of the *harmonic* design,
+# not of the channel's hardware wiring — every other CHANNELS field is a register, a WRAM address
+# or a hardware characteristic. The noise channel has no role: it is unpitched and never reads the
+# chord context. Roles are assigned per R203/R207's channel conventions, already reflected in the
+# wave channel's shipped octave/rate anchoring: wave is the bass, pulse A the melody, pulse B the
+# inner harmony voice.
+CHANNEL_ROLES = {'pa': 'melody', 'pb': 'harmony', 'wv': 'bass'}
 
 # IP-8030 (BL-0089): CHMIX_MASKS, STYLE_TABLE, SONG_TABLE, N_SONG_PHASES, ARPEGGIO_OFFSETS,
 # DUTY_BY_DEGREE, MOTIF_TABLE, N_VARIANTS, MOTIF_VARIANT_SELECTOR moved to music_data.py,
@@ -394,10 +438,64 @@ def _emit_blend_tick(rom):
     rom.RET()
 
 
+def _emit_chord_tone_lookup(rom):
+    """IP-1140: A = chord-tone slot (0-2) on entry -> A = that tone's scale degree (0-7) on exit.
+
+    Address arithmetic for CHORD_TABLE[scale][chord][slot], flattened as
+    scale*12 + chord*3 + slot. SM83 has no multiply, so both products are built from shifts and
+    adds: chord*3 = chord*2 + chord, scale*12 = scale*8 + scale*4. No division anywhere (this
+    project's opcode subset has none — ADS-108 SS7 constraint 5).
+
+    Clobbers A, B, C, E, H, L. **Preserves D**, which holds the pre-onset degree that every
+    caller needs for its SUB_D conversion and that the stale-count comparison needs further down.
+    Emits no labels, so it is safe to inline more than once per channel."""
+    rom.LD_E_A()                       # E = slot
+    rom.LD_A_nn(CHORD_IDX)
+    rom.LD_C_A(); rom.ADD_A_A(); rom.ADD_A_C()   # A = chord*3
+    rom.ADD_A_E()                                 # A = chord*3 + slot
+    rom.LD_E_A()
+    rom.LD_A_nn(SCALE_IDX)
+    rom.ADD_A_A(); rom.ADD_A_A()                  # A = scale*4
+    rom.LD_C_A()
+    rom.ADD_A_A()                                 # A = scale*8
+    rom.ADD_A_C()                                 # A = scale*12
+    rom.ADD_A_E()                                 # A = full byte offset into CHORD_TABLE
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'chord_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HL()                      # A = target scale degree
+
+
+def _emit_chord_pick(rom, suffix, lfsr_state, pick_label, tag):
+    """IP-1140: step this channel's own LFSR, take 2 bits, index `pick_label`'s 4-entry
+    chord-tone-slot table, read that tone out of CHORD_TABLE, and leave the signed delta that
+    reaches it in B — the contract the rest of _emit_channel_gen already expects.
+
+    The weighting lives in the *distribution of entries* in the pick table, never in arithmetic,
+    exactly as DELTA_TABLE and MOTIF_VARIANT_SELECTOR already do (R211 SS8's "extend the table,
+    not the mechanism"). SUB_D produces `target - old_degree`; that value is added back to
+    old_degree and masked AND 0x07 downstream, so it reproduces `target & 7` exactly regardless of
+    A's numeric range here — the same reasoning IP-1090's motif lookup relies on."""
+    rom.LD_A_nn(lfsr_state)
+    rom.SRL_A()
+    rom.JR_NC(f'gt_{tag}_noxor_{suffix}')
+    rom.XOR_n(LFSR_POLY)
+    rom.label(f'gt_{tag}_noxor_{suffix}')
+    rom.LD_nn_A(lfsr_state)
+    rom.AND_n(0x03)
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, pick_label)
+    rom.ADD_HL_BC()
+    rom.LD_A_HL()                      # A = chord-tone slot (0-2)
+    _emit_chord_tone_lookup(rom)
+    rom.SUB_D()
+    rom.LD_B_A()
+
+
 def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_lo, nr_freq_hi,
                        octave_delta, tempo_mult, stale_count, duty_reg=None, portamento=False,
                        dac_reg=None, dac_on=None, bit_index=None,
-                       scheme_bit=None, scheme_state=None):
+                       scheme_bit=None, scheme_state=None, role=None):
     """One channel's note-generation routine: countdown -> (on expiry) LFSR-picked scale-degree
     step -> table lookup -> register write -> timer reload -> IP-0004 stale/onset-window
     bookkeeping. Parameterized so pulse A/B and the wave channel share one Python-level
@@ -449,9 +547,129 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
         rom.ADD_HL_BC()
         rom.LD_A_HL()
         rom.BIT_b_A(scheme_bit)
-        rom.JR_NZ(f'gt_schemee_{suffix}')
+        # IP-1140: JP, not JR. The harmonic clock and the per-voice selection limbs now sit
+        # between this test and gt_schemee_{suffix}, putting the label past JR's signed 8-bit
+        # relative range — the same reason IP-1090 already had to widen the branch at the end of
+        # the Scheme-W block below.
+        rom.JP_NZ(f'gt_schemee_{suffix}')
 
-    # LFSR step (inlined per-channel so each channel's state stays independent).
+    # ── IP-1140: the harmonic clock (FR-1530) ────────────────────────────────────────────────
+    # Lives HERE, inside pulse A's already-taken onset branch, and nowhere else. This is the
+    # load-bearing cost decision of the whole feature (ADS-108 D6): R225 SS3h measured that 95.1%
+    # of frames execute no pitched-onset branch at all, so a chord clock placed here runs on ~4.9%
+    # of frames and a chord *change* on ~0.8% — whereas an engine_tick-level `chord_tick` would run
+    # on 100% of them, which is exactly the cost IP-9040 was abandoned over (BL-0113, R101 SS8.5:
+    # read_joypad+apply_input+engine_tick already consume ~9 of VBlank's 10 scanlines).
+    #
+    # Pulse A drives it for two reasons, both load-bearing rather than incidental: (1) it is the
+    # fastest pitched onset (30 frames at boot defaults vs the wave channel's 60), so the clock can
+    # never starve; (2) its onset bookkeeping runs even when the channel is mix-excluded, because
+    # IP-9010 gates only the register writes, not the timer/degree/stale bookkeeping — so a preset
+    # that mutes pulse A still advances the harmony. Had gating skipped the branch, this design
+    # would silently stop working on those presets.
+    #
+    # D (the pre-onset degree) is deliberately untouched throughout, so the shared stale-count
+    # comparison further down still sees the correct value regardless of which limb ran.
+    if role == 'melody':
+        rom.LD_A_nn(CHORD_ONSET_CTR)
+        rom.DEC_A()
+        rom.LD_nn_A(CHORD_ONSET_CTR)
+        rom.OR_A()
+        rom.JR_NZ(f'gt_chord_hold_{suffix}')
+
+        # Counter expired: advance the chord. Reload first, then draw the next chord through
+        # CHORD_TRANSITION using 2 bits of pulse A's own LFSR — no new randomness source is
+        # introduced, only a new use of the existing one (NFR-1110's established principle).
+        rom.LD_A_n(N_CHORD_ONSETS); rom.LD_nn_A(CHORD_ONSET_CTR)
+        rom.LD_A_nn(lfsr_state)
+        rom.SRL_A()
+        rom.JR_NC(f'gt_chd_noxor_{suffix}')
+        rom.XOR_n(LFSR_POLY)
+        rom.label(f'gt_chd_noxor_{suffix}')
+        rom.LD_nn_A(lfsr_state)
+        rom.AND_n(0x03)
+        rom.LD_E_A()                       # E = 2 LFSR bits (row offset within the chord's row)
+        rom.LD_A_nn(CHORD_IDX)
+        rom.ADD_A_A(); rom.ADD_A_A()       # A = CHORD_IDX*4 (row width)
+        rom.ADD_A_E()
+        rom.LD_C_A(); rom.LD_B_n(0)
+        _ld_hl_label(rom, 'chord_transition')
+        rom.ADD_HL_BC()
+        rom.LD_A_HL()
+        rom.LD_nn_A(CHORD_IDX)             # the single write site for CHORD_IDX, anywhere
+        # The onset a chord changes on is ALWAYS a strong one: set the parity bit rather than
+        # toggling it. With N even this also pins the phase permanently — strong beats are the
+        # 1st and 3rd of every four-onset group and cannot drift, which is what makes the
+        # strong/weak partition NFR-1270 measures against a stable property of the meter.
+        rom.LD_A_nn(CHORD_TOGGLE); rom.SET_b_A(1); rom.LD_nn_A(CHORD_TOGGLE)
+        rom.JR(f'gt_chord_done_{suffix}')
+
+        rom.label(f'gt_chord_hold_{suffix}')
+        rom.LD_A_nn(CHORD_TOGGLE); rom.XOR_n(0x02); rom.LD_nn_A(CHORD_TOGGLE)
+        rom.label(f'gt_chord_done_{suffix}')
+
+    # ── IP-1140: per-voice note selection (FR-1540/1550/1560) ────────────────────────────────
+    # This REPLACES the LFSR-delta walk that used to sit here — it is not a branch beside it
+    # (ADR-0004/D13: the chord-derived selection *becomes* what the default scheme does). Each
+    # limb produces a target scale degree, then converts it to the signed delta the rest of this
+    # routine already expects via SUB_D — the exact idiom Scheme E's own motif lookup uses, so the
+    # whole downstream path (bad-zone stuck/overload, STALE_COUNT bookkeeping, onset-window
+    # counting, CHMIX mute gating, note-table addressing, duty selection, timer reload) is reused
+    # completely unchanged.
+    #
+    # FR-1590: the harmonized limbs JP past the dissonance-recovery block to gt_no_dis_{suffix},
+    # landing in the stuck block. A deliberate chord tone must not be silently un-harmonized by
+    # the tonic-pull the harmony makes unnecessary; stuck and overload recovery are orthogonal to
+    # harmony and are left applying exactly as before. Scheme E's path is untouched and still
+    # flows through the dissonance block. Melody's WEAK limb also keeps the dissonance override —
+    # a weak-beat passing tone is not a chord tone and has nothing to protect.
+    if role == 'bass':
+        # Root/fifth alternation (FR-1540). Replaces an LFSR step plus a DELTA_TABLE read with a
+        # toggle and one table read, so this voice is plausibly CHEAPER than what it displaced.
+        # Root/fifth is mode-independent, which is why no per-chord quality table is needed
+        # (R225 SS3d) — and it fixes BL-0119(c), the measured "bass wanders by step" defect,
+        # outright rather than incrementally.
+        rom.LD_A_nn(CHORD_TOGGLE)
+        rom.XOR_n(0x01)
+        rom.LD_nn_A(CHORD_TOGGLE)
+        rom.BIT_b_A(0)
+        rom.JR_Z(f'gt_bass_root_{suffix}')
+        rom.LD_A_n(2)                      # slot 2 = the chord's fifth
+        rom.JR(f'gt_bass_slot_{suffix}')
+        rom.label(f'gt_bass_root_{suffix}')
+        rom.XOR_A()                        # slot 0 = the chord's root
+        rom.label(f'gt_bass_slot_{suffix}')
+        _emit_chord_tone_lookup(rom)
+        rom.SUB_D()
+        rom.LD_B_A()
+        rom.JP(f'gt_no_dis_{suffix}')
+
+    elif role == 'harmony':
+        # Always a chord tone, drawn through HARMONY_PICK's own weighting (fifth/root-leaning)
+        # rather than MELODY_PICK's (third-leaning), so pulse A and pulse B differ statistically
+        # without either reading the other's state — FR-1500 forbids that cross-channel read.
+        # Note that manufactured sevenths are unreachable here by construction: two distinct tones
+        # of one triad are always a 3rd/4th/5th/6th apart. See the CHANNELS comment on why the
+        # octave-separation half of FR-1560 is withheld.
+        _emit_chord_pick(rom, suffix, lfsr_state, 'harmony_pick', 'harm')
+        rom.JP(f'gt_no_dis_{suffix}')
+
+    elif role == 'melody':
+        # Strong onset -> a chord tone. Weak onset -> the shipped LFSR/DELTA_TABLE +-1 walk,
+        # byte-for-byte, supplying the passing/neighbour tone between chord tones. This
+        # strong/weak alternation is the entire mechanism that converts "in key" into "in
+        # harmony" (R225 SS3e), and it is also why NFR-1270 forbids the aggregate histogram as
+        # an acceptance instrument: the weak limb sounds non-chord tones *on purpose*.
+        rom.LD_A_nn(CHORD_TOGGLE)
+        rom.BIT_b_A(1)
+        rom.JR_Z(f'gt_mel_weak_{suffix}')
+        _emit_chord_pick(rom, suffix, lfsr_state, 'melody_pick', 'mel')
+        rom.JP(f'gt_no_dis_{suffix}')
+        rom.label(f'gt_mel_weak_{suffix}')
+
+    # The original LFSR-driven +-1 walk. Under IP-1140 this is reached only by the melody voice on
+    # a weak onset (every other route above jumps past it) — retained verbatim rather than
+    # rewritten, so the passing-tone behaviour is provably the shipped one.
     rom.LD_A_nn(lfsr_state)
     rom.SRL_A()
     rom.JR_NC(f'gt_noxor_{suffix}')
@@ -1172,6 +1390,19 @@ def build_engine_asm(rom: ROM):
     # here is deliberate -- BLEND_STEP=4 alone makes blend_tick's early-exit unconditional, so their
     # stale contents are never read again until the next Start press freshly overwrites them.
     rom.LD_A_n(4); rom.LD_nn_A(BLEND_STEP)
+    # IP-1140 (FS-114 State Changes): the shared chord context is explicitly initialized on BOTH
+    # boot and Select-reset. This is not defensive boilerplate — VR-1130's F1 defect was exactly
+    # an uninitialized counter (BLEND_STEP) letting a stale mechanism corrupt a freshly-reset
+    # engine on the following frames, and CHORD_ONSET_CTR/CHORD_TOGGLE have the same shape.
+    # CHORD_IDX starts on the tonic. CHORD_TOGGLE starts 0b11: bit1 set so the melody's first
+    # onset is STRONG (a chord tone, not a passing tone), and bit0 set so the bass takes the ROOT
+    # first -- the bass limb toggles bit0 *before* testing it, so an initial 1 becomes 0 and
+    # selects slot 0. Deterministic on every reset, per GDS-04 SS4.1's fixed-point rule, which the
+    # 2026-08-20 amendment leaves fully in force (only its historical-no-regression half was
+    # released; this half was not).
+    rom.XOR_A(); rom.LD_nn_A(CHORD_IDX)
+    rom.LD_A_n(N_CHORD_ONSETS); rom.LD_nn_A(CHORD_ONSET_CTR)
+    rom.LD_A_n(0b11); rom.LD_nn_A(CHORD_TOGGLE)
     # IP-1090 (BL-0010, ADS-102): MOTIF_VARIANT_IDX resets to 0 (variant 0, the pre-IP-1090
     # shipped sequence) on both boot and Select-reset — the same reset trigger that already
     # zeroes each channel's scheme_state below (which resets the motif-step counter to 0 too),
@@ -1264,7 +1495,8 @@ def build_engine_asm(rom: ROM):
                            oct_delta, tempo_mult, stale_count, duty_reg,
                            portamento=(arp_state is not None),
                            dac_reg=dac_reg, dac_on=dac_on, bit_index=bit_index,
-                           scheme_bit=scheme_bit, scheme_state=scheme_state)
+                           scheme_bit=scheme_bit, scheme_state=scheme_state,
+                           role=CHANNEL_ROLES[suffix])
         if arp_state is not None:
             _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, nr_lo, nr_hi)
     _emit_noise_gen(rom)
@@ -1312,6 +1544,22 @@ def build_engine_asm(rom: ROM):
 
     rom.label('motif_variant_selector')
     rom.emit(*MOTIF_VARIANT_SELECTOR)
+
+    # IP-1140 (FR-1510/FR-1520): the harmonic-coordination tables. 48 + 16 + 4 + 4 = 72 bytes,
+    # inside NFR-1250's ~100-byte allowance. Every entry is a scale degree or a chord index —
+    # nothing here is a pitch, which is what lets SCALE_IDX/OCTAVE_IDX changes flow through the
+    # chord context unchanged.
+    rom.label('chord_table')
+    rom.emit(*CHORD_TABLE)
+
+    rom.label('chord_transition')
+    rom.emit(*CHORD_TRANSITION)
+
+    rom.label('melody_pick')
+    rom.emit(*MELODY_PICK)
+
+    rom.label('harmony_pick')
+    rom.emit(*HARMONY_PICK)
 
     rom.label('style_table')
     for row in STYLE_TABLE:

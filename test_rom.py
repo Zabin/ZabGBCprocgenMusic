@@ -79,6 +79,7 @@ BLEND_SRC_TEMPO = 0xC070; BLEND_SRC_DENSITY = 0xC071  # IP-1130
 BLEND_SRC_DUTY = 0xC072; BLEND_STEP = 0xC073            # IP-1130
 VIS_ENTRY_LY = 0xC061  # IP-9030 (BL-0069)
 AROUSAL = 0xC068; VALENCE = 0xC069  # IP-1120 (roadmap R7)
+CHORD_IDX = 0xC077; CHORD_ONSET_CTR = 0xC078; CHORD_TOGGLE = 0xC079  # IP-1140 (FS-114)
 LY = 0xFF44
 LCDC = 0xFF40
 CHANNEL_CELLS = [0x9800, 0x9801, 0x9802, 0x9803]
@@ -96,6 +97,7 @@ from music_data import STYLE_TABLE
 from music_data import MOTIF_TABLE, N_VARIANTS
 from music_data import SONG_TABLE, N_SONG_PHASES
 from music_data import VALENCE_TABLE
+from music_data import CHORD_TABLE, CHORD_TRANSITION, N_CHORD_ONSETS
 
 results = []
 PASS = 0
@@ -264,9 +266,14 @@ def t6_pulse_b_and_wave():
         pb.tick()
         seen_pb.add(pb.memory[CUR_DEGREE_PB])
         seen_wv.add(pb.memory[CUR_DEGREE_WV])
-    check("T6.3 CUR_DEGREE_PB changes over time (pulse B is walking independently)",
+    # RE-AUTHORED by IP-1140. These two checks previously asserted that each channel "is walking
+    # independently" — the exact property IP-1140 deliberately removes (BL-0119 measured that
+    # independence as the defect). The observable "degree changes over time" is retained because
+    # it still guards a real failure (a channel frozen on one note), but the claim of independence
+    # is withdrawn from the names, and T22 now asserts the coordination that replaced it.
+    check("T6.3 CUR_DEGREE_PB changes over time (pulse B is generating, not frozen)",
           len(seen_pb) > 1, f"distinct degrees: {sorted(seen_pb)}")
-    check("T6.4 CUR_DEGREE_WV changes over time (wave channel is walking independently)",
+    check("T6.4 CUR_DEGREE_WV changes over time (wave channel is generating, not frozen)",
           len(seen_wv) > 1, f"distinct degrees: {sorted(seen_wv)}")
     check("T6.5 All three pitched channels still report active after sustained play",
           (pb.memory[NR52] & 0x07) == 0x07, f"NR52={hex(pb.memory[NR52])}")
@@ -474,16 +481,26 @@ def t5_reset():
     check("T5.2 Select restores TEMPO_IDX to preset", pb.memory[TEMPO_IDX] == PRESET_TEMPO_IDX)
     check("T5.3 Select restores OCTAVE_IDX to preset", pb.memory[OCTAVE_IDX] == PRESET_OCTAVE_IDX)
     check("T5.4 Select restores SCALE_IDX to preset", pb.memory[SCALE_IDX] == PRESET_SCALE_IDX)
-    # Not necessarily 0: init_engine resets CUR_DEGREE_PA to 0 as the walk's starting point, but
-    # the same-frame-fires-immediately effect (NOTE_TIMER_PA primed to 1) means one LFSR-driven
-    # step from that starting point already happens within this very frame, before any read is
-    # possible — and since IP-0007 randomizes the LFSR seed from DIV on every reset (GDS-03 SS5
-    # amended), that first step's direction is no longer a fixed, predictable value. What's
-    # actually invariant is that it can only be one DELTA_TABLE step away from the true reset
-    # value (0): 0 (delta 0), 1 (delta +1), or 7 (delta -1, wrapping mod 8).
-    check("T5.5 Select resets CUR_DEGREE_PA to its starting point, seen here one LFSR step later "
-          "(0, +1, or -1/wrapped-to-7 — the only values one DELTA_TABLE step from 0 can reach)",
-          pb.memory[CUR_DEGREE_PA] in (0, 1, 7), f"got {pb.memory[CUR_DEGREE_PA]}")
+    # RE-AUTHORED by IP-1140 (not merely left passing). init_engine resets CUR_DEGREE_PA to 0 as
+    # the starting point, but the same-frame-fires-immediately effect (NOTE_TIMER_PA primed to 1)
+    # means one note-selection step already happens within this very frame, before any read is
+    # possible. What that step *is* changed with IP-1140, and this check's previous reasoning —
+    # "it can only be one DELTA_TABLE step away, so 0/1/7" — is no longer true of the engine and
+    # was passing by coincidence at the default scale. The reset now also sets CHORD_IDX=0 and
+    # CHORD_TOGGLE bit1 (strong), so pulse A's very first post-reset onset takes a CHORD TONE of
+    # chord 0 in the reset scale: degrees {0, 2, 4} for major. That is a strictly *narrower*
+    # invariant than the one it replaces, which is the point — a re-authored check must describe
+    # the new contract, not be loosened until it stops failing.
+    _reset_chord0 = set(CHORD_TABLE[PRESET_SCALE_IDX * 12: PRESET_SCALE_IDX * 12 + 3])
+    check("T5.5 Select resets the chord context too, so pulse A's first post-reset onset lands on "
+          "a tone of chord 0 in the reset scale (IP-1140; supersedes the old DELTA_TABLE-step "
+          "reasoning, which no longer describes the engine)",
+          pb.memory[CUR_DEGREE_PA] in _reset_chord0,
+          f"got {pb.memory[CUR_DEGREE_PA]}, chord 0 tones {sorted(_reset_chord0)}")
+    check("T5.6 Select restores the shared chord context itself (IP-1140)",
+          (pb.memory[CHORD_IDX], pb.memory[CHORD_ONSET_CTR] in (N_CHORD_ONSETS, N_CHORD_ONSETS - 1))
+          == (0, True),
+          f"CHORD_IDX={pb.memory[CHORD_IDX]} CHORD_ONSET_CTR={pb.memory[CHORD_ONSET_CTR]}")
     pb.stop(save=False)
 
 
@@ -1518,6 +1535,207 @@ def t21_genre_blending():
     pb4.stop(save=False)
 
 
+
+# ── T22: Harmonic coordination via a shared chord context (IP-1140/FS-114) ────────────
+def _chord_tones(scale_idx, chord_idx):
+    """The three scale degrees of CHORD_TABLE[scale][chord], derived here from music_data's own
+    flattened table by the same scale*12 + chord*3 arithmetic the engine emits — independently
+    re-derived in Python rather than read back from the ROM, so a transcription error in the
+    emitted table would surface as a mismatch rather than agreeing with itself."""
+    base = scale_idx * 12 + chord_idx * 3
+    return CHORD_TABLE[base:base + 3]
+
+
+def _sample_onsets(pb, frames):
+    """Drive `frames` frames, returning one record per pulse-A onset. An onset is detected by the
+    channel's note timer *increasing* (it was reloaded), the same reload-edge detection the
+    engine's own timer discipline makes reliable — CUR_DEGREE can legitimately repeat, so a
+    degree change is not a usable onset signal."""
+    rows = []
+    prev = {c: pb.memory[a] for c, a in (('pa', NOTE_TIMER_PA), ('pb', NOTE_TIMER_PB),
+                                          ('wv', NOTE_TIMER_WV))}
+    for _ in range(frames):
+        pb.tick()
+        cur = {c: pb.memory[a] for c, a in (('pa', NOTE_TIMER_PA), ('pb', NOTE_TIMER_PB),
+                                             ('wv', NOTE_TIMER_WV))}
+        onset = {c: cur[c] > prev[c] for c in cur}
+        prev = cur
+        rows.append(dict(onset=onset,
+                         chord=pb.memory[CHORD_IDX],
+                         ctr=pb.memory[CHORD_ONSET_CTR],
+                         toggle=pb.memory[CHORD_TOGGLE],
+                         scale=pb.memory[SCALE_IDX],
+                         bad=pb.memory[BAD_ZONE_FLAGS],
+                         deg={'pa': pb.memory[CUR_DEGREE_PA],
+                              'pb': pb.memory[CUR_DEGREE_PB],
+                              'wv': pb.memory[CUR_DEGREE_WV]}))
+    return rows
+
+
+def t22_harmonic_coordination():
+    """IP-1140 (FS-114/FEAT-1150, BL-0119): the three pitched channels derive their notes from one
+    shared chord context instead of walking independently.
+
+    Every per-voice check below excludes frames where BAD_ZONE_FLAGS' STUCK bit (bit1) is set:
+    stuck recovery deliberately forces a step even when that moves a degree off its chord tone
+    (FR-1590 keeps that path unchanged on purpose), so asserting chord membership across those
+    frames would be asserting the engine violates its own specified recovery behaviour. Same
+    exclusion T14.3/T16 already apply for IP-1090's motif assertions.
+    """
+    pb = fresh_boot()
+    rows = _sample_onsets(pb, 2400)
+
+    # --- T22.1/T22.2: the context itself -------------------------------------------------
+    chords = [r['chord'] for r in rows]
+    check("T22.1 CHORD_IDX stays within the 4-chord vocabulary at all times (FR-1520)",
+          all(0 <= c < 4 for c in chords), f"distinct values seen: {sorted(set(chords))}")
+    check("T22.2 CHORD_IDX actually advances over a run — the harmony moves, it is not a "
+          "constant dressed up as a context (FR-1500/FR-1520)",
+          len(set(chords)) > 1, f"distinct chords seen: {sorted(set(chords))}")
+
+    # --- T22.3: the harmonic clock counts ONSETS, not frames (FR-1530) -------------------
+    # Every CHORD_IDX change must coincide with a pulse-A onset, and consecutive changes must be
+    # exactly N_CHORD_ONSETS pulse-A onsets apart. This is the check that would catch the clock
+    # having been implemented as a frame counter, which would drift out of phase with tempo.
+    pa_onset_no, changes, off_onset = 0, [], 0
+    prev_chord = rows[0]['chord']
+    for r in rows:
+        if r['onset']['pa']:
+            pa_onset_no += 1
+        if r['chord'] != prev_chord:
+            changes.append(pa_onset_no)
+            if not r['onset']['pa']:
+                off_onset += 1
+        prev_chord = r['chord']
+    gaps = [b - a for a, b in zip(changes, changes[1:])]
+    check("T22.3.setup at least 3 chord changes observed for interval derivation",
+          len(changes) >= 3, f"changes at pulse-A onsets {changes[:12]}")
+    check("T22.3 every CHORD_IDX change lands on a pulse-A onset frame — the clock lives inside "
+          "pulse A's onset branch and nowhere else (FR-1530, NFR-1240)",
+          off_onset == 0, f"{off_onset} of {len(changes)} changes landed off a pulse-A onset")
+    check(f"T22.4 consecutive chord changes are exactly {N_CHORD_ONSETS} pulse-A ONSETS apart, "
+          "not a fixed number of frames (FR-1530 — this is what makes harmonic rhythm track "
+          "tempo automatically)",
+          gaps and all(g == N_CHORD_ONSETS for g in gaps), f"onset gaps: {gaps[:12]}")
+
+    # --- T22.5: chord changes always land on a strong onset -------------------------------
+    check("T22.5 the onset a chord changes on is always a STRONG one (CHORD_TOGGLE bit1 set) — "
+          "the parity is forced, not toggled, on a chord change, which is what pins the "
+          "strong/weak phase so it cannot drift (FS-114 System Behaviour)",
+          all(r['toggle'] & 0x02 for r in rows if r['onset']['pa'] and r['ctr'] == N_CHORD_ONSETS),
+          f"toggle values on chord-change onsets: "
+          f"{[r['toggle'] for r in rows if r['onset']['pa'] and r['ctr'] == N_CHORD_ONSETS][:8]}")
+
+    # --- T22.6/T22.7/T22.8: the three per-voice rules -------------------------------------
+    ok = [r for r in rows if not (r['bad'] & 0x02)]
+
+    wv_rows = [r for r in ok if r['onset']['wv']]
+    wv_bad = [(r['deg']['wv'], r['chord'])
+              for r in wv_rows
+              if r['deg']['wv'] not in (_chord_tones(r['scale'], r['chord'])[0],
+                                        _chord_tones(r['scale'], r['chord'])[2])]
+    check("T22.6 on every wave-channel onset the bass sounds the current chord's ROOT or FIFTH, "
+          "never a wandering step (FR-1540 — this is BL-0119(c)'s measured defect, fixed)",
+          wv_rows and not wv_bad,
+          f"{len(wv_bad)}/{len(wv_rows)} onsets off root/fifth; first few {wv_bad[:5]}")
+    wv_seq = [r['deg']['wv'] for r in wv_rows]
+    check("T22.7 the bass ALTERNATES root and fifth rather than sitting on one of them (FR-1540)",
+          len(set(wv_seq)) > 1, f"first 16 bass degrees: {wv_seq[:16]}")
+
+    pa_strong = [r for r in ok if r['onset']['pa'] and r['toggle'] & 0x02]
+    pa_bad = [(r['deg']['pa'], r['chord']) for r in pa_strong
+              if r['deg']['pa'] not in _chord_tones(r['scale'], r['chord'])]
+    check("T22.8 on a STRONG pulse-A onset the melody sounds a tone of the current chord "
+          "(FR-1550) — the mechanism that converts 'in key' into 'in harmony'",
+          pa_strong and not pa_bad,
+          f"{len(pa_bad)}/{len(pa_strong)} strong onsets off-chord; first few {pa_bad[:5]}")
+
+    pb_rows = [r for r in ok if r['onset']['pb']]
+    pb_bad = [(r['deg']['pb'], r['chord']) for r in pb_rows
+              if r['deg']['pb'] not in _chord_tones(r['scale'], r['chord'])]
+    check("T22.9 on every pulse-B onset the harmony voice sounds a tone of the current chord "
+          "(FR-1560, operative half — see FS-114 OQ2 on why the literal 'distinct from pulse A's "
+          "tone' clause is not implementable without a cross-channel read FR-1500 forbids)",
+          pb_rows and not pb_bad,
+          f"{len(pb_bad)}/{len(pb_rows)} onsets off-chord; first few {pb_bad[:5]}")
+
+    # --- T22.10: weak onsets are the passing-tone walk, deliberately NOT chord tones -------
+    weak_steps = []
+    prev_pa = None
+    for r in ok:
+        if r['onset']['pa']:
+            if prev_pa is not None and not (r['toggle'] & 0x02):
+                d = (r['deg']['pa'] - prev_pa) % 8
+                weak_steps.append(min(d, 8 - d))
+            prev_pa = r['deg']['pa']
+    check("T22.10 on a WEAK pulse-A onset the melody moves by at most one scale degree — the "
+          "shipped DELTA_TABLE walk, retained verbatim as the passing/neighbour tone (FR-1550). "
+          "These onsets sound non-chord tones ON PURPOSE, which is exactly why NFR-1270 forbids "
+          "an aggregate interval histogram as the acceptance instrument",
+          weak_steps and all(d <= 1 for d in weak_steps),
+          f"{sum(1 for d in weak_steps if d > 1)}/{len(weak_steps)} weak steps exceeded 1")
+    pb.stop(save=False)
+
+    # --- T22.11: the context follows SCALE_IDX -------------------------------------------
+    # The chord table is per-scale and a transcription error in one of four scale blocks would be
+    # completely invisible at the default. Press A to reach a non-default scale and re-assert.
+    pb2 = fresh_boot()
+    tap(pb2, "a")
+    rows2 = _sample_onsets(pb2, 1200)
+    scale2 = rows2[-1]['scale']
+    ok2 = [r for r in rows2 if not (r['bad'] & 0x02) and r['onset']['wv']]
+    bad2 = [(r['deg']['wv'], r['chord'], r['scale']) for r in ok2
+            if r['deg']['wv'] not in (_chord_tones(r['scale'], r['chord'])[0],
+                                      _chord_tones(r['scale'], r['chord'])[2])]
+    check("T22.11.setup A reached a non-default scale", scale2 != PRESET_SCALE_IDX,
+          f"SCALE_IDX={scale2}")
+    check("T22.11 the chord context follows SCALE_IDX — chords are stored as scale DEGREES, so a "
+          "scale change re-voices the harmony rather than breaking it (FR-1510)",
+          ok2 and not bad2, f"{len(bad2)}/{len(ok2)} wave onsets off root/fifth at scale {scale2}")
+    pb2.stop(save=False)
+
+    # --- T22.12: boot/reset initialization ------------------------------------------------
+    pb3 = fresh_boot()
+    for button in ("up", "a", "start", "b"):
+        tap(pb3, button)
+    for _ in range(300):
+        pb3.tick()
+    drifted = pb3.memory[CHORD_IDX]
+    pb3.button_press("select")
+    pb3.tick()
+    pb3.button_release("select")
+    check("T22.12 Select re-initializes the shared chord context deterministically — CHORD_IDX "
+          "back to the tonic and the onset counter reloaded. Explicitly checked because "
+          "VR-1130's F1 defect was exactly this shape: an uninitialized counter (BLEND_STEP) "
+          "letting a stale mechanism corrupt a freshly-reset engine on the following frames",
+          pb3.memory[CHORD_IDX] == 0
+          and pb3.memory[CHORD_ONSET_CTR] in (N_CHORD_ONSETS, N_CHORD_ONSETS - 1),
+          f"pre-Select CHORD_IDX={drifted}; post-Select CHORD_IDX={pb3.memory[CHORD_IDX]} "
+          f"CHORD_ONSET_CTR={pb3.memory[CHORD_ONSET_CTR]}")
+    pb3.stop(save=False)
+
+    # --- T22.13: VBlank budget on a chord-transition frame (NFR-1260) ---------------------
+    # A new frame class for T19's existing five. IP-9040 was abandoned (BL-0113) for adding a
+    # handful of unconditional per-frame instructions to this exact path, so a regression here is
+    # blocking rather than absorbable.
+    pb4 = fresh_boot()
+    lys, prev_c = [], pb4.memory[CHORD_IDX]
+    for _ in range(2400):
+        pb4.tick()
+        c = pb4.memory[CHORD_IDX]
+        if c != prev_c:
+            lys.append(pb4.memory[VIS_ENTRY_LY])
+        prev_c = c
+    check("T22.13.setup chord-transition frames observed for the VBlank measurement",
+          len(lys) >= 3, f"{len(lys)} transitions")
+    check("T22.13 VIS_ENTRY_LY stays within VBlank (144-153) on a CHORD-TRANSITION frame — the "
+          "most expensive frame class this feature creates (NFR-1260, a sixth class alongside "
+          "T19's existing five)",
+          lys and all(144 <= v <= 153 for v in lys),
+          f"n={len(lys)} min={min(lys) if lys else None} max={max(lys) if lys else None} "
+          f"distinct={sorted(set(lys))}")
+    pb4.stop(save=False)
+
 def main():
     t1_header()
     t2_boot()
@@ -1540,6 +1758,7 @@ def main():
     t19_vblank_budget_assertion()
     t20_emotional_energy_layer()
     t21_genre_blending()
+    t22_harmonic_coordination()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

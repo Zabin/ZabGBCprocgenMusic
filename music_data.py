@@ -179,3 +179,88 @@ N_VARIANTS = 4
 # recurrence dominates, switches are occasional" constraint. First-guess placeholder weighting
 # (3-in-4 retain), not tuned by ear (BL-0042, same BL-0005-style disposition).
 MOTIF_VARIANT_SELECTOR = [0x00, 0x00, 0x00, 0x01]
+
+# ── IP-1140 (FS-114/FEAT-1150, BL-0119, ADS-108 as amended by its §11/D13) ────────────────
+# Harmonic coordination: the four pure-data tables the shared chord context reads. Everything
+# here is scale *degrees* (0-7) or chord indices (0-3) — never pitches, never semitones — so a
+# SCALE_IDX or OCTAVE_IDX change flows through unchanged, exactly as CUR_DEGREE_* already does.
+#
+# CHORD_TABLE — 4 scales x 4 chords x 3 tones = 48 bytes, flattened; the byte for
+# (scale, chord, slot) lives at scale*12 + chord*3 + slot. Hand-authored, NOT derived at runtime
+# by stacking thirds, and this is a correctness requirement rather than a performance one
+# (FR-1510, ADS-108 D3): SCALE_SEMITONES rows are 8 entries whose 8th duplicates the 1st, and
+# _emit_channel_gen masks every degree AND 0x07, so third-stacking across the octave seam lands a
+# scale step wrong — the V chord's fifth computes as degree 4+4=8, which masks to 0 (C) where the
+# correct pitch is D. Authoring the table takes that octave decision at build time for free, and
+# is also LSDJ's own representation (R225 SS3g).
+#
+# major/minor/dorian all place their seven unique degrees in slots 0-6 with slot 7 duplicating
+# slot 0, so the same four degree-triples serve all three — the *quality* of each chord (major vs
+# minor third) falls out of the scale's own semitones automatically, which is exactly why the bass
+# rule can be root/fifth with no per-chord quality table (R225 SS3d).
+_DIATONIC_CHORDS = [
+    [0, 2, 4],   # 0 = I    (tonic)
+    [3, 5, 0],   # 1 = IV   (subdominant) — F A C; the third tone is degree 7 written as 0
+    [4, 6, 1],   # 2 = V    (dominant)    — G B D; the fifth is degree 8 written as 1
+    [5, 0, 2],   # 3 = vi   (submediant)  — A C E
+]
+
+# Pentatonic gets its own rows rather than being excluded (ADS-108 SS2.2/OQ3): its row is a 5-note
+# scale packed into 8 slots (C D E G A C' D' E'), so stacked thirds yield no triads there at all.
+# Excluding pentatonic from chord targeting was considered and rejected — one of four
+# user-selectable scales silently losing the feature is a worse listener experience than an
+# imperfect chord set. These four are idiomatic pentatonic sonorities, chosen so the four rows are
+# genuinely distinct while keeping the I/vi contrast the diatonic rows have; pentatonic contains no
+# semitone between any two of its first five degrees, so no row here can produce a m2 clash by
+# construction. First-guess values, not tuned by ear (BL-0005 class), same as every other untuned
+# table in this file. There is no true V chord available (pentatonic has no leading tone), so
+# slot 2 carries a quartal G-A-D sonority in its place rather than a fake dominant.
+_PENTATONIC_CHORDS = [
+    [0, 2, 3],   # 0 = "I"  — C E G  (a real major triad)
+    [4, 0, 2],   # 1 = "IV" — A C E  (a real minor triad)
+    [3, 4, 1],   # 2 = "V"  — G A D  (quartal/sus; no leading tone exists in pentatonic)
+    [1, 3, 4],   # 3 = "vi" — D G A  (sus4 stack)
+]
+
+CHORD_TABLE = [
+    degree
+    for scale_name in SCALES
+    for chord in (_PENTATONIC_CHORDS if scale_name == 'pentatonic' else _DIATONIC_CHORDS)
+    for degree in chord
+]
+assert len(CHORD_TABLE) == 48 and all(0 <= d <= 7 for d in CHORD_TABLE)
+
+N_CHORDS = 4
+
+# CHORD_TRANSITION — 4 rows x 4 entries = 16 bytes, row `chord` at chord*4, indexed by 2 bits of
+# the driving channel's own LFSR. Shaped exactly like DELTA_TABLE and MOTIF_VARIANT_SELECTOR: the
+# *distribution of entries* encodes the bias, never arithmetic (R211 SS8's "extend the table, not
+# the mechanism"). Sparse, asymmetric and tonic-biased per R225 SS3b — note that V never moves to
+# IV (the retrogression corpora report as rare), V returns to I three times in four with the
+# fourth being a deceptive move to vi, and IV only ever goes to V or I. First-guess weights; the
+# *shape* is the architectural commitment, the exact numbers are BL-0005 class.
+CHORD_TRANSITION = [
+    0, 1, 2, 3,   # from I  → stays 1/4, then IV, V, vi (tonic dwell comes from everything
+                  #            else returning here, not from stacking I into its own row)
+    2, 0, 2, 0,   # from IV → V half the time, I half the time; never vi
+    0, 0, 0, 3,   # from V  → I three times in four; vi once (deceptive cadence)
+    1, 2, 1, 0,   # from vi → IV half, V a quarter, I a quarter
+]
+assert len(CHORD_TRANSITION) == 16 and all(0 <= c < N_CHORDS for c in CHORD_TRANSITION)
+
+# Which of the current chord's three tones a voice takes, indexed by 2 LFSR bits. Two differently
+# weighted tables rather than one, so pulse A and pulse B differ *statistically* without either
+# reading the other's state — FR-1500 forbids the cross-channel read that literal
+# "pick a different tone from pulse A's" would need (FS-114 OQ2), and R225 SS5f found that the
+# separation which actually matters is the octave, not the degree. Melody leans on the third
+# (the tone that carries the chord's colour); harmony leans on the fifth and root (the tones that
+# reinforce it without doubling the melody's colour tone).
+MELODY_PICK = [0, 1, 2, 1]    # root, third, fifth, third
+HARMONY_PICK = [2, 0, 2, 1]   # fifth, root, fifth, third
+
+# Onsets of the driving channel (pulse A) per chord. Must be a power of two — the countdown wraps
+# with a plain AND, and this project's SM83 subset has no division (ADS-108 SS7 constraint 5).
+# 4 onsets at pulse A's boot-default 30-frame interval is ~2s, i.e. one chord per bar, R225 SS3c's
+# popular-music baseline. Counted in ONSETS, not frames, so the harmonic rhythm tracks TEMPO_IDX
+# and SONG_TABLE automatically instead of drifting out of phase with them (FR-1530).
+N_CHORD_ONSETS = 4

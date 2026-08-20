@@ -58,6 +58,18 @@
 | FR-1470 | On a Start press that changes `CHMIX_IDX`, the engine begins a blend: it captures the current `TEMPO_IDX`/`DENSITY_IDX`/duty-cycle-bias values as the blend's starting point, and applies the newly selected style's `SCALE_IDX` value immediately (unchanged from `FR-1240`'s original guarantee for that one field). | ADS-107 §5 (FR-candidate 1) |
 | FR-1480 | Following a blend's start, `TEMPO_IDX`/`DENSITY_IDX`/the duty-cycle-bias state step through exactly 4 discrete levels from their captured starting values to the newly selected style's target values, landing exactly on the target at the final step — never overshooting the target, never stalling short of it. | ADS-107 §5 (FR-candidate 2) |
 | FR-1490 | A second Start press occurring while a blend is still in progress begins a new blend using the engine's current (possibly still-blending) `TEMPO_IDX`/`DENSITY_IDX`/duty-cycle-bias values as the new starting point — it does not wait for the prior blend to finish, and does not discard or queue the new selection. | ADS-107 §5 (FR-candidate 3) |
+| FR-1500 | The engine maintains a single current-chord index (`CHORD_IDX`) in WRAM that every pitched channel (pulse A, pulse B, wave) reads at its own note-onset event; no pitched channel reads any other channel's own generation state. | ADS-108 §2.1/§3/D1/D2; R225 §3a/§5a |
+| FR-1510 | Chord membership is a ROM-resident table of scale degrees, one row per (scale, chord) combination, every entry already within the shipped 0-7 scale-degree range — no runtime arithmetic derives a chord tone from a root degree. | ADS-108 §2.2/D3; R225 §3g/§5b |
+| FR-1520 | The current chord advances to a new chord selected via a weighted transition table indexed by 2 bits of the driving channel's own LFSR, over a vocabulary of exactly 4 chords (tonic, subdominant, dominant, submediant) whose transition weights bias toward returning to the tonic chord. | ADS-108 §2.3/D4; R225 §3a/§3b/§5c |
+| FR-1530 | The current chord advances once every 4 note-onset events of whichever pitched channel drives the harmonic clock, counted in onsets rather than in frames, so the harmonic rhythm tracks the currently-selected tempo automatically without a separate tempo-dependent recalculation. | ADS-108 §2.4/D5/D6; R225 §3c/§5c |
+| FR-1540 | A pitched channel running the harmonic-coordination scheme ("Scheme H") assigned the bass role sounds, on each note-onset event, the current chord's root degree or its fifth degree, alternating between the two on successive onsets, instead of an LFSR-selected scale-degree walk. | ADS-108 §2.6/D9 (Wave row); R225 §3d/§5d |
+| FR-1550 | A pitched channel running Scheme H assigned the melody role sounds, on a strong note-onset event, one of the current chord's tones (selected by 2 bits of that channel's own LFSR); on a weak note-onset event, it instead steps by exactly one scale degree from its current degree, in the LFSR-selected direction. | ADS-108 §2.6/D9 (Pulse A row); R225 §3e/§5d |
+| FR-1560 | A pitched channel running Scheme H assigned the harmony role sounds, on each note-onset event, a chord tone distinct from the melody role's currently-sounding chord tone, placed exactly one octave away from it rather than at a closer scale-degree separation. | ADS-108 §2.6/D9 (Pulse B row); R225 §3g/§5d/§5f |
+| FR-1570 | Per-pitched-channel generation-scheme selection (Scheme W, Scheme E, or Scheme H) is determined by a 2-bit field per channel in a parallel `SCHEME_TABLE`, keyed by the currently-active `CHMIX_IDX` preset, replacing the single scheme-select bit previously carried in spare bits of `CHMIX_MASKS` (`FR-1180`); for every one of the 8 existing `CHMIX_IDX` presets, the migrated table reproduces exactly the same per-channel Scheme W/Scheme E assignment the prior `CHMIX_MASKS` bits 4-6 encoding produced, including preset 6's wave-channel Scheme-E assignment. | ADS-108 §2.5/§3/D7; ADR-0003; ADR-0001 (superseded mechanism) |
+| FR-1580 | `CHMIX_IDX` preset 0 (the boot/Select-reset preset) assigns Scheme W to every pitched channel in `SCHEME_TABLE` — selecting preset 0 introduces no change to current boot/reset audible behavior. | ADS-108 §1/§2.7/D11; GDS-04 index-0 invariant |
+| FR-1590 | On a note-onset event where bad-zone dissonance recovery (`FR-1080`) would otherwise override a pitched channel's next scale-degree step, a Scheme-H channel's strong-onset chord-tone target (`FR-1550`) is not overridden; stuck-note recovery (`FR-1090`) and overload recovery (`FR-1100`) apply to a Scheme-H channel exactly as they do to any other channel, unaffected by this exception. | ADS-108 §2.6/§8 (D8); R225 §5e; R204 |
+
+**Deliberately out of scope for this delta** (`ADS-108` §2.7, recorded as Candidate Requirements below, not silently omitted): phrase structure/rests/cadence (`CR-0003`), harmonizing Scheme E's motif against the shared chord (`CR-0004`), flipping `CHMIX_IDX` preset 0's default scheme assignment to Scheme H (`CR-0005`), and re-rooting the `IP-1060` arpeggio on the shared chord under Scheme H (`CR-0006`).
 
 ## Non-Functional Requirements
 
@@ -87,6 +99,10 @@
 | NFR-1210 | The blend mechanism's per-frame CPU cost is negligible once a blend is complete (one comparison and a return, no measurable addition to `engine_tick`'s existing per-frame cost); real interpolation arithmetic runs only during an active blend's brief window (at most 4 frames per Start press), a rare event relative to the per-frame budget `IP-9030` measured — costed and confirmed against that measured margin at implementation time, not assumed from this NFR alone. | ADS-107 §6 (NFR-candidate 1), GDS-06 §2.2a |
 | NFR-1220 | The 7 new blend-state WRAM bytes (`BLEND_SRC_TEMPO`/`BLEND_SRC_DENSITY`/`BLEND_SRC_DUTY`/`BLEND_STEP`/`BLEND_DELTA_TEMPO`/`BLEND_DELTA_DENSITY`/`BLEND_DELTA_DUTY`) add bounded WRAM — within the current 32KB single-bank budget's ample headroom (`GDS-07` §6), with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5). | ADS-107 §6 (NFR-candidate 2), GDS-07 §6, MSTR-001 §4 |
 | NFR-1230 | The blend's 4-discrete-step interpolation is independently, headlessly verifiable via WRAM-value assertion (the exact expected index at each of the 4 steps, computed by the same shift-based formula the implementation uses) — whether the resulting audible transition is musically coherent is explicitly a `09-content-review` judgment, never claimed by an automated check. | ADS-107 §6 (NFR-candidate 3) |
+| NFR-1240 | Harmonic-coordination mechanisms (`FR-1500`-`FR-1590`) add no unconditional per-frame CPU cost — every instruction they add executes only inside a note-onset branch already taken by the existing generation routines, never from an unconditional call in `engine_tick`'s own main body. | ADS-108 §2.4/§7/D6; GDS-06 §2.2a; R101 §8.5; R225 §3h/§5c; NFR-1170 (same-class precedent) |
+| NFR-1250 | The harmonic-coordination tables (chord table, chord transition table, `SCHEME_TABLE`) add bounded ROM — no more than approximately 100 bytes combined against the measured free-ROM headroom (`R104` §7) — with no bank-switching change (MSTR-001 §4 non-goal, strategic assumptions register A5). | ADS-108 §6 (NFR-candidate 2); R104 §7; MSTR-001 §4 |
+| NFR-1260 | `VIS_ENTRY_LY` (`IP-9030`'s per-frame VBlank budget diagnostic, `T19`) stays within its established `144`-`153` range on every frame class `T19` already covers, plus a chord-transition frame added as a new frame class to that same check. | ADS-108 §6 (NFR-candidate 3); IP-9030; GDS-06 §2.2a |
+| NFR-1270 | Harmonic-coordination quality (`FR-1540`-`FR-1560`) is verified against vertical-interval statistics partitioned by onset metric strength (strong-beat sonorities measured separately from weak-beat sonorities) — an aggregate interval histogram across all onsets, undifferentiated by metric strength, is not an acceptable acceptance instrument for this capability, because a chord-tone/passing-tone melody deliberately sounds non-chord tones on weak beats. | ADS-108 §6 (NFR-candidate 4)/D12; R225 §5f; R224 §7b; BL-0122 |
 
 ## Open items carried to feature decomposition
 
@@ -125,6 +141,13 @@
   value addition. `ADS-104`'s explicitly out-of-v1-scope follow-on (scheme/style/motif-variant/
   song-form-phase indicators reusing the same bar-tile mechanism) is not baselined here — it is a
   named future extension, not a requirement of this delta.
+- FR-1500-FR-1590's exact parameters (the concrete `CHORD_TABLE` degree contents per scale
+  including pentatonic's idiomatic sonorities, the `CHORD_TRANSITION` weight values, N=4 onsets
+  per chord, and which `CHMIX_IDX` presets 1-7 assign Scheme H to which channels) are likewise
+  data/preset decisions deferred to feature decomposition/spec/implementation — `ADS-108` §2.2/
+  §2.3/§9 OQ3/OQ4 names these as first-guess placeholders (`BL-0005` class) or content-authoring
+  judgment calls, not yet baselined as requirement text, same convention as every prior
+  preset/table-value deferral.
 
 ## Candidate Requirements
 
@@ -134,6 +157,10 @@ Untraceable-to-a-source or explicitly-unbuilt statements, **excluded from the nu
 |---|---|---|
 | CR-0001 | The visualizer contains at least one element whose *motion or animation timing follows the generated beat* (tempo-synced motion), distinct from displaying the tempo setting as a static value. | **Never built, never scheduled.** Split out of `FR-1120` on 2026-07-26 (`BL-0016`) per [GDS-08 §7](../architecture/08-presentation-architecture.md)'s three-part resolution. `IP-0006`'s own package doc named "tempo-synced motion" as its explicit non-scope; nothing since has built it. Kept as a candidate rather than deleted because it is a real and reasonable future capability (`R223` treats pitch/rhythm-driven visual mapping as well-grounded) — it simply has never been required of the shipped system, and `FR-1120` should not have implied it was. |
 | CR-0002 | `AROUSAL`'s derivation additionally incorporates `CHMIX_IDX`-derived active-channel count as a third input (alongside `TEMPO_IDX`/`DENSITY_IDX`), per `R221`'s observation that active-channel count is itself a direct arousal-axis lever in the literature. | **Deliberately excluded from v1's baseline** (`BL-0080`, per `ADS-105` §9 OQ3). `FR-1390` is fully satisfiable, and citation-clean, from `TEMPO_IDX`/`DENSITY_IDX` alone — the same minimal-baseline discipline `ADS-105` already applied to excluding `DISSONANCE_SCORE` from `VALENCE`. Adding a third input widens the surface a v1 acceptance test must cover for a marginal, not-yet-requested richness gain. Kept as a candidate rather than dropped because `ADS-105` §2 confirms the architectural cost of adding it later is low — the trigger-site plumbing for a `CHMIX_IDX` change is already shared with `AROUSAL`/`VALENCE`'s other recompute triggers, so promoting this candidate later would not require new call sites, only a wider formula. |
+| CR-0003 | Phrase structure, rests, and cadence over the shared chord context: a phrase-position counter (`PHRASE_POS`) forces `CHORD_IDX` to the dominant chord at a half-cadence boundary and to the tonic chord at a perfect-authentic-cadence boundary, and a note-onset event may skip its trigger write entirely (a rest) at a phrase-final position. | **Never built, explicitly reserved as increment 2's shape, not this increment's.** `ADS-108` §2.7/D10 names the mechanism precisely (a `PHRASE_POS` byte at `0xC07A`, two forced-`CHORD_IDX`-value cadence constraints) specifically so a future pass does not re-litigate the design, but defers it because it multiplies the verification surface and the three per-voice rules (`FR-1540`-`FR-1560`) are independently audible without it. Kept as a candidate rather than dropped for the same reversibility reasoning `CR-0001`/`CR-0002` already established. |
+| CR-0004 | A Scheme-E channel's motif-derived scale degree (`FR-1210`) is transposed by the current chord's root degree, so a Scheme-E channel sounds harmonically coordinated with any concurrently-sounding Scheme-H channel rather than ignoring the shared chord context entirely. | **Never built, explicitly deferred to increment 2** (`ADS-108` §8 R3, §9 OQ6). Increment 1 leaves Scheme E harmonically uncoordinated by design — `ADS-108` names the eventual mechanism ("a single `ADD` at the motif lookup, not a redesign") but does not commit to building it this increment, and whether it is ever built depends on a `03-architecture-design-synthesis` scoping decision not yet made. Increment 1's own preset set is expected to pair Scheme-H channels together to sidestep the gap rather than build this candidate. |
+| CR-0005 | `CHMIX_IDX` preset 0 (the boot/Select-reset preset) assigns Scheme H, not Scheme W, to at least one pitched channel — i.e. the ROM's default boot sound becomes harmonically coordinated rather than the three-independent-walks behavior shipped today. | **Deliberately excluded from this increment, and from the baseline, by `ADS-108` §1/§2.7/D11.** `FR-1580` requires the opposite (`preset 0` stays all-Scheme-W) precisely so this increment does not regress `GDS-04`'s index-0 invariant or the body of shipped tests that assume it. `ADS-108` §9 OQ2 names this candidate's own gate explicitly: it needs evidence from `09-content-review` that the harmonized presets actually sound better, plus the user's own call amending the index-0 invariant — not a schedule. This is the step that would actually answer `BL-0119`'s original user complaint; `ADS-108` states twice that increment 1 (this delta) does not. |
+| CR-0006 | Under Scheme H, the `IP-1060` arpeggio (`ARPEGGIO_OFFSETS`) is re-rooted so its stacked-thirds pattern starts from the shared chord's root rather than from whichever chord tone the channel's `CUR_DEGREE` currently holds. | **Analyzed and deliberately not built this increment** (`ADS-108` §8 R4). `ADS-108` finds the un-re-rooted behavior benign for increment 1 (stacked diatonic thirds from any triad tone land on tones of the same or a closely related triad) and explicitly declines to fund a table read on the arpeggio sub-tick — a per-frame-adjacent cost `NFR-1240` will not fund without measurement. `09-content-review` is named as the mechanism that would surface whether this candidate is actually needed. |
 
 ## Changelog
 
@@ -149,6 +176,7 @@ Untraceable-to-a-source or explicitly-unbuilt statements, **excluded from the nu
 | 2026-07-31 | Added FR-1390 (`AROUSAL` is a monotonic function of `TEMPO_IDX`/`DENSITY_IDX`), FR-1400 (`VALENCE` is a fixed one-to-one mapping keyed by `SCALE_IDX`), FR-1410 (both recomputed within one frame of any input write), FR-1420 (both correct on the first frame after boot and on a Select-reset's own frame), NFR-1170 (zero unconditional per-frame CPU cost — the load-bearing NFR, a direct response to `IP-9030`'s VBlank-budget measurement), NFR-1180 (bounded WRAM budget, bounded per-trigger-site cost). Delta update formalizing `ADS-105` §5/§6's candidate FRs/NFRs for roadmap R7 (Emotional/Energy Layer). Resolved `BL-0081` (exact derivation formulas) by keeping the baseline at the behavioral level — monotonicity and a fixed mapping, not literal lookup-table values, per this skill's own "no byte-level detail in requirements" rule; exact table contents are `07-implementation-planning`'s to propose. Resolved `BL-0080` (whether `AROUSAL` includes `CHMIX_IDX`-derived active-channel count) by explicitly scoping it out as new **`CR-0002`**, not baselined. No existing FR/NFR changed. | Roadmap R7, grounded in `ADS-105`. |
 | 2026-07-31 | Added FR-1430 (style-theme palette selected by a `CHMIX_IDX`-keyed lookup, applied every frame `BAD_ZONE_FLAGS` is clear), FR-1440 (preset-0 theme matches the shipped calm palette exactly, no regression), FR-1450 (bad-zone palette unconditionally overrides the style theme), FR-1460 (at least 3 distinguishable non-default themes), NFR-1190 (zero unconditional per-frame CPU cost beyond one indexed read replacing one constant), NFR-1200 (bounded ROM budget, cited to `R104` §7's actual measured headroom). Delta update formalizing `ADS-106` §5/§6's candidate FRs/NFRs for roadmap R9 (Visual Evolution & Audio-Visual Synchronization), **scoped to `RM-9001` (style-reactive palette) only** — `RM-9002` (mood-reactive, `IP-1120`'s `AROUSAL`/`VALENCE` as first consumer) and `RM-9003` (accessibility) are explicitly out of scope for this pass, per `ADS-106`'s own deferral decisions, and carry no FR/NFR here. No existing FR/NFR changed. | Roadmap R9, grounded in `ADS-106`. |
 | 2026-08-07 | Added FR-1470 (blend begins on Start press: capture start values, `SCALE_IDX` applies immediately), FR-1480 (4-discrete-step interpolation landing exactly on target), FR-1490 (a second Start press mid-blend restarts from current values, never queues), NFR-1210 (negligible steady-state per-frame cost), NFR-1220 (bounded WRAM budget, 4 new bytes), NFR-1230 (WRAM-assertion-testable; audible-quality judgment explicitly deferred to `09-content-review`). Delta update formalizing `ADS-107` §5/§6's candidate FRs/NFRs for roadmap R8 (Genre Blending). **`FR-1240` amended in place** (not left standing beside a contradicting new FR): its `TEMPO_IDX`/`DENSITY_IDX`/duty-cycle-bias instant-apply guarantee is superseded by `FR-1470`-`FR-1490`'s blend mechanism — only the `SCALE_IDX` half of the original guarantee survives unchanged. Checked for other requirements citing `FR-1240`'s original guarantee (see this pass's own Delta Review); none found beyond descriptive prose in prior passes' own historical Delta Reviews, which are left as accurate records of their own time rather than retroactively edited. | Roadmap R8/`BL-0020`, grounded in `ADS-107`. |
+| 2026-08-20 | Added FR-1500 (shared `CHORD_IDX` context), FR-1510 (chord table, no runtime arithmetic), FR-1520 (weighted 4-chord tonic-biased transition), FR-1530 (onset-counted harmonic rhythm, N=4), FR-1540 (Scheme-H wave = root/fifth), FR-1550 (Scheme-H pulse A = chord tone strong / step weak), FR-1560 (Scheme-H pulse B = chord tone an octave apart), FR-1570 (`CHMIX_MASKS`→`SCHEME_TABLE` migration, exact non-regression), FR-1580 (preset 0 stays all-Scheme-W), FR-1590 (bad-zone recovery does not override a Scheme-H strong-onset chord tone), NFR-1240 (zero unconditional per-frame cost), NFR-1250 (bounded ROM budget, ~100 bytes), NFR-1260 (`VIS_ENTRY_LY`/`T19` covers a chord-transition frame class), NFR-1270 (acceptance verified on strong-beat-partitioned intervals, not the aggregate histogram). Added CR-0003 (phrase/rest/cadence), CR-0004 (Scheme-E harmonization), CR-0005 (default-preset flip to Scheme H), CR-0006 (re-rooting the `IP-1060` arpeggio) — all explicitly named as increment-2/deferred scope, not silently omitted. Delta update formalizing `ADS-108` §5/§6's candidate FRs/NFRs (D1-D12) for `BL-0119`'s harmonic-coordination mechanism, harvested per `00-intake`'s own filing this session (`BL-0121`/`BL-0122`/`BL-0123`). No existing FR/NFR changed. | `BL-0119`, grounded in `ADS-108`/`R225`/`ADR-0003`. |
 
 ## Delta Review — 2026-07-25 (`FR-1180`-`FR-1220`, `NFR-1060`/`1070`)
 
@@ -500,3 +528,92 @@ R9-equivalent catalog row.
 
 No Critical/High finding. This delta is ready for `05-feature-decomposition` to add an
 R8-equivalent catalog row (`FEAT-1130`, per the release plan's own forward placeholder).
+
+## Delta Review — 2026-08-20 (`FR-1500`-`FR-1590`, `NFR-1240`-`1270`, `CR-0003`-`CR-0006`)
+
+New-feature formalization for `BL-0119`'s harmonic-coordination mechanism, same shape as every
+prior per-release delta. Reviewed the ten new FRs, four new NFRs, and four new Candidate
+Requirements against the full existing baseline before closing.
+
+- **Every new ID traces to `ADS-108`'s own §5/§6 candidates**, which this pass adopted directly
+  (same ID numbers `ADS-108` itself proposed — checked for collision against the live baseline
+  first: `FR-1500`-`FR-1590` and `NFR-1240`-`1270` were unused anywhere in `docs/requirements/`,
+  `docs/features/`, or `docs/implementation/` before this pass). No restructuring for atomicity was
+  needed beyond what `ADS-108` §2.6 already did itself — its per-voice table (wave/pulse A/pulse B)
+  is already split one requirement per voice (`FR-1540`/`FR-1550`/`FR-1560`), matching this
+  baseline's own "split ands" convention without further work.
+- **No duplicate or conflicting requirement.** `FR-1500`-`FR-1590` introduce a genuinely new
+  concept (a shared harmonic context all three pitched channels read) orthogonal to every existing
+  FR — checked the two places a conflict could plausibly exist:
+  - **Against `FR-1180`/`FR-1210` (scheme selection, Scheme E's motif mechanism).** `FR-1570`
+    explicitly supersedes `FR-1180`'s `CHMIX_MASKS`-bits-4-6 carrier with `SCHEME_TABLE`, but does
+    not alter what a scheme *does* — `FR-1180` is reworded only in its own future edit if
+    `07-implementation-planning` chooses to touch it; this delta leaves `FR-1180`'s text standing
+    (it still correctly describes that scheme assignment gates note-selection strategy) and adds
+    `FR-1570` as the carrier-mechanism replacement, the same "extend, don't silently orphan"
+    pattern `FR-1270`-`FR-1300` used for `FR-1210` previously. `FR-1210` (Scheme E's fixed-motif
+    pitch selection) is untouched and unaffected — Scheme H is a third, independent scheme, not a
+    modification of Scheme E, and `CR-0004` records that Scheme E stays harmonically uncoordinated
+    this increment rather than silently implying otherwise.
+  - **Against `FR-1080`/`FR-1090`/`FR-1100`/`FR-1220` (bad-zone detection/recovery, and its
+    scheme-agnosticism).** `FR-1220` states bad-zone detection/recovery "appl[ies] identically to a
+    pitched channel regardless of which generation scheme... it is currently running." `FR-1590`
+    narrows this for Scheme H specifically (a strong-onset chord-tone target is not overridden by
+    dissonance recovery) — this is a genuine, disclosed exception to `FR-1220`'s "no scheme-specific
+    bad-zone logic exists" claim, not an oversight left unreconciled. Checked directly: `FR-1590`'s
+    own text names the exception precisely (dissonance recovery only; stuck/overload recovery are
+    explicitly carved back out as unaffected, matching `ADS-108` §8 D8's own "stuck/overload are
+    orthogonal to harmony and need no change" position) and cites `FR-1080`/`FR-1220`
+    both. Recommend `07-implementation-planning`/a future `04` pass narrow `FR-1220`'s own wording
+    ("no scheme-specific bad-zone logic exists" → "...except the disclosed exception `FR-1590`
+    names") the next time either FR is opened, so a future reader isn't left to reconcile the two
+    unaided — filed as a Low finding below rather than blocking this delta, since `FR-1590`'s own
+    text already names the exception precisely and no reader relying on `FR-1590` alone is misled.
+- **No architecture violation.** Every new FR/NFR traces directly to `ADS-108`; `FR-1570` also
+  cites `ADR-0003` (the binding decision record for the `SCHEME_TABLE` migration) and names
+  `ADR-0001` as the superseded mechanism, not silently dropped.
+- **No missing requirement, and deferred scope is named, not omitted.** `ADS-108` §5/§6's ten
+  FR-candidates and four NFR-candidates all became baseline requirements — none silently dropped.
+  `ADS-108` §2.7's four explicitly-out-of-scope items (phrase/rest/cadence `D10`; Scheme-E
+  harmonization; the default-preset flip `D11`'s second half; re-rooting the `IP-1060` arpeggio)
+  are **not silently omitted** — each is recorded as its own Candidate Requirement (`CR-0003`-
+  `CR-0006`) naming exactly why it is not baselined and what would need to change for it to be,
+  the same discipline `CR-0001`/`CR-0002` already established. `ADS-108` §9's six Open Questions are
+  correctly *not* baselined as requirements — OQ1 (`DISSONANCE_THRESHOLD` retuning),
+  OQ3 (pentatonic's chord rows), and OQ4 (N=4 tuning) are `BL-0005`-class data/tuning decisions
+  (recorded in this pass's "Open items" bullet below); OQ2 (the default-preset flip's timing) is
+  `CR-0005`'s own gate, already named there; OQ5 (chord-clock driving-channel assumption) and OQ6
+  (whether increment 2 harmonizes Scheme E) are future-scoping questions with no present
+  requirement to state, consistent with how prior deltas have handled forward-looking OQs.
+- **The index-0/no-regression discipline is checked explicitly, per this project's own established
+  pattern** (`STYLE_TABLE`/`SONG_TABLE`/`MOTIF_TABLE`/palette-table index-0 rows all carry the
+  identical guarantee — `FR-1260`/`FR-1320` boot-phase/`FR-1440`). `FR-1580` follows the same
+  discipline for `SCHEME_TABLE`'s preset-0 row, and `FR-1570`'s migration clause additionally
+  requires the *other* 7 presets' pre-existing `CHMIX_MASKS` bits-4-6 assignments to survive
+  byte-for-byte — a stronger, package-level non-regression obligation than a single index-0 row,
+  matching `ADS-108` §8 R1's own framing of the migration's risk. This obligation is also filed
+  separately as a sequencing/planning concern, not just a requirements one — see `BL-0123`.
+- **Traceability:** every new ID's Traces-to column cites `ADS-108`'s specific section/decision
+  letter and, where the underlying grounding is research rather than architecture synthesis, the
+  specific `R225` section as well (e.g. `FR-1560` cites both `ADS-108` §2.6/D9 and `R225` §3g/§5d/
+  §5f for the octave-separation instruction specifically) — per this project's own GDS-10 §2
+  backward-traceability discipline. No candidate needed beyond `CR-0003`-`CR-0006` — every
+  baselined statement was traceable to `ADS-108`/`R225` directly, not invented here.
+- **Forward traceability (Module/FS/IP/Test):** all `UNASSIGNED` — no `FEAT-xxx`, `FS-xxx`,
+  Implementation Package, or test exists yet for harmonic coordination; correctly left honest
+  rather than guessed, the expected state for a requirements-only delta pass. **Explicit note for
+  whoever picks this up:** `ADS-108` itself states, and this pass agrees, authoring this delta is
+  **not** a `G3` package authorization — no `IP-xxxx` may be built against `FR-1500`-`FR-1590`
+  without its own explicit per-package user go-ahead, and `BL-0123`'s `SCHEME_TABLE`-migration
+  refactoring should be sequenced and authorized as its own first package ahead of any Scheme-H
+  feature package that depends on it, per `ADS-108` §8 R1's own recommendation.
+
+**One Low finding** (does not block this delta, filed for whichever stage next opens `FR-1220`):
+`FR-1220`'s "no scheme-specific bad-zone logic exists" wording is now narrowly imprecise given
+`FR-1590`'s disclosed exception — recommend rewording at the next natural touch of either FR
+rather than a dedicated pass.
+
+No Critical/High finding. This delta is ready for `05-feature-decomposition` to add a
+harmonic-coordination-equivalent catalog row — noting this is a substantially larger increment
+than any prior delta (10 FRs across 3 voices plus a structural migration), which the user will
+likely want to weigh in on before it is scheduled alongside or ahead of other open work.

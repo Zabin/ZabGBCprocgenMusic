@@ -256,7 +256,31 @@ assert len(CHORD_TRANSITION) == 16 and all(0 <= c < N_CHORDS for c in CHORD_TRAN
 # (the tone that carries the chord's colour); harmony leans on the fifth and root (the tones that
 # reinforce it without doubling the melody's colour tone).
 MELODY_PICK = [0, 1, 2, 1]    # root, third, fifth, third
-HARMONY_PICK = [2, 0, 2, 1]   # fifth, root, fifth, third
+
+# SLOT_NEXT — pulse B's chord-tone slot, derived from the slot pulse A last took (held in
+# CHORD_TOGGLE bits2-3) rather than from a second independent draw. Added by IP-1140's own first
+# measurement pass, which found the original two-independent-pick-tables design put pulse A and
+# pulse B on the SAME pitch class at 28% of onsets (up from 13% before the feature): they share an
+# octave and were drawing from the same three tones, so a quarter of the time two of the three
+# voices were literally one voice. Taking the NEXT slot up makes doubling structurally impossible
+# and yields parallel thirds/sixths, the classic inner-voice figure.
+#
+# This reads the shared context, not another channel's private state, so FR-1500's rule stands:
+# CHORD_TOGGLE is single-writer-per-field, broadcast, read at onsets — architecturally the same
+# shape as CHORD_IDX itself (ADS-108 D1's "coordination flows through the shared field," which
+# forbids pairwise negotiation over private state, not a wider shared context). Index 3 is
+# unreachable (slots are 0-2) but is given a defined value rather than left to fall off the table.
+SLOT_NEXT = [1, 2, 0, 1]
+
+# PASSING_TABLE — the melody's WEAK-onset step. Shaped like DELTA_TABLE but with no zero entry:
+# the passing tone always moves. Added by IP-1140's own first measurement pass for the same
+# reason as SLOT_NEXT: reusing DELTA_TABLE (= [-1, 0, 0, +1], deliberately 50% "hold") on weak
+# onsets produced a leap-then-hold melody rather than a line — mean directional run length fell
+# from 1.86 before the feature to 1.26 after, i.e. the melody got measurably LESS shaped even as
+# the harmony got better. DELTA_TABLE's own bias toward holding is right for an unaccompanied
+# drunk walk and wrong for a note whose entire job is to connect two chord tones.
+# DELTA_TABLE itself is untouched — Scheme E and the bad-zone recovery paths still use it.
+PASSING_TABLE = [0xFF, 0x01, 0xFF, 0x01]  # -1, +1, -1, +1 (two's complement)
 
 # Onsets of the driving channel (pulse A) per chord. Must be a power of two — the countdown wraps
 # with a plain AND, and this project's SM83 subset has no division (ADS-108 SS7 constraint 5).

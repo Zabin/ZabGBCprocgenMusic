@@ -267,7 +267,9 @@ phrase, developing" character the entity exists to produce.
 ## §4 Preset, style row, and the index-0 invariant
 
 A **preset** is a complete known-good assignment of all five steering indices, plus clean
-derived state. It is the engine's fixed point: boot lands on it, and Select returns to it (§7).
+derived state. It is the engine's fixed point: ~~boot lands on it, and Select returns to it (§7)~~
+**boot lands on it** (amended 2026-08-21, [`ADR-0006`](adr/ADR-0006-select-becomes-reroll-not-reset.md)
+— Select no longer touches the steering indices at all; see §4.1's second amendment).
 
 A **style row** is a coordinated bundle — target tempo, density, scale, and duty-cycle bias —
 applied atomically when `CHMIX_IDX` changes (`IP-1080`). Where the preset is *the* baseline, style
@@ -317,6 +319,52 @@ one's evidence. They are separated here:
 and on the record. It still may not give index 0 a row that disagrees with the boot preset — a table
 whose index 0 diverges from `PRESET_*` remains a defect, exactly as before. Where the boot preset's
 own values change, every index-0 row changes with them, in the same package, or (a) is violated.
+
+#### Amendment 2026-08-21 — (a) is narrowed, because Select stops being an event about the indices
+
+[`ADR-0006`](adr/ADR-0006-select-becomes-reroll-not-reset.md) redefines Select as a **reroll**
+(reseed the LFSRs, clear the bad-zone fields, and **leave the five steering indices alone** so the
+listener's settings survive). Rule (a) as amended on 2026-08-20 reads *"boot and Select-reset land
+on identical, deterministic, known-good state."* **That sentence stops being true**, and it is
+re-stated here rather than left to be discovered as a contradiction by whichever package trips over
+it first.
+
+**(a), re-stated for the new semantics — still load-bearing, and narrowed rather than released:**
+
+> **Index 0 of every steering-index-keyed table equals the boot preset's corresponding values**, so
+> that every index-keyed mechanism the engine accumulates inherits a neutral element at index 0
+> rather than perturbing the baseline. **Boot lands on that fixed point.**
+
+Three things this deliberately preserves, and one it deliberately drops:
+
+- **Preserved — the table constraint, entirely unchanged.** A table whose index 0 disagrees with
+  `PRESET_*` is still a defect. `STYLE_TABLE` row 0 (`FR-1260`), `MOTIF_TABLE` variant 0
+  (`FR-1300`), `SONG_TABLE` phase 0 and `CHMIX_MASKS` preset 0 are all still bound, on exactly the
+  same terms.
+- **Preserved — the evidence.** `IP-1100`'s ten-test regression across `T2`/`T5`/`T7`/`T13`/`T15`
+  was caused by a **table** diverging from the boot preset, not by Select doing or not doing
+  anything. That evidence still binds the rule as re-stated, which is why this is a narrowing and
+  not a release.
+- **Preserved — determinism at boot.** Boot still runs the identical initialization including the
+  index writes, so it still lands on the known-good preset every time. `ADR-0006` changes only the
+  Select path.
+- **Dropped — "and Select-reset."** Not because Select now lands somewhere *different*, but
+  because **Select is no longer an event about the steering indices at all.** It does not reach a
+  different fixed point; it stops participating in the question. The invariant loses a clause, not
+  a guarantee.
+
+**The distinction the amended rule now draws**, which is the one worth carrying forward: *state the
+listener chose* (the five indices) survives a Select; *state the engine wandered into* (bad-zone
+counters, degrees, timers, chord context, arpeggio caches, blend and song-form state) does not.
+`GDS-01` step 6 and `§7`'s preset entity carry the same line.
+
+**One consequence for every future mechanism**, and it is the mirror of the defect `VR-1130` found
+in `BLEND_STEP`: derived state re-established on the Select path — the arpeggio caches (`FR-1630`),
+`AROUSAL`/`VALENCE` (`FR-1420`), the blend fields — is derived *through* a steering index. Today
+that derivation happens after the indices have been reset, so it is trivially consistent. After
+`ADR-0006` it must be re-established from **whatever the listener currently has set**. A mechanism
+that assumes "on the Select path the indices are the preset values" is now wrong, and will reseed
+the engine into material derived from a preset the listener is not on.
 
 ## §5 Bad-zone state
 

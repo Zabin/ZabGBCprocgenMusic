@@ -736,3 +736,195 @@ Plan rather than smoothed over, together with the reason it does not stop the wo
 owner's standing instruction is to iterate toward a pleasant result, `IP-1140`'s missing
 verification is a *fresh-session* obligation rather than a defect finding, and `IP-1150` would be
 re-planned anyway if that verification returned findings. The two packages verify as a pair.
+
+---
+
+## Tranche — Select becomes a reroll (`ADR-0006` / amended `FR-1070`) → `IP-1160`
+
+**Source:** [`ADR-0006`](../architecture/adr/ADR-0006-select-becomes-reroll-not-reset.md) and the
+amended `FR-1070`/`FR-1420`/`FR-1630` (`docs/requirements/01-functional-requirements.md`, Delta
+Review 2026-08-21 second pass). Trigger: the project owner's own instruction — *"The select-reset
+does not need to bring it back to the boot default either, just course correct from a bad zone"* —
+plus his approval of folding reroll into the same button.
+
+### Why one package, and why stages 05/06 were skipped
+
+**One package.** The change has a single seam (`init_engine`'s entry structure), a single
+Definition of Done ("a Select press changes the material and changes nothing the listener set"),
+and its test work is inseparable from its code work — seven shipped checks assert the behaviour
+being removed, so a package that changed the code without re-authoring them would leave a red tree
+by construction. Splitting produces two halves neither of which is independently verifiable.
+
+**05 skipped.** `05-feature-decomposition` exists to group requirements into features and features
+into releases. This tranche adds no capability: it redefines the contract of a control that has
+existed since `IP-0001`, under a requirement that already exists (`FR-1070`) and was amended rather
+than added. There is no new `FEAT-xxxx` row to catalog and no release-bucket question to answer.
+
+**06 skipped.** `06-feature-specification` exists to turn a catalog row into a behavior contract.
+That contract already exists in full and in two places: `ADR-0006` decides the design and records
+the alternatives weighed, and the amended `FR-1070` states the observable behaviour — including the
+clause a spec would otherwise have had to discover, *"by every write path."* An `FS-116` would have
+restated both without adding a decision. **Recorded as a deliberate skip with a reason, not as a
+shortcut**: if a reader later finds the design underdetermined, the defect is in `ADR-0006` or
+`FR-1070` and routes there, not to a missing FS.
+
+### Verb inventory
+
+The capability is *reroll*. Its verbs and their owners:
+
+| Verb | Owner | Note |
+|---|---|---|
+| **generate** (produce genuinely new material) | `IP-1160` — reuses the existing `DIV` reseed | Already shipped since `IP-0007`; this package does not touch it, and that is worth stating: two-thirds of the capability was already present (`R217` §3a). |
+| **apply** (course-correct out of a bad zone) | `IP-1160` — reuses the existing bad-zone clear | Unchanged behaviour, unchanged code. |
+| **preserve** (leave the listener's settings alone) | `IP-1160` — **the only new work in the tranche** | This is the whole package. |
+| **render** (show the listener what changed) | **Deliberately deferred, and the deferral is the point.** | The settings-indicator row (`IP-1110`) already shows the five indices, and after this change they *do not move* on a Select — so there is nothing new for the display to render. A listener sees the reroll by hearing it. Naming this rather than leaving it silent, per the verb-inventory rule: no visualizer feedback for the press itself is planned, and if listening says the press feels unacknowledged, that is a `09-content-review` finding routing to `03`, not a gap in this package. |
+| **persist** | **N/A — no persisted state exists** (MSTR-001 C2, no SRAM). | |
+| **review** | `09-package-verification` (mechanical) + `09-content-review` (does the reroll actually feel like new music with the same settings?) | The content review additionally owns `BL-0144`, escalated by the requirements pass. |
+
+### Collision & obsolescence sweep
+
+Run in full. This is the amended sweep's **first real customer**, and its performance is assessed
+honestly at the end of this section rather than assumed.
+
+**1 — Who else writes the state I write?**
+
+The state whose write behaviour changes is the six values `FR-1070` clause (c) protects. Consulted
+[`GDS-04` §1.2](../architecture/04-domain-model.md) (steering indices) and
+[`GDS-04` §1.4](../architecture/04-domain-model.md) (pitch/output layer, authored 2026-08-21), then
+`grep`ped the tree to confirm the registries are current. Both were.
+
+| Value | Writers, per §1.2/§1.4 and confirmed by grep | Effect of this package |
+|---|---|---|
+| `OCTAVE_IDX` | D-pad L/R; `init_engine` | one writer removed from the Select path |
+| `SCALE_IDX` | A; `init_engine`; style application | one writer removed from the Select path |
+| `CHMIX_IDX` | Start; `init_engine` | one writer removed from the Select path |
+| **`TEMPO_IDX`** | D-pad U/D; `init_engine`; style application; **song-form phase transition** | **two** writers removed from the Select path — see below |
+| **`DENSITY_IDX`** | B; `init_engine`; style application; **song-form phase transition** | **two** writers removed from the Select path |
+| `DUTY_BIAS` (§1.4) | style application; `blend_tick` interpolation; `init_engine` | one writer removed from the Select path |
+
+**This question is what produced `D1`, and it produced it directly.** §1.2 has recorded *song-form
+phase transition* as an independent writer of `TEMPO_IDX`/`DENSITY_IDX` since 2026-07-26. Following
+that entry into `init_engine` finds a **second** write of both from `SONG_TABLE[0]`
+(`music_engine.py:1637-1638`), 50 lines below the five obvious `PRESET_*` writes and under a
+comment explaining why it is harmless — *"`SONG_TABLE[0]`'s tempo_idx/density_idx match
+`PRESET_TEMPO_IDX`/`PRESET_DENSITY_IDX` exactly, so the writes just above are not disturbed."* That
+reasoning is correct today and stops being correct the moment the writes above are removed. **Eight
+writes, not five.** An implementation working from the obvious five would ship a Select that
+preserves octave, scale and channel-mix while silently resetting tempo and density.
+
+`GDS-04` §1.4 contributed a second, independent consequence: its `ARP_CACHE_PA`/`_PB` row records
+that the caches are written *"only at onset, and by `init_engine` (boot and Select — `FR-1630`)"*
+and resolve pitches through `SCALE_IDX`/`OCTAVE_IDX`. Since the reroll path no longer sets those
+first, the caches now resolve against **the listener's** scale and octave. That is correct and
+required (`FR-1630` as strengthened), and it is only obviously correct once the registry has said
+who reads what. The same reasoning applies to `AROUSAL`/`VALENCE` (`FR-1420`) and to `BLEND_STEP`.
+
+**Collisions:** none introduced. Every removal is a removal; the `last-write-wins` contract §1.2
+governs is untouched, and no new writer of anything is added.
+
+**2 — Does anything still encode a model I am retiring?**
+
+The retired model is *"Select restores the boot preset."* `grep`ped its literal signature across
+the tree, not only the files `Files to Modify` names:
+
+| Location | What it encodes | Disposition |
+|---|---|---|
+| `input_map.py:80-85` | comment *"Select: unconditional reset to the known-good preset (FR-1070)"* + `CALL init_engine` | **In scope** — the call target changes and the comment is rewritten. |
+| `music_engine.py`'s `init_engine` header comment (*"boot init AND Select-reset target, GDS-03 §5"*) | the conflated single entry point | **In scope.** |
+| `test_rom.py` — `T5.2`/`T5.3`/`T5.4`/`T5.5`, `T15.6`, `T17.8`, `T18.9`/`T18.10` | assert the removed behaviour | **In scope**, re-authored per `D4`. |
+| `test_rom.py` — `t7_noise_density:312` | `tap(pb, 'select')` with the comment *"Reset back to preset (density 0) before the next iteration's relative B-taps"* | **In scope**, and see question 4 — this is a fixture that *uses* Select as a reset primitive, which is a different failure from asserting Select's behaviour. |
+| `Claude.md` — the input-mapping table row, the autonomous-recovery section, the Known Good Behavior bullet | the old prose | **In scope.** |
+| **`GDS-03` §3's control table and §5 (*"Reset-to-preset behavior (Select)"*, incl. §5's `IP-0007` amendment)** | the architecture-level statement of the old model | **OUT OF SCOPE — routed upstream, not planned around.** `GDS-03` belongs to `03-architecture-design-synthesis`. `ADR-0006` supersedes it and `GDS-01`/`GDS-04` were amended in the same run, but `GDS-03` was not, and this skill does not edit architecture. Filed for `03`. |
+| `PRESET_TEMPO_IDX` … `PRESET_CHMIX_IDX` constants | the preset itself | **Retained, and still used** — by boot, and by the tests' own expected values. Not vestigial. |
+
+**3 — Does what I am ADDING make something existing redundant, vestigial, or contradictory?**
+
+This package is almost entirely *removal*, which is the unusual case for this question. What it
+adds is a boot-only prologue and a second entry label. Asked anyway, three answers:
+
+- **`DUTY_BIAS ← 0` on the reroll path becomes contradictory** — not redundant, actively wrong.
+  `DUTY_BIAS` is derived from the style row `CHMIX_IDX` selects; `CHMIX_IDX` now survives a Select,
+  so clearing the bias would leave the engine's timbre disagreeing with the preset that chose it.
+  Moved to the boot prologue (`D3` settled this at requirements altitude; recorded here because the
+  implementation must not treat it as an afterthought).
+- **`BLEND_STEP ← 4` on the reroll path is *not* obsoleted — it is strengthened, and this is worth
+  recording because the opposite conclusion is the easy one.** `VR-1130`'s F1 defect was that a
+  Select during an active blend left `blend_tick` running with stale source/delta values that
+  overwrote *the freshly-reset* `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` on the following frames. A
+  reader could reason: "Select no longer resets those, so there is nothing to protect." Exactly
+  wrong — a stale blend would now overwrite **the listener's** values, which is precisely the
+  promise this package exists to make. **Kept deliberately, with the reason recorded.**
+- **`init_engine`'s name becomes misleading**, since it will no longer be the Select target. A
+  naming issue, not a mechanism one; handled by the entry-label split rather than left implicit.
+
+**4 — Does my change alter what any existing metric actually measures?**
+
+**Yes — one real hit, and it is not the hit the question's own example predicts.**
+
+`t7_noise_density` (`test_rom.py:312`) presses Select **as a reset primitive**, not to test Select:
+*"Reset back to preset (density 0) before the next iteration's relative B-taps."* Its loop drives
+`DENSITY_IDX` to each target by pressing B a *relative* number of times from an assumed zero. After
+this package that assumption is false, and each iteration's taps accumulate from wherever the
+previous one ended — so `T7` would be measuring densities other than the ones it labels.
+
+**It would not have failed loudly.** The shipped loop iterates over exactly `(0, len(DENSITY_K)-1)`;
+the first iteration taps B zero times, so it happens to leave `DENSITY_IDX` at 0 and the second
+still lands on 7. `T7.setup` passes, `T7.3`'s max-versus-min comparison passes, and the suite stays
+green — **while the fixture's stated invariant is false and the next person to add a middle density
+gets wrong numbers with no warning.** That is the exact shape of defect this question exists to
+catch: a measurement quietly re-pointed, not a test that breaks.
+
+Two metrics checked and cleared: **`VIS_ENTRY_LY` on the Select frame** (`T19.4`) still measures
+what it claims — the reroll path does strictly *less* work, so the frame gets cheaper, and the
+assertion is a range check that does not encode the old cost. **`NFR-1270`'s harsh-interval
+figures** are unaffected in basis, but any future measurement driver that presses Select to reach a
+known baseline inherits `T7`'s problem; the requirement's newly-normative *scope* clause
+(`BL-0140`) already forces such a driver to state what it measured over.
+
+### How the amended sweep actually performed — an honest assessment
+
+Recorded because the pipeline's own audit is the reason the sweep was amended, and a quiet success
+would be worth less than a real reading.
+
+- **Question 1 earned its place unambiguously, and the registries are why.** `D1` — eight writes,
+  not five — came directly from following §1.2's *song-form phase transition* row into
+  `init_engine`. Without the registry the natural move is to grep `TEMPO_IDX` in `init_engine`,
+  find the `PRESET_*` write, and stop; the second write sits 50 lines later behind a comment
+  arguing it is harmless, and that argument is *true* until this package makes it false. This is
+  the strongest evidence in the run that the registries pay for themselves — and note the registry
+  entry that mattered has existed since 2026-07-26. What changed is that a stage was told to
+  consult it.
+- **Question 4 earned its place, and did so on merit rather than by example.** Its own illustrative
+  case is about an acceptance metric sampled at an internal intermediate. The hit here is
+  structurally different — a *test fixture* using the changed behaviour as a primitive — and the
+  question still caught it, because "what does this change cause to be measured differently"
+  generalises past its example. It also caught something that would not have gone red.
+- **Question 3 is the one to be honest about: on this case it did not do independent work.** Its
+  text names *this exact Select scenario* as one of its two worked examples, so surfacing it here
+  proves nothing about the question — the answer was written into the prompt. Asked on the merits
+  (*what does adding a boot-only prologue make redundant?*), question 3 returned mostly naming
+  observations; its one genuinely useful output was the **inverse** result — that `BLEND_STEP`'s
+  guard is *strengthened*, not obsoleted, and must be kept for a reason opposite to the intuitive
+  one. That is worth having, but it is a smaller yield than the question's framing implies.
+  **Recommendation:** the amendment should not draw confidence from this case. Question 3's real
+  test is a package that *adds* a mechanism — the next one that does should be watched, and the
+  Select example arguably ought to be retired from the question's text now that it has been acted
+  on, so a future reader does not mistake a worked example for evidence.
+- **Question 2 performed as it always has** — it is the original supersession sweep, and it did its
+  ordinary job of enumerating call sites, including catching that `GDS-03` §5 still encodes the old
+  model and belongs upstream rather than in this package.
+- **One structural observation about the sweep as a whole:** three of its four questions found
+  something here, and *two of the three findings would have shipped green*. The sweep's value is
+  concentrated in exactly the cases where the test suite cannot help, which is an argument for
+  running it on removal-shaped packages too — the wording ("EVERY package that writes shared
+  state or adds a mechanism") arguably does not obviously cover a package whose whole content is
+  *stopping* writes. Suggested clarification, routed to whoever maintains the skill: say **"writes,
+  stops writing, or adds a mechanism."**
+
+### Findings routed upstream from this planning pass
+
+| Finding | Owner |
+|---|---|
+| `GDS-03` §3's control table and §5 (*Reset-to-preset behavior (Select)*) still state the retired model. `ADR-0006` supersedes them; `GDS-01`/`GDS-04` were amended in the same run and `GDS-03` was not. | `03-architecture-design-synthesis` |
+| The collision & obsolescence sweep's own scope wording covers packages that *write* shared state; a package that *stops* writing it is equally in need of the sweep and is arguably not obviously covered. Suggest "writes, stops writing, or adds a mechanism." Also: question 3's Select example has now been acted on and should probably be retired from the text. | the `.claude/skills/07-implementation-planning` maintainer |
+

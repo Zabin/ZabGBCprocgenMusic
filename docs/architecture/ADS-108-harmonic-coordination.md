@@ -459,3 +459,192 @@ deliberately, but still may not give index 0 a row that disagrees with the boot 
 - `09-package-verification` — D12/`NFR-1270`'s strong-beat partition is now the acceptance
   instrument for a change audible at boot, so the before/after comparison is against the prior
   commit's ROM rather than against a non-default preset.
+
+---
+
+## 12. Amendment — 2026-08-21: the arpeggio's role in a harmonized engine
+
+**Status:** ✅ Amended 2026-08-21 · **Owned by:** `03-architecture-design-synthesis` ·
+**Produces:** [`ADR-0005`](adr/ADR-0005-the-arpeggio-becomes-chord-aware-gated-and-varied.md) ·
+**Source:** [`BL-0127`](../pipeline/backlog.md) (the project owner's listening report, measured),
+riding [`BL-0125`](../pipeline/backlog.md) · **Absorbs:** `CR-0006` (arpeggio re-rooting) ·
+**Grounding:** `R216` (the arpeggio's original purpose), `R225` §3d/§3g/§5f, `R101` §8.5 /
+`GDS-06` §2.2a (the VBlank budget), `R211` §8 (extend the table, not the mechanism).
+
+### 12.1 Why this document is being reopened again
+
+§11 changed *what the default scheme selects*. It did not touch what happens to that selection
+afterwards — and something does. `_emit_arpeggio_tick` (`IP-1060`, `R216`) rewrites both pulse
+channels' frequency registers **every frame**, adding `ARPEGGIO_OFFSETS = [0, 2, 4, 2]` —
+scale-degree offsets, masked `AND 0x07` — to `CUR_DEGREE`. Since §11 shipped, `CUR_DEGREE` *is the
+chord tone the harmony just chose*. The arpeggio therefore stacks a second, differently-rooted triad
+on top of the engine's own chord, on every note, forever.
+
+The project owner heard it before any document noticed it: **"constant repeated arpeggios."**
+
+`ADS-108` as written above is not neutral on this — it is silently wrong about it. §2.6's per-voice
+rules describe what each channel *selects*; nothing in this document acknowledges that a per-frame
+routine overwrites that selection two-thirds of the time. `IP-1140`'s own record already contains
+the tell: it withheld pulse B's octave placement precisely because `arp_tick` would overwrite it
+(`BL-0125`), which is the same observation applied to a smaller consequence.
+
+### 12.2 The evidence, measured on the shipped ROM
+
+Boot defaults, 3600 frames, commit `3e635ed`. Sounding pitch reconstructed as
+`(CUR_DEGREE + ARPEGGIO_OFFSETS[(ARP_STATE >> 4) & 3]) AND 0x07` — i.e. what actually reaches the
+frequency register, not what `gen_tick` intended. The driver reproduces `IP-1140`'s own recorded
+figures on `IP-1140`'s own basis (strong 12.0 % against its recorded 12.2 %, aggregate 21.8 %
+against 21.5 %), so every difference below is attributable to the instrument rather than the run.
+
+| What was measured | Result |
+|---|---|
+| Pulse B placed on a tone of the current chord, at its onsets | **100 %** |
+| Pulse A placed on a tone of the current chord, at its onsets | 53.7 % (by design — weak onsets are passing tones) |
+| Sounding pulse-channel frames that are tones of the current chord | **46.4 %** |
+| Pulse A arpeggiating *from* the chord root | 14.0 % of onsets |
+| Pulse B arpeggiating *from* the chord root | 29.8 % of onsets |
+| Harsh vertical intervals (ic ∈ {1,2,6}), strong beats, on **intent** (`CUR_DEGREE`) | 12.0 % |
+| Harsh vertical intervals, strong beats, on **sounding** pitch | **25.7 %** |
+| Same, aggregate | 21.8 % → **30.9 %** |
+
+Read the first and third rows together: **the harmony voice is placed exactly on a chord tone at
+every single onset, and is then moved off that chord for more than half of the frames it sounds.**
+The arpeggio undoes the majority of the only harmonic improvement this engine has ever shipped — it
+more than doubles the strong-beat figure §11's whole increment existed to halve.
+
+Three further facts bear on the decision:
+
+- **The figure is a build-time constant with no path to variation.** One step per
+  `ARP_SUBTICK_RELOAD = 6` frames, period 4 → a **24-frame shape repeating ~2.5 times per second on
+  every note of both pulse channels, identically, indefinitely.** No gate, no draw, no dependence on
+  anything the engine decides. There is no mechanism by which it *could* vary. This is precisely the
+  complaint, and it is structural rather than a badly-chosen constant.
+- **The `AND 0x07` mask is the octave-seam defect D3 already ruled out for chord math.** Offset `+4`
+  from degree 4 wraps to degree 0 where the correct pitch is degree 8's — `R225` §3g, the same
+  reason `CHORD_TABLE` is hand-authored rather than third-stacked. The arpeggio was left doing at
+  runtime, every frame, exactly the arithmetic D3 forbids.
+- **The routine is the single most expensive unconditional thing in the frame.** ~60 emitted
+  instructions per channel per frame on its common path, ×2 channels ≈ **120 unconditional
+  instructions every frame**, of which ~32 are a `(SCALE_IDX, OCTAVE_IDX) → ptr_table` address
+  resolution recomputed from scratch each frame from values that only change at an onset or an input
+  press. `R101` §8.5 measured this budget already exhausted (`VIS_ENTRY_LY` 152-153 of a 144-153
+  window); `BL-0113`/`IP-9040` was abandoned over three instructions. **This routine is where the
+  head-room went.**
+
+### 12.3 The question, stated precisely
+
+`IP-1060`'s stated purpose (`R216`) was *"implying a chord on a single channel"* — the arpeggio was
+**faking harmony in the absence of harmony**. §11 supplied real harmony across three voices. So:
+does a chord-faking device still have a role once the chord is real, and if so, what is it?
+
+### 12.4 Decision — D14: re-root the arpeggio onto the real chord, gate it, and vary it. Do not retire it.
+
+The arpeggio's measured problems are **what it plays** and **that it never varies**. Neither is
+intrinsic to arpeggiation; both are consequences of a design authored when there was no chord to
+arpeggiate. The decision is therefore to fix both and keep the device, under four rules.
+
+**R-A · Chord-aware.** An arpeggio traverses **tones of the currently-sounding chord, read from
+`CHORD_TABLE`**, never scale-degree offsets from the sounding note. `CHORD_TABLE` already exists, is
+already in ROM, is hand-authored, is per-scale, and already took the octave-seam decision at
+authoring time (D3) — so re-rooting the arpeggio onto it converts the device from fighting the
+harmony to **spelling it out**, and closes the `AND 0x07` seam defect as a side effect rather than as
+separate work. Every arpeggiated note becomes a chord tone by construction; the 46.4 % figure above
+becomes 100 % by design, not by tuning.
+
+**R-B · Gated — an arpeggio is an articulation of a chord tone, not a property of every note.** A
+voice arpeggiates only while the note it holds is a chord tone. This is not an arbitrary throttle
+invented to answer the complaint; it is the musically correct rule, and §11's own design already
+makes the distinction: pulse A's **weak onsets are deliberate passing tones** (`FR-1550`, D9). A
+passing tone must be heard as passing — arpeggiating a triad *from* it re-asserts it as a root and
+destroys the very strong/weak distinction D9 calls "the entire mechanism that converts *in key* into
+*in harmony*." The parity bit this needs already exists (`CHORD_TOGGLE` bit1) and is already read at
+that onset, so the gate costs nothing new.
+
+**R-C · Varied — the figure is drawn, not compiled in.** The traversal is selected **per onset** from
+a small table of patterns, indexed by bits of the channel's own LFSR — the
+`DELTA_TABLE`/`MOTIF_VARIANT_SELECTOR`/`CHORD_TRANSITION` idiom this project uses everywhere else,
+where the weighting lives in the *distribution of entries* and never in arithmetic (`R211` §8).
+Pattern rows are chord-tone **slot** indices (0-2). Two constraints on the table, both load-bearing:
+
+1. **One reserved value means "sustain" (hold the onset's own note for that step).** A row may mix
+   sustains with tones, and a row of all sustains is "this note does not arpeggiate at all." This is
+   what makes R-B and R-C **one mechanism instead of two**: the gate is not a separate branch, it is
+   a forced pattern index. It also means each channel genuinely *may* sustain any given note, which
+   is the cleanest available answer to "constant" — the device stops being always-on without any new
+   state and without any new per-frame test.
+2. **The rows must differ in rhythmic surface, not only in pitch order** — at least one row that is
+   not a full three-tone sweep. Four permutations of the same triad sweep would still read as one
+   figure; the complaint is about the *shape*, and a shape that always occupies all four steps has
+   only one shape.
+
+Both channels draw independently from their own LFSRs, so pulse A and pulse B stop moving in
+lockstep (`BL-0121` measured them phase-locked onto the same frames).
+
+**R-D · The per-frame cost must strictly decrease, and that is what pays for the above.** R-A and R-C
+are onset-time work — a chord-table read and a pattern draw, inside branches that already exist (the
+`NFR-1240` discipline §11's increment held to, unchanged). What `arp_tick` does *per frame* must get
+**cheaper**, by resolving at the onset what it currently recomputes every frame and caching it per
+channel — `BL-0125`'s observation, promoted from a deferred optimization into this decision's
+enabling constraint. The ~32 instructions/frame of `(SCALE_IDX, OCTAVE_IDX) → ptr_table` resolution
+are the obvious target: those inputs change only at onsets and input presses, and the routine
+re-derives them 60 times a second regardless. `VIS_ENTRY_LY` across every frame class is the
+acceptance instrument, and a regression is **blocking** (`IP-9040`/`BL-0113` is the standing
+precedent). This is the first opportunity since `R101` §8.5 declared the budget exhausted to
+*recover* head-room rather than spend it, and the decision deliberately takes it.
+
+**Two consequences that must be carried forward, not discovered later:**
+
+- **A cached resolution changes when a `SCALE_IDX`/`OCTAVE_IDX` change becomes audible on a note
+  that is already sounding** — from the next *frame* to the next *onset* (≤ ~0.5 s at default
+  tempo). The onset write itself still uses fresh values, so no control becomes unresponsive; what
+  disappears is a mid-note pitch jump on a note already in progress. This is judged an improvement,
+  but it is a real behavioral change and belongs in the requirements delta, not in an implementer's
+  discretion. `init_engine` (boot **and** Select) must refresh the cache, or a reset leaves stale
+  pitch material — the same defect class `VR-1130` found in `BLEND_STEP`.
+- **`BL-0125`'s blocked octave placement stops being blocked.** Once `arp_tick` reads a cached
+  per-channel resolution instead of hardcoding `octave_delta = 0`, pulse B's octave separation
+  (`FR-1560`'s withheld half) becomes available at zero additional per-frame cost. It is **not**
+  exercised by this decision — §11's construction argument (both pulses draw from one triad, so a
+  manufactured seventh is unreachable) still stands and nothing yet demands it. Recorded as
+  unblocked, not as owed.
+
+### 12.5 Alternatives weighed and rejected
+
+| Alternative | Why rejected |
+|---|---|
+| **Retire the arpeggio outright.** | The strongest rival, and the cheapest: it fixes the complaint with certainty, closes the harmonic conflict by construction, and reclaims ~120 instructions/frame — the largest head-room recovery available anywhere in this engine. Rejected on evidence about what would be left: with the arpeggio gone, both pulse channels hold a **completely static pitch for the whole note** (~30 frames, ~0.5 s at default tempo) with only `IP-1061`'s ±1 vibrato, against a half-rate wave bass. This engine has **no rests and no phrase structure** (`CR-0003`, explicitly increment 2), so sub-note motion is currently the *only* thing happening between onsets — removing it trades "mechanically busy" for "static and plodding," which is a different complaint, not fewer complaints. And it discards a genuine, idiomatic chiptune device (`R216`) at the exact moment the engine finally has a real chord worth arpeggiating. **Kept as the named fallback**: R-C's sustain row makes retirement a one-line table change (an all-sustain table *is* retirement), so if the re-rooted version still reads as mechanical to a human ear, the fallback costs a data edit rather than a redesign. That reversibility is part of why R-C is shaped as a table. |
+| **Chord-aware only — keep it unconditional and invariant.** | Fixes the measurable defect (46.4 % → 100 % chord tones) and not the reported one. The owner did not report "wrong notes"; he reported **"constant repeated."** A perfectly in-chord figure repeating identically 2.5 times a second on every note forever is still a figure repeating identically 2.5 times a second on every note forever. Shipping this alone would be answering the measurement instead of the listener — precisely the failure mode `BL-0097`/`BL-0120` exist to name. |
+| **Vary/gate only — keep the degree offsets.** | The mirror error. Addresses the surface complaint while leaving 53.6 % of sounding pulse frames off the chord, i.e. leaving `IP-1140`'s delivered benefit mostly cancelled and its acceptance figures still unearned. Also leaves the `AND 0x07` octave-seam arithmetic D3 already ruled incorrect. |
+| **Vary the arpeggio *rate* (`ARP_SUBTICK_RELOAD` drawn from a table) as well.** | Deferred, not rejected in principle — a third axis on top of R-A and R-C. Rate variation without pattern variation reads as *unsteady* rather than *varied* (it wobbles the pulse of the figure rather than changing the figure), and with R-C's sustain rows the rhythmic surface already varies. Revisit only if a listening pass reports the result varied in pitch but monotonous in pulse. |
+| **Per-frame randomness (draw the next tone each sub-tick).** | Destroys the thing being built. A chord is recognizable because its tones recur in a shape; a random walk over chord tones at 10 Hz is a texture, not an arpeggio. It would also move the draw into the unconditional per-frame path — the exact cost class `NFR-1240` forbids. |
+| **Make the arpeggio a user-facing control (a new button, or a `CHMIX_IDX` preset field).** | Out of scope and premature. The input surface is full (`GDS-03` SS3 — six controls, all assigned), the owner's complaint is about the *default* sound, and adding a switch would let a bad default persist behind an option nobody presses. Fix the default; a control over a mechanism nobody likes is not a fix. |
+
+### 12.6 Consequences for this document, and routing
+
+- **§2.6's per-voice rules are incomplete as written** and are hereby scoped: they describe note
+  *selection at onset*; what sounds between onsets is governed by D14. A reader of §2.6 alone would
+  conclude the chord tones sound as selected, which has not been true since `IP-1060`.
+- **D12/`NFR-1270`'s acceptance instrument is amended in substance by `BL-0128`**: the partition by
+  metric strength stands, but the *basis* must be **sounding pitch** — post-arpeggio, post-any
+  frequency rewrite — never `CUR_DEGREE`. `IP-1140`'s recorded figures were taken on intent and are
+  overstated (12.2 %/30.6 %/21.5 % recorded; **25.7 %/36.1 %/30.9 %** on sounding pitch, same build,
+  same run). D12 is not withdrawn; it was measured with the wrong signal.
+- **`CR-0006` (arpeggio re-rooting) is absorbed into D14** and promoted out of candidate scope, the
+  same way §11 absorbed `CR-0005`. Recorded as absorbed rather than deleted.
+- **`BL-0125` is absorbed as R-D's enabling constraint**, not left standing as a separate later
+  optimization package against a routine this decision redesigns.
+
+Routing:
+
+- `04-requirements-engineering` — amend `FR-1130`/`FR-1160`'s arpeggio requirements **in place**
+  (they describe a fixed offset pattern applied unconditionally; that is no longer the design),
+  amend `NFR-1270` to state the sounding-pitch basis normatively, and record the cached-resolution
+  latency consequence from §12.4. Follow that document's own append-only dated Delta Review
+  convention. Mark `CR-0006` absorbed.
+- `07`/`08` — the three documents carrying `IP-1140`'s overstated figures (its own package doc's
+  *Measured result* table, the Master Build Plan row, `Claude.md`'s Known Good Behavior entry) are
+  corrected by whichever stage next owns each. An incorrect headline number left standing is worse
+  than no number.
+- `09-content-review` — `R224` §7's holistic dimension is the acceptance half no measurement
+  replaces. The specific question to put to the ear is **not** "is it in tune" but **"does the
+  arpeggio still read as a constant looping figure."** A green suite has never predicted that.

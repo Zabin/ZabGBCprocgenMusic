@@ -706,6 +706,31 @@ re-derived.
 | `NFR-1280` (new) | The arpeggio's unconditional per-frame cost must **strictly decrease**; `VIS_ENTRY_LY` verifies it; a regression is blocking. | New, and deliberately phrased as a *decrease* rather than a bound. `NFR-1240` says "add nothing per-frame"; this says "give some back." `BL-0125` is absorbed here. |
 | `CR-0006` | **Absorbed into the baseline**, marked rather than deleted. | Same treatment §11 gave `CR-0005`: the promotion stays visible in the place the exclusion was recorded. |
 
+### Placeholder-promotion guard (run 2026-08-21, per this skill's 2026-08-20 addition)
+
+Two of this delta's requirements constrain something about a concrete value, so the guard applies
+and was run rather than assumed. `BL-0005` is open and covers every table in `music_data.py` as
+first-guess and untuned, and the arpeggio's new figure table is squarely inside it.
+
+**`FR-1610` — stated relationally, which the guard names as almost always the right answer.** It
+does not baseline the pattern table's contents, its row count, its weighting, or any individual
+figure. It baselines two *invariants that stay true whatever the table is tuned to*: the set must
+contain a member under which the note does not arpeggiate, and its members must differ in how many
+steps sound a pitch other than the onset pitch. A tuning pass can rewrite every byte of
+`ARP_PATTERNS` and `ARP_PATTERN_PICK` without touching this requirement — which is exactly the
+property `FR-1260` lacked, and lacked expensively: an acknowledged-arbitrary preset acquired the
+authority of a requirement purely by being written down first, and then blocked a genuine
+improvement for an entire increment until the **user** pushed back. That failure is why this guard
+exists, and this delta is its first application.
+
+**`FR-1600`** constrains a *condition* (the held note being a chord tone), not a value, so the
+guard does not bite. **`FR-1620`/`FR-1630`** constrain timing and initialization, likewise.
+**`NFR-1280`** is relational by construction — it requires the per-frame cost to *decrease*
+against the immediately preceding build, never to reach a named number, so no measured figure is
+frozen into it either.
+
+**Nothing in this delta freezes a value the project's own backlog calls arbitrary.**
+
 ### Findings (report only — nothing applied here)
 
 | # | Finding type | IDs involved | Description | Severity | Recommendation |

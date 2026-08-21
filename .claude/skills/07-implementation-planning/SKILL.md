@@ -105,18 +105,48 @@ Files-to-Modify actually wires the Select button to the *reset* verb, so the eng
 correctly detect and show a bad zone yet never let the listener escape it. Nothing in the TWBS
 would catch this without an explicit verb-by-verb check.)
 
-**Supersession sweep (mandatory whenever a package retires or supersedes an existing model).**
-When a package's own framing is "generalizes X past its old fixed shape" or "supersedes Y," search
-the tree for *every* call site that still encodes the pattern being retired — not just the one
-call site the package's own Files-to-Modify names. A `grep` for the old model's literal signature
-(hardcoded index comparisons, magic constants tied to the old shape, fixed-count loops) across
-`music_engine.py`/`input_map.py`/`build_rom.py` is cheap and must be run before the package is
-considered complete-in-scope. Record what the sweep found — including "found nothing else,
-confirmed clean" as a real, positive result, not silence. (Illustrative risk: a package that
-generalizes the engine from a fixed 4-channel assumption to a configurable active-channel set, but
-a bad-zone "channel overload" check elsewhere still hardcodes the old fixed channel count — a
-sweep for the old literal channel-count constant across the tree would surface it before either
-package is called done.)
+**Collision & obsolescence sweep (mandatory for EVERY package that writes shared state or adds a
+mechanism — not only one that retires something).** Established 2026-08-20 after an audit found the
+previous, narrower "supersession sweep" structurally unable to catch two real defects; its
+retirement half survives verbatim as question 2 below. The sweep asks **four** questions, and each
+gets a recorded answer in the TWBS or the package — including "found nothing, confirmed clean" as a
+real positive result, never silence:
+
+1. **Who else writes the state I write?** List every existing writer of every field and every
+   hardware register this package writes, and state what happens when they collide. Consult the
+   writer registries (`GDS-04` §1.2 for the steering indices, `GDS-04` §1.4 / `GDS-07` for the
+   pitch/output layer) **and** `grep` the tree — the registry is authoritative only if it is
+   current, and a writer absent from it is exactly the defect this question exists to catch.
+   *(Real case: `IP-1140` added chord-derived pitch selection while `IP-1060`'s `arp_tick` was
+   already rewriting the same channels' frequency registers every 6 frames. No registry covered
+   the pitch layer, the old sweep didn't trigger because nothing was being retired, and the two
+   mechanisms shipped fighting each other — 61.5% of sounding notes were not chord tones of the
+   chord the harmony layer had just chosen.)*
+2. **Does anything still encode a model I am retiring?** (The original supersession sweep,
+   unchanged.) When the framing is "generalizes X past its old fixed shape" or "supersedes Y,"
+   search for *every* call site still encoding the retired pattern — not just the one
+   Files-to-Modify names. `grep` the old model's literal signature (hardcoded index comparisons,
+   magic constants tied to the old shape, fixed-count loops) across
+   `music_engine.py`/`input_map.py`/`build_rom.py`. *(Illustrative risk: a package generalizing a
+   fixed 4-channel assumption to a configurable active-channel set, while a bad-zone "channel
+   overload" check elsewhere still hardcodes the old count.)*
+3. **Does what I am ADDING make something existing redundant, vestigial, or contradictory?** The
+   inverse of question 2, and the one this project has repeatedly missed. A new mechanism that
+   supplies a capability some older mechanism was *working around* obsoletes that workaround — and
+   the workaround does not remove itself. Name any such mechanism explicitly and route it (retire,
+   rescope, or record as deliberately kept with a reason). *(Two real cases, same shape: the
+   arpeggio existed to **imply a chord on a single channel** (`R216`) — a harmony substitute — and
+   was left running unchanged when `IP-1140` delivered real harmony. Select's unconditional
+   full-reset existed because it was the **only** bad-zone escape — and was left unchanged when
+   `IP-0007` made recovery autonomous, a supersession `Claude.md` even recorded in prose
+   ("no longer the only way out") without anything re-examining Select.)*
+4. **Does my change alter what any existing metric actually measures?** If this package inserts
+   itself between a measured intermediate and the real output, every acceptance number sampled at
+   that intermediate silently becomes wrong. Name the affected metrics and re-point them at the
+   output boundary (see `09-package-verification`'s own output-boundary rule). *(Real case:
+   `IP-1140`'s harsh-interval acceptance figures were sampled at `CUR_DEGREE` — what the harmony
+   layer intends — while `arp_tick` rewrote the frequency register afterward. The reported 16.2%
+   was 25.3% measured at the pitch that actually sounded.)*
 
 ### Step 2 — Author the package(s)
 
@@ -155,8 +185,11 @@ implementation rows, commit as `docs(implementation): IP-xxxx — <what was plan
 - [ ] The TWBS records the rationale for every split/no-split decision.
 - [ ] For a multi-verb capability (generate/render/apply/persist/review), every verb has a
       named package or a recorded, deliberate deferral — the TWBS states this explicitly.
-- [ ] For a package that supersedes an existing model, the supersession sweep was run and its
-      result (clean, or what else it found) is recorded in the TWBS or the package itself.
+- [ ] For **every** package writing shared state or adding a mechanism, all four collision &
+      obsolescence sweep questions were asked and each has a recorded answer (who else writes this
+      state; what still encodes a retired model; what my addition makes redundant; what existing
+      metric my change silently re-points) — "found nothing, confirmed clean" counts, silence does
+      not. A package that adds a mechanism without answering question 3 is not planning-complete.
 
 ## Gotchas
 

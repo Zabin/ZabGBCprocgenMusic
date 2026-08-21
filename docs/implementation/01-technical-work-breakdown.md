@@ -622,3 +622,117 @@ sufficient to catch a missed site).
 equivalence contract covering all three, one full-suite pass); splitting by target file would
 triple the review overhead for no independent value, since none of the three can be verified in
 isolation without the others.
+
+---
+
+## Tranche — `FS-115` / `FEAT-1160`: the arpeggio re-rooted, gated and varied (`BL-0127`) — 2026-08-21
+
+**One package: [`IP-1150`](packages/IP-1150-arpeggio-rerooted-gated-varied.md)**, executor
+`08-code-implementation`.
+
+### Why one package and not three
+
+`ADR-0005` states four rules (chord-aware, gated, varied, cheaper) and the obvious cut is one
+package per rule. It is the wrong cut, for a reason that is structural rather than a matter of
+convenience:
+
+- **Gated and varied are the same table lookup, by design.** `FR-1610` requires the figure set to
+  contain a member under which the note does not arpeggiate. That member *is* the gate — `FR-1600`
+  is expressed by forcing the pattern index, not by a separate branch. There is no intermediate
+  state in which one exists and the other does not, so a "gate" package and a "vary" package would
+  share one mechanism and neither could be verified without the other.
+- **Chord-aware alone is a shippable state that we have decided not to ship.** It would fix the
+  measurable defect (46.4 % → 100 % chord tones) while leaving the *reported* one untouched — a
+  perfectly in-chord figure still repeating identically 2.5×/second forever. `ADS-108` §12.5
+  rejects that as answering the measurement instead of the listener. Cutting it as its own package
+  would make shipping it an available outcome, and this tranche exists because the listener's
+  complaint is the acceptance criterion.
+- **Cheaper is not separable work at all.** The per-frame saving comes from *deleting* the address
+  arithmetic that only exists to support degree-offset resolution. Remove the offsets (chord-aware)
+  and the saving falls out; keep them and there is nothing to optimize that `BL-0125` has not
+  already found blocked. `NFR-1280` is a constraint on the same edit, not a follow-on to it.
+
+One package, one Definition of Done, one before/after measurement whose delta is attributable to
+one change. The cost of the choice is a package that touches two files across the stage-08 peer
+seam (declared in its Risk 5, same as `IP-1140`) and a larger single review surface.
+
+### Verb inventory
+
+The capability spans *generate* and *apply*; *render*, *persist* and *review* have named owners or
+explicit deferrals:
+
+| Verb | Owner |
+|---|---|
+| **generate** — decide which figure this note gets | `IP-1150`, per-onset draw inside `_emit_channel_gen`'s existing onset branch |
+| **apply** — sound it, frame by frame | `IP-1150`, `_emit_arpeggio_tick` rewritten as cache playback |
+| **render** — show it on the visualizer | **Deliberately deferred, not silent.** `visuals.py` is untouched; nothing in `ADS-108` §12, `FS-115` or `FR-1600`-`FR-1630` asks for a visual signal, and the existing channel-activity tiles already reflect `NR52` unchanged. Revisit only if roadmap R9 wants articulation as a visual axis. |
+| **persist** | N/A — this project persists nothing (`MSTR-001` C2, `ADR-0002`). |
+| **review** | `09-content-review`, named in `FS-115`'s Verification Plan and in `IP-1150`'s Verification Checklist, with its question stated concretely (*"does the arpeggio still read as a constant looping figure?"*) rather than left as "review the sound." |
+
+### Collision & obsolescence sweep
+
+All four questions asked; all four answered. This sweep is worth reading rather than skimming,
+because **this tranche exists because the sweep's own question 3 was not asked when `IP-1140` was
+planned** — the sweep was widened to four questions on 2026-08-20 for exactly this class of defect,
+and this is its first real exercise.
+
+**1 — Who else writes the state I write?**
+`IP-1150` writes `NR13`/`NR14` and `NR23`/`NR24` (pulse A/B frequency) every frame, plus new
+per-channel WRAM cache bytes. Grepped, not assumed:
+
+- `_emit_channel_gen`'s onset branch writes the same four frequency registers, once per onset, with
+  the trigger bit set. **This is the collision `IP-1140` shipped into**, and it is now explicit and
+  intended: the onset write triggers the envelope at the note's pitch, `arp_tick` articulates it
+  afterwards, and the cache the onset builds is what `arp_tick` reads — one producer, one consumer,
+  a defined hand-off instead of two mechanisms overwriting each other.
+- `input_map.py` writes **none** of these registers (confirmed by grep — it is `GDS-03`-forbidden
+  from touching PSG registers and honours it).
+- The new cache bytes have exactly **one writer** (the owning channel's own onset branch) and one
+  reader (`arp_tick`, same channel). Not a shared broadcast field, unlike `CHORD_IDX`.
+- `CHORD_IDX`/`CHORD_TOGGLE` are **read only** by this package. Its one write to `CHORD_TOGGLE`
+  bits 2-3 stays where `IP-1140` put it; no new writer is introduced.
+
+**2 — Does anything still encode a model I am retiring?**
+The retired model is *"the arpeggio is a fixed degree-offset pattern applied to `CUR_DEGREE`."*
+Grepped `ARPEGGIO_OFFSETS`, `arpeggio_offsets_table`, `ARP_SUBTICK_RELOAD`, `ARP_DEGREE_SCRATCH`
+across the tree. Live encodings found and named in Files to Create/Modify: `music_data.py` L145
+(the table), `music_engine.py` L24 (import), ~L1074 (the lookup), ~L1590 (the emission), and
+`test_rom.py`'s `T11.1`, which asserts the step index cycles — a statement about the *retired*
+design that will keep passing while meaning nothing, which is precisely why it is re-authored
+rather than left. `Claude.md`'s "Sound design techniques" **Arpeggio** bullet describes the retired
+design in prose and is named in Documentation Updates. `ARP_DEGREE_SCRATCH` is shared, so it is
+grepped again before removal rather than assumed dead.
+
+**3 — Does what I am ADDING make something existing redundant, vestigial, or contradictory?**
+Asked in both directions:
+
+- *Does the new mechanism obsolete something?* The arpeggio itself was the workaround (`R216`:
+  "implying a chord on a single channel" — a harmony substitute) and this tranche is the belated
+  answer to it. Nothing further is obsoleted: bad-zone recovery acts on note *selection* and stays
+  orthogonal (`FR-1590`); vibrato and portamento are **not** made redundant and must survive
+  (Risk 1); the mute gate is untouched.
+- *Does it revive something previously blocked?* Yes, and it is recorded rather than quietly taken:
+  `BL-0125`/`FR-1560`'s pulse-B octave placement was withheld by `IP-1140` **because `arp_tick`
+  hardcoded `octave_delta = 0`** — a constraint this package removes. `FS-115` OQ3 records it as
+  *unblocked, not owed*, and this package deliberately does not exercise it, so the before/after
+  measurement stays attributable to one change.
+
+**4 — Does my change alter what any existing metric actually measures?**
+Yes, and this is the question that produced `BL-0128`. `NFR-1270`'s harsh-interval acceptance metric
+was sampled at `CUR_DEGREE` — the harmony layer's *intent* — while `arp_tick` rewrote the frequency
+register afterwards, so every figure recorded under it describes a pitch that was never heard.
+`NFR-1270` has been amended (2026-08-21) to make **sounding pitch** the normative basis, and the one
+package that claimed the NFR (`IP-1140`) has its recorded figures corrected as part of this tranche:
+**strong 25.7 %, weak 36.1 %, aggregate 30.9 %**, not 12.2 %/30.6 %/21.5 %. `IP-1150`'s own
+before/after is measured on the corrected basis from the start. No other metric in the tree samples
+an intermediate this package inserts itself in front of (`VIS_ENTRY_LY` samples a frame boundary;
+`DISSONANCE_SCORE` is computed from `SEMI_*` and is engine-internal, already caveated by `BL-0124`).
+
+### Sequencing note
+
+`IP-1150`'s only real dependency, `IP-1140`, is `COMPLETE` but **not `VERIFIED`** — so by the letter
+of this plan's `READY` rule the package is `BLOCKED`. That is recorded honestly on the Master Build
+Plan rather than smoothed over, together with the reason it does not stop the work: the project
+owner's standing instruction is to iterate toward a pleasant result, `IP-1140`'s missing
+verification is a *fresh-session* obligation rather than a defect finding, and `IP-1150` would be
+re-planned anyway if that verification returned findings. The two packages verify as a pair.

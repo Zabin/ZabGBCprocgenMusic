@@ -74,6 +74,33 @@ sampled at pulse-A onsets, **partitioned by metric strength** per `NFR-1270`/`BL
 | before (`3ade5a8`) | 23.3 % | 36.6 % | 30.0 % |
 | after | **12.2 %** | 30.6 % | 21.5 % |
 
+> **⚠️ CORRECTED 2026-08-21 — the four "after" figures above are OVERSTATED, and the table is left
+> standing only so the correction is visible in the place the claim was made (`BL-0128`).**
+>
+> They were computed from `CUR_DEGREE`, which records **what this package's harmony layer intends**.
+> `_emit_arpeggio_tick` (`IP-1060`) rewrites both pulse channels' frequency registers **every
+> frame, after `gen_tick`**, adding `ARPEGGIO_OFFSETS` to that very degree — so the pitch that
+> actually reached the APU was never measured. Re-measured on this same build and the same run with
+> a driver that reproduces the table above **exactly** on its own basis (strong 12.0 % against the
+> 12.2 % recorded, aggregate 21.8 % against 21.5 %), so the difference below is attributable to the
+> instrument rather than to the run:
+>
+> | | strong-beat | weak-beat | aggregate |
+> |---|---|---|---|
+> | **after, on SOUNDING pitch** | **25.7 %** | **36.1 %** | **30.9 %** |
+>
+> The improvement this package delivered is **real but materially smaller than banked**, and the
+> reason is now understood and packaged: the arpeggio places this package's carefully-chosen chord
+> tones and then moves them off the chord for more than half the frames they sound — pulse B is
+> placed on a chord tone at **100 %** of its onsets, yet only **46.4 %** of sounding pulse-channel
+> frames are chord tones. `IP-1150` fixes the cause; `NFR-1270` has been amended to make sounding
+> pitch the **normative** measurement basis so this cannot recur.
+>
+> This is the same class of error as this package's own `BL-0124` — which corrected *when* to
+> sample — applied to **what** to sample, and it survived that correction. Both were caught by
+> asking whether an arithmetically-impossible-looking number could be right; neither was caught by
+> the suite.
+
 `R225` §5f's simulation predicted 14.9 % on strong-beat sonorities and a much smaller aggregate
 move; both parts of that prediction hold. m2/M7 and tritone are the components that collapse.
 Bad-zone activity fell from 34/121 to 15/121 sampled onsets **with no threshold retuning** — the

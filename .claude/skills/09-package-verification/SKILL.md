@@ -93,6 +93,30 @@ cites, and the live source tree + `test_rom.py`.
 - [ ] No code, package, spec, or requirement was edited by this run.
 - [ ] For any tunable/generated parameter the DoD references, this run itself drove the ROM at a
       non-default value — not just re-run the suite and trusted its existing fixture coverage.
+- [ ] **Output-boundary rule:** every acceptance measurement was sampled at the boundary the
+      listener/viewer actually receives — the PSG registers or captured audio for sound, VRAM or a
+      screenshot for the display — never at an internal intermediate that a later stage rewrites.
+      If a reported number was computed from an engine-internal field, it is not evidence and the
+      claim it supports is unverified.
+
+## The output-boundary rule (why it is a gate, not advice)
+
+An acceptance metric sampled upstream of the real output measures **intent, not result**, and goes
+silently wrong the moment anything downstream modifies the value. This project has been bitten by
+exactly this twice, both times producing a confident, plausible, wrong number:
+
+- **`BL-0124`** — pairing the engine's `SEMI_*` scratch bytes with `CUR_DEGREE_*` across a
+  `tick()` boundary fabricated intervals that never sounded, because `badzone_tick` writes those
+  bytes after `gen_tick`. The uncorrected figure looked like a clean success.
+- **`IP-1140`** — harsh-interval acceptance figures were computed from `CUR_DEGREE`, the pitch the
+  harmony layer *selects*, while `arp_tick` rewrote the frequency register afterward. Measured at
+  the pitch that actually sounded, 16.2% was really 25.3%. The overstatement was found only when
+  the user reported hearing something the metrics said was fixed.
+
+So: identify the last writer before the output, and sample after it. When in doubt, capture the
+audio (`pb.sound.ndarray`) or read the hardware register — those cannot be upstream of themselves.
+A green suite has never once predicted whether this engine sounds good; do not let a
+comfortably-derived internal number stand in for the thing the product actually is.
 
 ## Gotchas
 

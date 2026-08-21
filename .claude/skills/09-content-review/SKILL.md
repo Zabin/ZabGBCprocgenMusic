@@ -25,6 +25,36 @@ engine state correctly); it does not confirm what the visualizer actually *shows
 actually *sounds like* to a listener, so a code package that adds/changes visualizer content or
 generated output is not "covered" just because its VR passed.
 
+## The holistic question — ask it FIRST, before any per-parameter question
+
+Added 2026-08-20, closing `BL-0120`'s skill-definition half. `R224`'s per-parameter method is
+excellent at routing a finding to a specific constant, and **structurally blind to whether the
+music is any good** — every question it asks is scoped to one control, so "is this worth
+listening to" is asked by nobody. That is not hypothetical: the first human listening pass ran all
+six `R224` parameters, returned three clean and three findings, and completely missed that the
+engine had no harmonic coordination at all (`BL-0119`) — a defect audible within seconds — because
+no question asked. `R224` §7 now carries the holistic dimension; this section makes asking it a
+required step rather than an available one.
+
+Ask these **before** the parameter questions, on a plain uninterrupted listen of at least 60
+seconds, and record the answers verbatim in the report:
+
+1. Is there a melodic idea you could hum back afterwards?
+2. Does it feel like it's going somewhere, or wandering?
+3. Would you leave it on for five minutes?
+4. What is the *first* thing you'd change?
+
+Answer these honestly even when every per-parameter check passes — especially then. A clean
+parameter sweep on unpleasant music is the exact failure this section exists to catch, and the
+holistic answer outranks the parameter answers when they disagree: the parameters serve the
+music, not the reverse.
+
+**Output-boundary rule (shared with `09-package-verification`).** Every measurement backing this
+review must be sampled where the listener actually receives it — captured audio or the PSG
+registers — never an engine-internal field a later stage rewrites. `CUR_DEGREE` is what the
+generator *intends*; `arp_tick` and friends rewrite the frequency register afterward. Two
+confident, wrong numbers have already reached a report this way (`BL-0124`, `IP-1140`).
+
 ## Listening-session question design
 
 Before driving the ROM for dimensions 3-4, build the session's question set per
@@ -83,6 +113,10 @@ reviews row if it tracks review documents.
 - [ ] Every affected pattern/state was actually driven and screenshotted/register-captured — not
       judged from source.
 - [ ] All five dimensions exercised; a dimension with nothing to report says what was checked.
+- [ ] The four holistic questions were asked first, on an uninterrupted listen, and answered
+      verbatim in the report — including (especially) when every per-parameter check passed.
+- [ ] Every measurement was sampled at the output boundary (captured audio / PSG registers), not
+      at an engine-internal field something downstream rewrites.
 - [ ] Every finding has a severity and a concrete recommended owner; none fixed in-pass.
 - [ ] Nothing but the report (and tracker rows) was written.
 

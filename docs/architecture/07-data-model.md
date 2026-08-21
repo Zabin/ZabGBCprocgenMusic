@@ -120,15 +120,68 @@ must match the shipped bytes, not drift the way the reference project's `Claude.
 | `0xC082`-`0xC089` | `ARP_CACHE_PB` | Added `IP-1150`, 2026-08-21. Pulse B's own copy, identical in shape and contract. The wave channel has none — it does not arpeggiate (`IP-1060`'s original scope choice, unchanged: it keeps its plain sustained bass role, `R207`). |
 | `0xC08A`-`0xC08C` | `ARP_ROW_SCRATCH`, `ARP_BASE_LO`, `ARP_BASE_HI` | Added `IP-1150`, 2026-08-21. Working storage used only *within* a single `arp_resolve` call — the drawn pattern-row index, and the note-table base address resolved once for that call's four steps. Never read across frames or across channels, the same convention as `ARP_DEGREE_SCRATCH` and `SEMI_PA`/`PB`/`WV`. |
 
+## §5a Writers — the pitch/output-layer registry (added 2026-08-21)
+
+**Where the registry lives, and why it is not duplicated here.** Until 2026-08-21 this document
+recorded, for every field above, *where it lives, how it is packed, and which package added it* —
+and for no field at all **who writes it**. That gap is the audit's named root cause for `BL-0127`:
+`ADS-108` designed chord-derived pitch selection without discovering that `arp_tick` was already
+rewriting the same channels' frequency registers every frame, because no document anywhere in the
+tree listed the writers of the pitch layer.
+
+The registry now exists at [**`GDS-04` §1.4**](04-domain-model.md), alongside §1.2's
+steering-index registry — the two are a pair, and `07-implementation-planning`'s collision &
+obsolescence sweep consults both by name. It is authored there rather than here because a writer
+contract is a statement about **meaning and collision behaviour**, which is GDS-04's level; this
+document keeps sole authority over **location**, per GDS-04 §0's line. Restating the contracts here
+would create two copies that drift, and a registry that has drifted is worse than none — it is
+exactly the failure mode it exists to prevent.
+
+**What this section owes instead** is the address-side index, so a reader who arrives at a WRAM row
+can find its writer contract, and so a package that claims a new address knows whether it has just
+entered the registry's scope:
+
+| Addresses in this document | Registered at `GDS-04` §1.4 as | Registry row |
+|---|---|---|
+| `0xC00C`-`0xC00F` | note timers | `NOTE_TIMER_*` — single owner per channel |
+| `0xC010`-`0xC012` | current scale degree | `CUR_DEGREE_*` — **one runtime write site per channel, by construction**; all four note-selection limbs and both bad-zone recovery paths converge on it |
+| `0xC016`-`0xC018` | per-channel LFSR | `LFSR_STATE*` — every mechanism reuses and re-stores the same stream (`NFR-1110`); adding a draw shifts every downstream draw |
+| `0xC019` | noise step index | `NOISE_STEP_IDX` — single owner |
+| `0xC01A`-`0xC01C` | semitone scratch | `SEMI_*` — **derived scratch, never a pitch source** (`BL-0124`) |
+| `0xC01D`-`0xC01E` | arpeggio/vibrato state | `ARP_STATE_*` — one owner, three read-modify-write passes per frame on one packed byte |
+| `0xC01F`, `0xC08A`-`0xC08C` | resolve/portamento working storage | not state; safe only while `pa`/`pb` ticks stay sequential |
+| `0xC03B` | duty bias | `DUTY_BIAS` — **last write wins**, same contract as the steering indices |
+| `0xC077`-`0xC079` | shared harmonic context | `CHORD_IDX`/`CHORD_ONSET_CTR`/`CHORD_TOGGLE` — broadcast, single runtime writer (pulse A's onset), every read at an onset |
+| `0xC07A`-`0xC089` | resolved arpeggio caches | `ARP_CACHE_PA`/`_PB` — **written only at onset, read only by `arp_tick`**; a per-frame writer here destroys what `NFR-1280` was granted for |
+
+**Hardware registers** (`NR11`-`NR14`, `NR21`-`NR24`, `NR30`/`NR32`-`NR34`, `NR41`-`NR44`,
+`NR50`-`NR52`) are not WRAM and so have no row in this document, but they are the **actual output
+boundary** and they are registered in full at `GDS-04` §1.4's second table. The single most
+consequential entry, repeated here because a reader of the WRAM map will not otherwise meet it:
+**`arp_tick` rewrites `NR13`/`NR14` and `NR23`/`NR24` every frame, unconditionally, and
+`engine_tick` calls it *before* `gen_tick`.** A pitch written at an onset is an intention; the
+pitch that sounds is whatever `arp_tick` writes next. The wave channel is the asymmetric case — it
+has no `arp_tick`, so its onset write to `NR33`/`NR34` *is* what sounds.
+
+**Standing obligation.** A package that adds a writer to any address above, or to any of those
+registers, adds its row to `GDS-04` §1.4 in the same package. A missing row is not a documentation
+lapse here; it is the specific defect this registry was created to stop recurring.
+
 ## §6 Headroom
 
 Fields span `0xC000`-`0xC08C` (**141 bytes used of the block, updated 2026-08-21 for `IP-1150`'s `ARP_CACHE_PA`/`ARP_CACHE_PB` and their resolve-time scratch**; previously `0xC000`-`0xC079`, 94 bytes, 2026-08-20 for `IP-1140`'s
 `CHORD_IDX`/`CHORD_ONSET_CTR`/`CHORD_TOGGLE`; previously `0xC000`-`0xC076`, 91 bytes, 2026-08-08
 for `IP-1130`'s `BLEND_DELTA_*`) with the **next free address at `0xC08D`** — ample headroom before any
-bank-switching question (a non-goal per MSTR-001 §4) becomes relevant. Note that `0xC07A` is the
-address `ADS-108` D10 *reserves* for increment 2's `PHRASE_POS` (phrase structure, rests and
-cadence — `CR-0003`); it is genuinely free today, but a future package claiming it for anything
-else should know it was spoken for.
+bank-switching question (a non-goal per MSTR-001 §4) becomes relevant.
+
+> **Corrected 2026-08-21.** This paragraph previously read: *"Note that `0xC07A` is the address
+> `ADS-108` D10 reserves for increment 2's `PHRASE_POS` (phrase structure, rests and cadence —
+> `CR-0003`); it is genuinely free today, but a future package claiming it for anything else should
+> know it was spoken for."* **`IP-1150` claimed `0xC07A` the same day, for `ARP_CACHE_PA`** — see
+> §3's own row — so the sentence contradicted the table three rows above it. The reservation itself
+> is not lost, only relocated: **`PHRASE_POS` should take `0xC08D`**, the current next-free address,
+> when `CR-0003` is built. Recorded rather than silently deleted, because "spoken for" reservations
+> that quietly evaporate are how two packages end up on one byte.
 
 **ROM tables added by `IP-1140`** (not WRAM, recorded here because §3's own convention is that a
 package's data-table additions are traceable from this document): `chord_table` 48 B,

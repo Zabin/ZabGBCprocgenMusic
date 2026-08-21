@@ -2,116 +2,33 @@
 
 ## Position
 
-- **Updated:** 2026-08-20 (run #143) — **`BL-0119` (harmonic coordination) built, measured, and
-  iterated on; `IP-1140` `COMPLETE`, not `VERIFIED`.** The project owner released the preset-0
-  no-regression standard and granted a standing G3 for this increment. The architecture was
-  re-decided first and **deleted two packages**: `ADS-108` §11/D13 + `ADR-0004` (superseding
-  `ADR-0003` before implementation) replace the default scheme's note selection in place instead of
-  adding a parallel Scheme H, so no `SCHEME_TABLE` migration exists and `BL-0123` is **obviated**,
-  not deferred. `GDS-04` §4.1 amended: the index-0 invariant's fixed-point half stands, its
-  historical-no-regression half is released. Full `04`→`05`→`06`→`07`→`08` chain ran; `08` measured,
-  found the melody had *regressed* even as the harmony improved, iterated twice, and caught both a
-  real `CHORD_TOGGLE` off-by-one (via a re-authored, narrowed test) and a measurement-instrument
-  defect that had inflated its own earlier numbers (`BL-0124`). **Measured: harsh vertical intervals
-  23.3 % → 12.2 % on strong-beat sonorities** (weak-beat 36.6 % → 30.6 %, aggregate 30.0 % →
-  21.5 %), bad-zone activity 34/121 → 15/121 with no threshold retuning, `VIS_ENTRY_LY` 152-153 on
-  chord-transition frames, 171/171 suite. **Two genuine gates now stand**, neither of which more
-  pipeline work can clear: fresh-session `09-package-verification` (the standing G3 grant does not
-  waive it), and the **human listening pass** that decides whether the answer to the owner's
-  original complaint is actually yes — WAV clips captured for it. `BL-0119` is deliberately left
-  open, because two of its own named symptoms (no rests, no phrase boundaries) remain and are
-  `CR-0003`/increment 2.
-- **Increment:** driving toward releasable v1.0, scoped as R0-R8 + R12 + R12.5 + R13.
-- **Pipeline state:** **R8 (Genre Blending) fully shipped and independently verified** —
-  `IP-1130` built, `RETURNED` by its first `VR-1130` pass (Critical F1: 2 of 3 blended fields'
-  interpolation formula wrong), remediated (`f6fd243`), re-verified `VERIFIED` (`VR-1130`,
-  commit `f6fd243`, 3 non-blocking findings, `BL-0106`-`0109`). Separately, `09-content-review`
-  ran for the **first time ever** across all 17 then-`VERIFIED` packages
-  ([content-review-full-baseline.md](../reviews/content-review-full-baseline.md)), 5 findings
-  (F1-F4 new as `BL-0102`-`0105`, F5 a re-confirmation of already-tracked `BL-0032`/`VR-1070`),
-  no Critical/High — `BL-0097`'s review half discharged, retuning half stays open, now scoped by
-  real evidence. **R7 tranche verification completed 2026-08-14**: `IP-9030`, `IP-8010`,
-  `IP-8020`, `IP-1120` all independently `VERIFIED` (runs #128-#131), zero findings across all
-  four packages individually. **`10-integration-review` then ran on the tranche** (run #132) and
-  found what no single-package verification could see: `IP-1130` (shipped after `IP-1120`, not
-  in this tranche) never wires a `mood_update` recompute into its genre-blend write path, so
-  `AROUSAL`/`VALENCE` silently go stale on every blend — `FR-1410` violated, no current
-  player-visible harm (no consumer yet), but a real defect roadmap R9 would inherit
-  ([integration-review-r7-verification-tranche.md](../reviews/integration-review-r7-verification-tranche.md),
-  `BL-0111` Medium-High + `BL-0110` Low-Medium doc gap). `IP-9040` authored (run #133) to
-  remediate `BL-0111`, `READY`, un-authorized — loop stopped there for a session at a G3 gate.
-  **Run #134**: the user changed pipeline policy to pre-authorize conformance-remediation
-  packages meeting 4 explicit conditions (commit `b41d32a`, this branch). Re-verified `IP-9040`
-  against all 4 conditions — qualified, G3 granted, both bases cited. `08-code-implementation`
-  invoked: both `CALL('mood_update')` sites implemented (catching and fixing a register-clobbering
-  bug in the originally-specified placement along the way), but independent `VIS_ENTRY_LY`
-  measurement confirmed the package's own named central risk — a genuine VBlank-budget regression
-  (`VIS_ENTRY_LY` 0-1, outside 144-153), most visibly caught by the new `T22.7` check. Per
-  Implementation Task 6's own explicit contingency, filed as a Blocking Report; all code/test
-  changes reverted, nothing partial committed. `IP-9040` set `BLOCKED` (commit `c868546`).
-  **Run #135**: `07-implementation-planning` re-scoped `IP-9040` (v2) — grounded in throwaway,
-  uncommitted measurement before re-authoring: isolated the regression to `_emit_blend_tick`'s
-  per-active-blend-frame site (`_emit_begin_blend`'s own site measured within budget alone);
-  replaced each site's full `mood_update()` call with an inline, half-sized recompute of only the
-  one field that site's own writes obligate. Measured clean on every ordinary single-blend frame,
-  the mid-blend-restart collision frame remained an explicitly named residual risk. G3 re-verified
-  fresh for v2, qualified, granted. `IP-9040` `READY (v2)` (commit `3a28af9`).
-  **Run #136 (this run)**: `08-code-implementation` invoked on `IP-9040` (v2) — implemented
-  exactly as v2's package doc specified, `T22`'s 6 of 7 checks passed, but `T22.7` failed again on
-  the exact same mid-blend-restart scenario; independent `VIS_ENTRY_LY` measurement confirmed the
-  same regression class recurring (read `0` at the settle frame). Filed a v3 Blocking Report per
-  the package's own contingency, reverted all changes, `IP-9040` `BLOCKED` (commit `d6a8e2c`).
-  **Rather than stopping at that second Blocking Report** (still pipeline-internal — a third
-  candidate remained genuinely untried), built and measured one more throwaway experiment: a
-  deferred-recompute redesign (one new WRAM flag, uniformly deferring every `AROUSAL` write by
-  exactly one `blend_tick` call, within `FR-1410`'s own literal "no more than one frame after"
-  tolerance). **This measured worse** — it regressed even the previously-clean plain single-blend
-  case, since the flush-check's own cheap per-frame cost was still enough to tip the already-
-  razor-thin active-blend-frame budget over. Three independently-measured, materially different
-  approaches (v1's full call, v2's inline halved recompute, this deferred redesign) now converge
-  on the same wall: **this is a hard per-frame resource ceiling on the collision frame, not a
-  design problem further pipeline-internal engineering can route around within a conformance-
-  remediation package's own footprint-preserving scope.** Filed `BL-0113` (`NEEDS-USER`) naming
-  the three real options (a documented `FR-1410` exception for this one scenario; a larger,
-  separately-scoped optimization package against `IP-1130`'s own existing cost; or accepting the
-  staleness as documented until roadmap R9 makes it player-visible). `IP-9040` `BLOCKED,
-  NEEDS-USER` (commit `0903ae7`).
-  **Run #137 (this run)**: the user's `BL-0113` decision landed — **defer entirely**. Triaged and
-  recorded: `BL-0113` `NEEDS-USER`→`DEFERRED` (trigger: roadmap R9 gives `AROUSAL`/`VALENCE` a
-  real consumer); `BL-0111` re-dispositioned `DEFERRED` in step, same trigger; `BL-0112` flipped
-  `DONE` (its diagnostic work complete, absorbed into `BL-0113`). `07-implementation-planning`
-  invoked for a close-out pass (not a v4 re-scope): `IP-9040` flipped `BLOCKED, NEEDS-USER`→
-  `DEFERRED` on the Master Build Plan/`packages/INDEX.md`, closing Resolution section appended to
-  the package doc. Of the 4 folded-in doc corrections that lost their ride: `BL-0107` was already
-  resolved (`DONE`); `BL-0108`/`BL-0109` applied directly as pure doc edits (`NFR-1220`'s
-  WRAM-byte count, `IP-1130`'s Risks field `N=16`→`N=4`); `BL-0106` (a `music_engine.py`
-  docstring, production source) left `SCHEDULED` for the next natural touch. Committed (`33fcf93`
-  for the planning pass, `e95b49a` for journal/backlog).
-  **Run #138 (this run)**: `07-implementation-planning` invoked on `BL-0089` — authored `IP-8030`
-  (`docs/implementation/packages/IP-8030-content-module-decomposition.md`), splitting content by
-  category (tile pixel bytes/palettes → `tiles.py`; Euclidean rhythm-pattern generation/
-  `DENSITY_K`/`NOISE_STEP_TABLE` → `patterns.py`; every scale/tempo/style/song/motif/valence table
-  → `music_data.py`), with a supersession sweep confirming `test_rom.py`'s 5 import lines are the
-  only real cross-file reference needing repointing. `IP-8030` set `READY` on the Master Build
-  Plan/`packages/INDEX.md` (commit `5bf7024`). `BL-0089` updated to record this and flipped
-  `SCHEDULED`→`NEEDS-USER`: refactoring packages are never pre-authorized by release-plan coverage
-  alone, and the user's 2026-08-07 decision settled *what* the fix is, not a go-ahead to build it
-  now. **Run #139: G3 granted. Run #140: `IP-8030` built `COMPLETE`, verification deferred to a
-  fresh session.**
-- **Backlog:** 66 open, **none `NEEDS-USER`, none ripe/due.** `BL-0089` stays open (rides
-  `IP-8030`'s eventual `09-package-verification` to `DONE`). `BL-0103` closed `DONE` this run
-  (root cause resolved — `NR52`-sampling artifact, not a real defect). `BL-0102`/`BL-0104`/`BL-0105`
-  grounded, all `SCHEDULED` to R12.5's own not-yet-scheduled retuning package or future tooling
-  work. `BL-0106`/`BL-0110`/`BL-0114`/`BL-0115`/`BL-0116` remain `SCHEDULED`/`DEFERRED` "rides the
-  next natural touch of X" doc-coherence entries, each explicitly not urgent enough for its own
-  pass per its own disposition text. No Critical/High severity anywhere open.
-- **Next step:** `09-package-verification` on `IP-8030`, in a genuinely fresh session — the
-  standing independence rule (this session built it via `08-refactoring`, so cannot also verify
-  it). **No other backlog entry is currently ripe and unblocked** — every remaining open item is
-  disposed to a named future trigger (a not-yet-scheduled R12.5 package, or "next natural touch
-  of X") that this run's own triage confirmed is not yet due.
-- **Open gates:** none ripe for the user. The practical blocker on further automated progress is
-  session-boundary, not a decision gate: `IP-8030`'s verification needs a fresh session.
+- **Updated:** 2026-08-21 (run #144) — **the project owner listened to the `IP-1140` build and
+  reported "constant repeated arpeggios."** Confirmed against the shipped ROM before filing:
+  `IP-1060`'s `_emit_arpeggio_tick` is unconditional and invariant (a 24-frame `[0,2,4,2]`
+  scale-degree figure on every note of both pulse channels, forever) **and** it offsets from
+  `CUR_DEGREE` — which since `IP-1140` is the chord tone the harmony just chose — so it stacks a
+  second triad on the engine's own chord. `BL-0127` (High bug) and `BL-0128` (High doc-defect:
+  every interval figure this project has recorded measured *intent*, not *sounding* pitch) filed
+  and dispositioned. `BL-0125` re-dispositioned to ride with them. **`IP-1140`'s banked acceptance
+  figures are overstated** — on sounding pitch the same build reads strong 25.7 % / weak 36.1 % /
+  aggregate 30.9 %, not 12.2 %/30.6 %/21.5 %.
+- **Increment:** driving toward releasable v1.0, scoped as R0-R8 + R12 + R12.5 + R13. The live
+  sub-increment is **harmonic coordination**, under the owner's standing G3 grant (run #143) and
+  his standing instruction to iterate until the music is pleasant enough for human ears.
+- **Pipeline state:** `IP-1140` `COMPLETE`, not `VERIFIED` — fresh-session `09-package-verification`
+  is still owed and is **not** waived by the standing G3 grant. `BL-0119` deliberately open (its
+  no-rests/no-phrase-boundaries symptoms are `CR-0003`/increment 2). Everything R0-R8 before it is
+  shipped and verified. `IP-9040` `BLOCKED` on the VBlank budget (`BL-0113`). The arpeggio chain
+  (`BL-0127`) is the live work.
+- **Backlog:** `BL-0127`/`BL-0128`/`BL-0125` `SCHEDULED` onto the current chain; the pre-existing
+  open set (`BL-0005`, `BL-0011`, `BL-0032`, `BL-0092`, `BL-0097`, `BL-0102`-`0105`, `BL-0110`-
+  `0118`, `BL-0119`, `BL-0121`, `BL-0122`, `BL-0124`, `BL-0126`) unchanged this step.
+- **Next step:** `03-architecture-design-synthesis` on `BL-0127` — the arpeggio's *role* in a
+  harmonized engine needs re-deciding (chord-aware / conditional / retired), which is an
+  architecture question, not a constant to tune.
+- **Open gates:** fresh-session `09-package-verification` of `IP-1140`; the human listening pass
+  that decides whether the harmonic work actually answered the owner's complaint. Neither blocks
+  this chain — the owner's standing instruction is to keep iterating toward pleasant.
 
 ## Run log
 

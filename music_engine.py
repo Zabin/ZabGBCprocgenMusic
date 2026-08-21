@@ -21,7 +21,8 @@ from wram_constants import (TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX
 from music_data import (TEMPO_BPM, TEMPO_TABLE, OCTAVE_ROOT_HZ, SCALE_SEMITONES, SCALES,
                          SEMITONE_TABLE_DATA, DISSONANCE_WEIGHT_BY_IC, DELTA_TABLE,
                          VALENCE_TABLE, STYLE_TABLE, SONG_TABLE, N_SONG_PHASES,
-                         ARPEGGIO_OFFSETS, DUTY_BY_DEGREE, MOTIF_TABLE, N_VARIANTS,
+                         ARP_PATTERNS, N_ARP_PATTERNS, ARP_PATTERN_PICK, ARP_SUSTAIN,
+                         DUTY_BY_DEGREE, MOTIF_TABLE, N_VARIANTS,
                          MOTIF_VARIANT_SELECTOR, CHMIX_MASKS,
                          CHORD_TABLE, CHORD_TRANSITION, MELODY_PICK, SLOT_NEXT,
                          PASSING_TABLE, N_CHORDS, N_CHORD_ONSETS)
@@ -143,6 +144,36 @@ CHORD_TOGGLE = 0xC079     # bit0: wave-channel root/fifth alternation.  bit1: pu
                           # slot above (see SLOT_NEXT). Packed into one byte rather than several,
                           # per ADS-108 SS2.1; bits4-7 spare.
 
+# IP-1150 (FS-115/FEAT-1160, BL-0127, ADS-108 §12/D14 + ADR-0005): the per-channel arpeggio
+# note cache — 4 (freq_lo, freq_hi) pairs per pulse channel, RESOLVED AT THAT CHANNEL'S OWN
+# ONSET and merely played back by arp_tick every frame.
+#
+# This is the whole of NFR-1280, and it is what pays for the feature. The shipped arp_tick
+# re-derived a (SCALE_IDX, OCTAVE_IDX) -> ptr_table -> note-table address from scratch on EVERY
+# FRAME, for BOTH pulse channels — roughly 32 of ~120 unconditional per-frame instructions spent
+# recomputing an answer that can only change at an onset or an input press. R101 §8.5 measured
+# this budget as already exhausted, and IP-9040 was abandoned over three instructions (BL-0113),
+# so this routine is where the head-room went. Caching the four resolved frequency pairs moves
+# ALL table arithmetic — the chord lookup, the note-table lookup and the pointer-table resolution
+# alike — into the onset branch (conditional work, which NFR-1240 has always permitted), leaving
+# arp_tick with an index-and-write it cannot make any cheaper. Measured effect: arp_tick's common
+# path falls from ~63 to ~35 emitted instructions per channel per frame.
+#
+# The observable consequence is FR-1620, and it is a requirement rather than an accident: a
+# SCALE_IDX/OCTAVE_IDX change during an already-sounding note now lands at that channel's next
+# onset (<= ~0.5 s at default tempo) instead of mid-note. The onset write itself still uses the
+# values current at that onset, so nothing becomes less responsive than one note; what disappears
+# is a mid-note pitch lurch. init_engine repopulates both caches on boot AND Select (FR-1630) —
+# without that, a reset would leave arp_tick playing back pitch material chosen before it, which
+# is precisely the uninitialized-state defect VR-1130 already found once in BLEND_STEP.
+ARP_CACHE_PA = 0xC07A     # 8 bytes: (lo, hi) x 4 arpeggio steps
+ARP_CACHE_PB = 0xC082     # 8 bytes: (lo, hi) x 4 arpeggio steps
+# Working storage used only *within* a single arp_resolve call (never read across frames or
+# across channels), same convention as ARP_DEGREE_SCRATCH and SEMI_PA/PB/WV.
+ARP_ROW_SCRATCH = 0xC08A  # the pattern row index this note drew
+ARP_BASE_LO = 0xC08B      # the (scale, octave) note table's own address, resolved once per onset
+ARP_BASE_HI = 0xC08C
+
 # IP-0004 thresholds (GDS-03 SS4, R204 SS5) — first-guess placeholders, per BL-0005's own
 # deferred-tuning convention; the dissonance weight table itself is literature-grounded (R204),
 # these threshold *numbers* are not yet tuned by ear.
@@ -251,6 +282,14 @@ CHANNELS = [
 # wave channel's shipped octave/rate anchoring: wave is the bass, pulse A the melody, pulse B the
 # inner harmony voice.
 CHANNEL_ROLES = {'pa': 'melody', 'pb': 'harmony', 'wv': 'bass'}
+
+# IP-1150: which per-channel arpeggio cache each arpeggiating channel owns. Kept beside
+# CHANNEL_ROLES and out of CHANNELS for the same reason that mapping is: CHANNELS' fields are
+# hardware wiring (registers, WRAM addresses mirroring hardware state, octave/rate
+# characteristics), and this is a property of the articulation design. The wave channel has no
+# entry — it does not arpeggiate (IP-1060's original scope choice, unchanged: it keeps its plain
+# sustained bass role, R207).
+ARP_CACHES = {'pa': ARP_CACHE_PA, 'pb': ARP_CACHE_PB}
 
 # IP-8030 (BL-0089): CHMIX_MASKS, STYLE_TABLE, SONG_TABLE, N_SONG_PHASES, ARPEGGIO_OFFSETS,
 # DUTY_BY_DEGREE, MOTIF_TABLE, N_VARIANTS, MOTIF_VARIANT_SELECTOR moved to music_data.py,
@@ -510,7 +549,7 @@ def _emit_chord_pick(rom, suffix, lfsr_state, pick_label, tag, record_slot=False
 def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_lo, nr_freq_hi,
                        octave_delta, tempo_mult, stale_count, duty_reg=None, portamento=False,
                        dac_reg=None, dac_on=None, bit_index=None,
-                       scheme_bit=None, scheme_state=None, role=None):
+                       scheme_bit=None, scheme_state=None, role=None, arp_cache=None):
     """One channel's note-generation routine: countdown -> (on expiry) LFSR-picked scale-degree
     step -> table lookup -> register write -> timer reload -> IP-0004 stale/onset-window
     bookkeeping. Parameterized so pulse A/B and the wave channel share one Python-level
@@ -890,6 +929,56 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
     rom.INC_A()
     rom.LD_nn_A(ONSET_WINDOW_COUNT)
 
+    # ── IP-1150 (FS-115, FR-1600/FR-1610): draw this note's arpeggio figure, then resolve it ──
+    # Placed HERE deliberately: inside the onset branch (so NFR-1240's zero-unconditional-per-frame
+    # rule is untouched), after CUR_DEGREE has settled — including after every bad-zone override —
+    # and BEFORE the CHMIX mute gate, because arp_tick runs for a muted channel too and its cache
+    # must stay coherent so the channel resumes musically-current rather than frozen the instant
+    # its mix bit re-enables (IP-9010's established contract, FS-115 B6). D is dead from here on
+    # (its last use was the stale-count CP_D just above) and HL/BC are free, so nothing needs
+    # stashing.
+    #
+    # THE GATE (FR-1600) is expressed as a forced row index, not as a branch around the mechanism
+    # — row 0 is the all-sustain row. Two conditions force it, and both are musical rather than
+    # arbitrary throttles:
+    #   * a WEAK melody onset, i.e. a deliberate passing tone (FR-1550). Arpeggiating a triad from
+    #     a passing tone re-asserts it as a chord root and destroys the strong/weak distinction
+    #     ADS-108 D9 calls "the entire mechanism that converts in key into in harmony." The parity
+    #     bit is already in CHORD_TOGGLE and was already updated by this same onset.
+    #   * the STUCK bad-zone flag, which forces a step off whatever note was selected (IP-0007) —
+    #     including off a chord tone. Recovery's job is to move the note, not to decorate it, so a
+    #     note it has pushed off the chord sustains rather than arpeggiating a chord it is not on
+    #     (FS-115 B7). Three instructions, and it makes B7 true rather than merely intended.
+    # Otherwise the row is DRAWN from this channel's own LFSR through ARP_PATTERN_PICK — the same
+    # weighted-table idiom as DELTA_TABLE/MOTIF_VARIANT_SELECTOR, no new randomness source, and
+    # each pulse channel draws independently so the two stop moving in lockstep (BL-0121).
+    if arp_cache is not None:
+        if role == 'melody':
+            rom.LD_A_nn(CHORD_TOGGLE)
+            rom.BIT_b_A(1)
+            rom.JR_Z(f'gt_arp_hold_{suffix}')
+        rom.LD_A_nn(BAD_ZONE_FLAGS)
+        rom.BIT_b_A(1)
+        rom.JR_NZ(f'gt_arp_hold_{suffix}')
+
+        rom.LD_A_nn(lfsr_state)
+        rom.SRL_A()
+        rom.JR_NC(f'gt_arp_noxor_{suffix}')
+        rom.XOR_n(LFSR_POLY)
+        rom.label(f'gt_arp_noxor_{suffix}')
+        rom.LD_nn_A(lfsr_state)
+        rom.AND_n(0x03)
+        rom.LD_C_A(); rom.LD_B_n(0)
+        _ld_hl_label(rom, 'arp_pattern_pick')
+        rom.ADD_HL_BC()
+        rom.LD_A_HL()                  # A = drawn row index (0 .. N_ARP_PATTERNS-1)
+        rom.JR(f'gt_arp_go_{suffix}')
+
+        rom.label(f'gt_arp_hold_{suffix}')
+        rom.XOR_A()                    # row 0 = the all-sustain row: this note does not arpeggiate
+        rom.label(f'gt_arp_go_{suffix}')
+        rom.CALL(f'arp_resolve_{suffix}')
+
     # IP-9010 (BL-0019): channel-mix gating. Test CHMIX_MASKS[CHMIX_IDX]'s bit for this channel
     # *before* computing the note-table address (HL is free here — the table-address computation
     # below needs it fresh regardless of which branch is taken, so no stash/restore is needed).
@@ -1021,22 +1110,122 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
     rom.RET()
 
 
-def _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, nr_freq_lo, nr_freq_hi):
-    """IP-1060 arpeggio + IP-1061 vibrato, R216: runs every frame, independent of the channel's
-    own note-timer. Packed arp_state byte: bits0-3 arpeggio sub-tick countdown, bits4-5 arpeggio
-    step (0-3, wraps via AND 0x30), bits6-7 vibrato phase (0-3, advances every frame via a plain
-    ADD 0x40 — 2 bits overflow harmlessly out of the byte with no effect on bits0-5). The
-    chord-tone step only *advances* on sub-tick expiry, but the frequency register is *rewritten*
-    every frame regardless (vibrato needs every-frame updates even between arpeggio steps) —
-    arpeggio's own base note (from the current step) plus vibrato's tiny +-1 low-byte wobble
-    (phase 0 -> +1, phase 2 -> -1, phases 1/3 -> no change; a deliberate scope reduction from a
-    true frequency-domain LFO, R216's own description — the SM83 opcode set this project uses has
-    no ADC/SBC for safe multi-byte carry-chain arithmetic beyond single ±1 steps, so the wobble is
-    kept to the smallest safe unit; an octave-boundary low-byte wrap without a hi-byte carry is a
-    rare, self-healing one-frame edge case, same character as BL-0015's already-accepted
-    COMBINED-bit transient) are combined into one write, with the trigger bit clear (no
-    retrigger) so envelope/duty continue undisturbed — same non-retriggering technique as
-    IP-1060's original arpeggio-only write."""
+def _emit_arp_resolve(rom, suffix, arp_cache, cur_degree):
+    """IP-1150 (FS-115, FR-1130/FR-1600/FR-1610/FR-1630): resolve this note's whole arpeggio into
+    four ready-to-write (freq_lo, freq_hi) pairs, ONCE, at the channel's own onset.
+
+    On entry A = the pattern row index (0-3). Called from _emit_channel_gen's existing onset
+    branch and from init_engine; never from engine_tick, and never per frame — that is the entire
+    point (NFR-1280, ADS-108 §12.4 R-D).
+
+    Each of the four steps is one of:
+      * ARP_SUSTAIN -> this note's own degree, i.e. the pitch its onset triggered. This is how
+        FR-1600's chord-tone gate is expressed (an all-sustain row IS "does not arpeggiate"), and
+        it is why the gate can never become "skip the per-frame write" — the write still happens,
+        with this note's pitch, so FR-1140's vibrato and FR-1150's portamento survive untouched
+        (BL-0130, the highest-severity risk on this package).
+      * a chord-tone SLOT (0-2) -> that tone's degree, read from CHORD_TABLE's row for the
+        CURRENTLY-SOUNDING chord (FR-1130 as amended). Never a degree offset from CUR_DEGREE:
+        that was the defect (a second, differently-rooted triad stacked on the engine's own
+        chord), and the AND 0x07 it needed was the octave-seam arithmetic ADS-108 D3 had already
+        ruled incorrect for chord math.
+
+    The four steps are UNROLLED at build time rather than looped: SM83 has no spare register for
+    a loop counter here (_emit_chord_tone_lookup clobbers A/B/C/E/H/L and must preserve nothing
+    else), and a WRAM counter would cost more per step than the unrolled code saves in ROM. Cost
+    is paid on onset frames only, which R225 §3h measured at ~4.9% of frames.
+
+    octave_delta is 0 for both pulse channels, exactly as the shipped arp_tick hardcoded — this
+    package deliberately does NOT exercise the octave placement it unblocks (BL-0125/FR-1560's
+    withheld half, FS-115 OQ3), so that the before/after measurement stays attributable to one
+    change."""
+    rom.label(f'arp_resolve_{suffix}')
+    rom.LD_nn_A(ARP_ROW_SCRATCH)
+
+    # Resolve the (SCALE_IDX, OCTAVE_IDX) note table's own address ONCE for all four steps —
+    # this is the computation that used to run every frame, for both channels, forever.
+    rom.LD_A_nn(SCALE_IDX)
+    rom.ADD_A_A(); rom.ADD_A_A()
+    rom.LD_B_A()
+    rom.LD_A_nn(OCTAVE_IDX)
+    rom.ADD_A_B()
+    rom.ADD_A_A()                      # *2 -> pointer-table byte offset
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'ptr_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HL(); rom.LD_nn_A(ARP_BASE_LO)
+    rom.INC_HL()
+    rom.LD_A_HL(); rom.LD_nn_A(ARP_BASE_HI)
+
+    for step in range(4):
+        # A = ARP_PATTERNS[row*4 + step]
+        rom.LD_A_nn(ARP_ROW_SCRATCH)
+        rom.ADD_A_A(); rom.ADD_A_A()   # row*4 (row width)
+        if step:
+            rom.ADD_A_n(step)
+        rom.LD_C_A(); rom.LD_B_n(0)
+        _ld_hl_label(rom, 'arp_patterns')
+        rom.ADD_HL_BC()
+        rom.LD_A_HL()
+
+        rom.CP_n(ARP_SUSTAIN)
+        rom.JR_NZ(f'arp_res_slot_{suffix}_{step}')
+        rom.LD_A_nn(cur_degree)        # sustain -> this note's own pitch
+        rom.JR(f'arp_res_deg_{suffix}_{step}')
+        rom.label(f'arp_res_slot_{suffix}_{step}')
+        _emit_chord_tone_lookup(rom)   # A = slot -> A = that chord tone's scale degree
+        rom.label(f'arp_res_deg_{suffix}_{step}')
+
+        # degree -> note-table entry -> the cache slot for this step
+        rom.ADD_A_A()                  # *2 (2 bytes/entry)
+        rom.LD_C_A(); rom.LD_B_n(0)
+        rom.LD_A_nn(ARP_BASE_LO); rom.LD_L_A()
+        rom.LD_A_nn(ARP_BASE_HI); rom.LD_H_A()
+        rom.ADD_HL_BC()
+        rom.LD_A_HL(); rom.LD_nn_A(arp_cache + step * 2)
+        rom.INC_HL()
+        rom.LD_A_HL()
+        rom.AND_n(0x07)                # drop the trigger bit and unused high bits here, once,
+                                        # so arp_tick never has to (it re-masks after vibrato's
+                                        # carry/borrow anyway, but the cached value must already
+                                        # be clean for that arithmetic to be right)
+        rom.LD_nn_A(arp_cache + step * 2 + 1)
+
+    rom.RET()
+
+
+def _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, arp_cache, nr_freq_lo, nr_freq_hi):
+    """IP-1060 arpeggio + IP-1061 vibrato (R216), as re-decided by IP-1150 (ADS-108 §12/D14,
+    ADR-0005). Runs every frame, independent of the channel's own note-timer.
+
+    Packed arp_state byte, unchanged: bits0-3 arpeggio sub-tick countdown, bits4-5 arpeggio step
+    (0-3, wraps via AND 0x30), bits6-7 vibrato phase (0-3, advances every frame via a plain
+    ADD 0x40 — 2 bits overflow harmlessly out of the byte with no effect on bits0-5).
+
+    **What IP-1150 changed here, and what it deliberately did not.** This routine no longer
+    computes anything. It used to read ARPEGGIO_OFFSETS, add the offset to CUR_DEGREE, mask
+    AND 0x07, then resolve a (SCALE_IDX, OCTAVE_IDX) pointer-table address and index a note
+    table — roughly 63 emitted instructions per channel per frame, ~32 of them re-deriving an
+    address that can only change at an onset. It now indexes a per-channel cache that
+    arp_resolve built at this note's own onset (~35 instructions). That is NFR-1280 satisfied by
+    construction rather than by tuning, and it is the first per-frame head-room this project has
+    recovered since R101 §8.5 measured the budget exhausted.
+
+    **Unchanged, and load-bearing (BL-0130).** The frequency register is still written EVERY
+    FRAME, on every path, including when the cached figure is all-sustain. A "gated" arpeggio
+    that skipped the write would silently delete both of this routine's other two effects:
+    IP-1061's vibrato (the ±1 low-byte wobble applied below) and IP-1061's portamento, which is
+    not a routine of its own at all — it exists only because this per-frame rewrite carries the
+    pitch from the outgoing note to the new one, which is why engine_tick calls arp_tick BEFORE
+    gen_tick. Both would have vanished on exactly the weak melody onsets where portamento matters
+    most, with the whole suite still green, because nothing asserted a glide had occurred. T23.5
+    now does. Do not reorder engine_tick's calls, and do not make the final writes conditional.
+
+    Vibrato: phase 0 -> +1, phase 2 -> -1, phases 1/3 -> no change; a deliberate scope reduction
+    from a true frequency-domain LFO (R216's own description — this project's SM83 subset has no
+    ADC/SBC for safe multi-byte carry chains), kept to the smallest safe unit with exact
+    carry/borrow handling via JP_C/JP_NC. The trigger bit stays clear (no retrigger) so
+    envelope/duty continue undisturbed — IP-1060's original non-retriggering technique."""
     rom.label(f'arp_tick_{suffix}')
 
     # Vibrato phase advances every frame, unconditionally (bits6-7).
@@ -1063,44 +1252,19 @@ def _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, nr_freq_lo, nr_freq_
     rom.LD_nn_A(arp_state)
     rom.label(f'arp_no_advance_{suffix}')
 
-    # Compute this frame's base note from the *current* step (freshly read — whether or not it
-    # just advanced above) and CUR_DEGREE.
+    # This frame's pitch = the cache entry for the *current* step (freshly read, whether or not it
+    # just advanced above). bits4-5 hold step<<4, and each cache entry is 2 bytes, so three right
+    # shifts turn the masked byte directly into the cache byte offset (step*2) with no separate
+    # doubling step.
     rom.LD_A_nn(arp_state)
     rom.AND_n(0x30)
-    rom.SRL_A(); rom.SRL_A(); rom.SRL_A(); rom.SRL_A()   # A = current step (0-3)
+    rom.SRL_A(); rom.SRL_A(); rom.SRL_A()
     rom.LD_C_A(); rom.LD_B_n(0)
-    _ld_hl_label(rom, 'arpeggio_offsets_table')
-    rom.ADD_HL_BC()
-    rom.LD_A_HL()                      # A = ARPEGGIO_OFFSETS[step]
-    rom.LD_B_A()
-    rom.LD_A_nn(cur_degree)
-    rom.ADD_A_B()
-    rom.AND_n(0x07)
-    rom.LD_nn_A(ARP_DEGREE_SCRATCH)    # stash effective_degree (D/E about to be reused below)
-
-    # (scale, octave) note-table base address -> HL, same pattern as _emit_channel_gen's own
-    # lookup, octave_delta=0 always (only pulse A/B arpeggiate, neither has an octave offset).
-    rom.LD_A_nn(SCALE_IDX)
-    rom.ADD_A_A(); rom.ADD_A_A()
-    rom.LD_B_A()
-    rom.LD_A_nn(OCTAVE_IDX)
-    rom.ADD_A_B()
-    rom.ADD_A_A()
-    rom.LD_C_A(); rom.LD_B_n(0)
-    _ld_hl_label(rom, 'ptr_table')
-    rom.ADD_HL_BC()
-    rom.LD_E_HL(); rom.INC_HL(); rom.LD_D_HL()
-    rom.LD_H_D(); rom.LD_L_E()
-
-    rom.LD_A_nn(ARP_DEGREE_SCRATCH)
-    rom.ADD_A_A()
-    rom.LD_C_A(); rom.LD_B_n(0)
+    rom.LD_HL_nn(arp_cache)
     rom.ADD_HL_BC()
     rom.LD_A_HL(); rom.LD_E_A()        # E = base lo byte (not written yet — vibrato may adjust it)
     rom.INC_HL()
-    rom.LD_A_HL()
-    rom.AND_n(0x07)                    # clear the trigger bit and any unused high bits
-    rom.LD_D_A()                       # D = base hi byte (0-7)
+    rom.LD_A_HL(); rom.LD_D_A()        # D = base hi byte (0-7, already masked by arp_resolve)
 
     # IP-1061 vibrato: read the phase bits fresh and apply the +-1/none adjustment to E (lo),
     # carrying into D (hi) only on an actual 8-bit overflow/underflow (JP_C/JP_NC-gated, exact
@@ -1131,7 +1295,6 @@ def _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, nr_freq_lo, nr_freq_
     rom.LD_A_E(); rom.LDH_n_A(nr_freq_lo)
     rom.LD_A_D(); rom.AND_n(0x07); rom.LDH_n_A(nr_freq_hi)
     rom.RET()
-
 
 def _emit_noise_gen(rom):
     """Noise channel (IP-0003, R115/R202): a fixed 16-step Euclidean pattern, k selected by
@@ -1505,6 +1668,16 @@ def build_engine_asm(rom: ROM):
         # already avoids it), step index back to 0.
         if arp_state is not None:
             rom.LD_A_n(ARP_SUBTICK_RELOAD); rom.LD_nn_A(arp_state)
+            # IP-1150 (FR-1630): repopulate this channel's arpeggio cache on BOTH boot and
+            # Select. arp_tick runs unconditionally every frame — including the reset frame
+            # itself, and before gen_tick — so without this it would play back pitch material
+            # chosen before the reset. That is exactly the uninitialized-state defect VR-1130
+            # found in BLEND_STEP, and it is why FR-1630 is a requirement rather than an
+            # implementer's habit. Row 0 (all-sustain) is resolved against the freshly-zeroed
+            # CUR_DEGREE, so a reset always starts on the tonic, held — deterministic, in-key,
+            # and identical on every reset (GDS-04 §4.1's fixed-point rule).
+            rom.XOR_A()
+            rom.CALL(f'arp_resolve_{suffix}')
         # IP-1070: zero this channel's packed Scheme-E state (Euclidean step + motif step) —
         # same audit discipline IP-0005 already established for every other per-channel field.
         rom.XOR_A(); rom.LD_nn_A(scheme_state)
@@ -1552,9 +1725,12 @@ def build_engine_asm(rom: ROM):
                            portamento=(arp_state is not None),
                            dac_reg=dac_reg, dac_on=dac_on, bit_index=bit_index,
                            scheme_bit=scheme_bit, scheme_state=scheme_state,
-                           role=CHANNEL_ROLES[suffix])
+                           role=CHANNEL_ROLES[suffix],
+                           arp_cache=ARP_CACHES.get(suffix))
         if arp_state is not None:
-            _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, nr_lo, nr_hi)
+            _emit_arp_resolve(rom, suffix, ARP_CACHES[suffix], cur_degree)
+            _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, ARP_CACHES[suffix],
+                                nr_lo, nr_hi)
     _emit_noise_gen(rom)
     _emit_badzone_tick(rom)
     _emit_song_tick(rom)
@@ -1586,8 +1762,15 @@ def build_engine_asm(rom: ROM):
     rom.label('wave_table')
     rom.emit(*_wave_table_bytes())
 
-    rom.label('arpeggio_offsets_table')
-    rom.emit(*ARPEGGIO_OFFSETS)
+    # IP-1150 (FR-1130 as amended/FR-1610): the arpeggio figure table replacing IP-1060's
+    # ARPEGGIO_OFFSETS. 16 + 4 = 20 bytes against the 4 removed — a net +16, comfortably inside
+    # R104 §7's measured headroom, and more than repaid in code bytes by the per-frame address
+    # arithmetic arp_tick no longer emits twice.
+    rom.label('arp_patterns')
+    rom.emit(*ARP_PATTERNS)
+
+    rom.label('arp_pattern_pick')
+    rom.emit(*ARP_PATTERN_PICK)
 
     rom.label('duty_table')
     rom.emit(*DUTY_BY_DEGREE)

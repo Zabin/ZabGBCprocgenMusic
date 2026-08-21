@@ -138,11 +138,64 @@ SONG_TABLE = [
 ]
 N_SONG_PHASES = 4
 
-# IP-1060: arpeggio-as-polyphony (R216) — a period-4 up/down offset pattern (root, third, fifth,
-# third, within the active scale's 8-degree table) avoids needing a mod-3 counter (SM83 has no
-# division; a period-4 cycle wraps with a plain AND, R302). First-guess placeholder rate/shape,
-# not tuned by ear (BL-0005's existing disposition covers this).
-ARPEGGIO_OFFSETS = [0, 2, 4, 2]
+# ── IP-1150 (FS-115/FEAT-1160, BL-0127, ADS-108 §12/D14 + ADR-0005) ──────────────────────
+# The arpeggio's figure table, replacing IP-1060's ARPEGGIO_OFFSETS = [0, 2, 4, 2].
+#
+# WHAT CHANGED AND WHY, because a reader who does not know will reintroduce the old design:
+# ARPEGGIO_OFFSETS held *scale-degree offsets added to CUR_DEGREE*. That was correct in 2026-07,
+# when the engine had no harmony and R216's arpeggio existed to *imply* a chord on one channel —
+# i.e. to fake harmony in its absence. Since IP-1140, CUR_DEGREE *is* the chord tone the shared
+# harmony just chose, so adding [0,2,4,2] to it stacked a second, differently-rooted triad on the
+# engine's own chord: measured on the shipped ROM, pulse B was placed on a chord tone at 100% of
+# its onsets while only 46.4% of its *sounding* frames were chord tones, and strong-beat harsh
+# intervals read 12.0% on the notes selected against 25.7% on the pitch actually heard. The
+# offsets were also masked AND 0x07, which is exactly the octave-seam arithmetic ADS-108 D3 had
+# already ruled *incorrect* for chord math (R225 §3g) — degree 4 + 4 wraps to 0 where the correct
+# pitch is degree 8's.
+#
+# Entries here are therefore CHORD-TONE SLOTS (0-2) into the current chord's own CHORD_TABLE row,
+# never degree offsets — the same data CHORD_TABLE already resolves correctly per scale, taken at
+# authoring time rather than at runtime.
+#
+# ARP_SUSTAIN is the reserved fourth value: "sound this note's OWN pitch for that step." It is
+# what makes FR-1600's chord-tone gate and FR-1610's per-onset variation ONE mechanism rather
+# than two branches — a row of all-sustain is "this note does not arpeggiate," and a *table* of
+# all-sustain rows is ADR-0005's named retirement fallback, reachable as a data edit rather than
+# a redesign. NOTE that sustain never means "skip the frame's frequency write": the write still
+# happens, with this note's own pitch, because FR-1150's portamento and FR-1140's vibrato are
+# produced BY that per-frame write (BL-0130).
+ARP_SUSTAIN = 3
+
+# Four rows of 4 steps. Step 0 is ARP_SUSTAIN in EVERY row on purpose: the note begins on the
+# pitch its own onset triggered, so the figure grows out of the note instead of jumping off it on
+# the first sub-tick — which also leaves IP-1061's portamento glide (the trigger fires at the
+# outgoing pitch, arp_tick carries it to the target on the following frame) intact by
+# construction.
+#
+# FR-1610 requires the rows to differ in RHYTHMIC SURFACE, not merely in the order of pitches —
+# four permutations of one triad sweep would still present a single figure to a listener. These
+# four sound a non-onset pitch on 0, 3, 2 and 1 of their four steps respectively. First-guess
+# placeholder shapes, not tuned by ear (BL-0005's existing disposition), but the *spread* is the
+# architectural commitment, not a preference.
+ARP_PATTERNS = [
+    3, 3, 3, 3,   # row 0 — sustain: this note does not arpeggiate at all (0 moving steps)
+    3, 0, 1, 2,   # row 1 — full sweep: note, root, third, fifth (3 moving steps)
+    3, 2, 3, 0,   # row 2 — note, fifth, note, root (2 moving steps, gapped)
+    3, 1, 3, 3,   # row 3 — a single grace flick to the third, then held (1 moving step)
+]
+N_ARP_PATTERNS = 4
+assert len(ARP_PATTERNS) == N_ARP_PATTERNS * 4
+assert all(0 <= e <= ARP_SUSTAIN for e in ARP_PATTERNS)
+assert ARP_PATTERNS[:4] == [ARP_SUSTAIN] * 4, "row 0 must be the all-sustain row (the gate uses it)"
+assert all(ARP_PATTERNS[r * 4] == ARP_SUSTAIN for r in range(N_ARP_PATTERNS)), \
+    "every row must start on the note's own pitch — see the comment above"
+
+# Which row this note gets, indexed by 2 bits of the drawing channel's own LFSR. Shaped exactly
+# like DELTA_TABLE / MOTIF_VARIANT_SELECTOR / CHORD_TRANSITION: the weighting lives in the
+# *distribution of entries*, never in arithmetic (R211 §8). Uniform as a first guess, so one note
+# in four sustains outright — first-guess weighting, not tuned by ear.
+ARP_PATTERN_PICK = [1, 2, 3, 0]
+assert len(ARP_PATTERN_PICK) == 4 and all(0 <= r < N_ARP_PATTERNS for r in ARP_PATTERN_PICK)
 
 # IP-1060: duty-cycle variation (R216) — NR11/NR21 whole-byte values (length bits stay 0, unused,
 # same as the existing fixed-duty boot init), one per CUR_DEGREE mod 4.

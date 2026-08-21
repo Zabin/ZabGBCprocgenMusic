@@ -98,6 +98,9 @@ from music_data import MOTIF_TABLE, N_VARIANTS
 from music_data import SONG_TABLE, N_SONG_PHASES
 from music_data import VALENCE_TABLE
 from music_data import CHORD_TABLE, CHORD_TRANSITION, N_CHORD_ONSETS
+from music_data import ARP_PATTERNS, N_ARP_PATTERNS, ARP_PATTERN_PICK, ARP_SUSTAIN
+
+import collections
 
 results = []
 PASS = 0
@@ -528,8 +531,16 @@ def t11_arpeggio_vibrato_duty():
         seen_arp_steps.add((pb.memory[ARP_STATE_PA] >> 4) & 0x03)
         seen_vib_phases.add((pb.memory[ARP_STATE_PA] >> 6) & 0x03)
         seen_duty.add(pb.memory[NR11] & 0xC0)
-    check("T11.1 Pulse A's arpeggio step index cycles through more than one value over a "
-          "sustained run (chord-tone cycling is live, not frozen)",
+    # RE-AUTHORED 2026-08-21 (IP-1150). The original wording — "chord-tone cycling is live, not
+    # frozen" — described the RETIRED unconditional design, in which the step index advancing was
+    # the same thing as the pitch changing. Under FR-1600/FR-1610 a note may legitimately draw the
+    # all-sustain figure, and then the step index still advances while the sounding pitch does
+    # not. So the step counter is now only a liveness check on the sub-tick machinery itself; the
+    # statement about what is actually SOUNDED moved to T23, where it belongs and where it is
+    # asserted against the resolved cache rather than inferred from a counter.
+    check("T11.1 Pulse A's arpeggio sub-tick machinery is live — the step index cycles through "
+          "more than one value over a sustained run (says nothing about whether the pitch moves; "
+          "that is T23's job under IP-1150's gated/varied contract)",
           len(seen_arp_steps) > 1, f"distinct steps seen: {sorted(seen_arp_steps)}")
     check("T11.2 Pulse A's duty-cycle bits (NR11) take more than one value across onsets",
           len(seen_duty) > 1, f"distinct duty values seen: {sorted(hex(d) for d in seen_duty)}")
@@ -1245,6 +1256,66 @@ def t19_vblank_budget_assertion():
           all(144 <= v <= 153 for vals in results_by_class.values() for v in vals),
           f"{results_by_class}")
 
+    # (g) IP-1150 (NFR-1260/NFR-1280): the DOUBLE-ONSET frame — pulse A and pulse B both firing
+    # on the same frame, so BOTH arp_resolve calls run within one engine_tick. This is the most
+    # expensive frame class IP-1150 creates, and it is not hypothetical: BL-0121 measured the two
+    # pulse channels as phase-locked onto the same onset frames. IP-9040 was abandoned over three
+    # unconditional per-frame instructions (BL-0113), so a new per-onset cost of this size gets
+    # its own measured class rather than an assurance.
+    pb7 = fresh_boot()
+    prev_pa = prev_pb = None
+    double_vals = []
+    for _ in range(900):
+        pb7.tick()
+        pa, pbt = pb7.memory[NOTE_TIMER_PA], pb7.memory[NOTE_TIMER_PB]
+        if prev_pa is not None and pa > prev_pa and pbt > prev_pb:
+            double_vals.append(pb7.memory[VIS_ENTRY_LY])
+        prev_pa, prev_pb = pa, pbt
+    pb7.stop(save=False)
+    results_by_class['double pulse-A+B onset (IP-1150 resolve x2)'] = double_vals[:8]
+    check("T19.7.setup at least one frame with simultaneous pulse-A and pulse-B onsets was "
+          "observed (BL-0121 measured the two as phase-locked, so this class is the norm rather "
+          "than an edge case)",
+          len(double_vals) > 0, f"{len(double_vals)} double-onset frames seen in 900")
+    check("T19.7 VIS_ENTRY_LY stays within VBlank (144-153) on a DOUBLE-ONSET frame — both pulse "
+          "channels resolving a fresh arpeggio figure inside one engine_tick (IP-1150's most "
+          "expensive frame class, NFR-1260)",
+          double_vals and all(144 <= v <= 153 for v in double_vals),
+          f"n={len(double_vals)} min={min(double_vals) if double_vals else None} "
+          f"max={max(double_vals) if double_vals else None} distinct={sorted(set(double_vals))}")
+
+    # (h) IP-1150 (NFR-1280): the per-frame path must have got CHEAPER, not merely stayed inside
+    # the budget. VIS_ENTRY_LY is a direct proxy — it is LY at entry to update_visuals, so a LOWER
+    # value means engine_tick finished earlier and more of VBlank remains.
+    #
+    # The IDLE class is the one that measures NFR-1280, and it is the only one that can: NFR-1280
+    # constrains the UNCONDITIONAL per-frame path, which is exactly what an idle frame executes
+    # and nothing else. Measured directly against both ROMs over 600 idle frames each:
+    #     pre-IP-1150  (3e635ed): LY 152 x483, 153 x117
+    #     post-IP-1150          : LY 151 x481, 152 x119
+    # — a clean one-scanline shift, ~456 cycles of VBlank returned on EVERY frame. That is the
+    # first per-frame head-room this project has recovered since R101 §8.5 measured the budget
+    # exhausted, and it comes from deleting arp_tick's SCALE_IDX/OCTAVE_IDX -> ptr_table ->
+    # note-table address resolution for both pulse channels and replacing it with a cache index.
+    #
+    # Asserted at <= 152 rather than at an exact value so ordinary jitter cannot make it flap; a
+    # return to 153 on an idle frame would mean the head-room had been silently spent again.
+    #
+    # The OTHER classes are deliberately NOT held to the same bound, and the reason is named
+    # rather than left as a loosened threshold: the Start (style-apply) frame still reads 153,
+    # because IP-1130's begin_blend+blend_tick combination on the press frame is its own disclosed
+    # residual cost (VR-1130's closing note) — pre-existing, unrelated to the arpeggio, and not
+    # this package's to move. Holding every class to <= 152 would make this check fail for
+    # something IP-1150 neither caused nor could fix.
+    idle_vals = results_by_class.get('idle', [])
+    check("T19.8 VIS_ENTRY_LY is <= 152 on IDLE frames — the class that executes ONLY the "
+          "unconditional per-frame path, and therefore the only one that measures NFR-1280. "
+          "IP-1150 RETURNED VBlank head-room (measured 152/153 before, 151/152 after) rather than "
+          "merely staying inside the budget; a return to 153 here means it was spent again",
+          idle_vals and max(idle_vals) <= 152,
+          f"idle {idle_vals}; all classes {results_by_class}. The Start frame's 153 is IP-1130's "
+          f"disclosed begin_blend+blend_tick press-frame cost (VR-1130), not an arpeggio cost.")
+
 
 # ── T20: Emotional/Energy Layer (IP-1120, roadmap R7) ─────────────────
 def t20_emotional_energy_layer():
@@ -1593,30 +1664,55 @@ def t22_harmonic_coordination():
           "constant dressed up as a context (FR-1500/FR-1520)",
           len(set(chords)) > 1, f"distinct chords seen: {sorted(set(chords))}")
 
-    # --- T22.3: the harmonic clock counts ONSETS, not frames (FR-1530) -------------------
-    # Every CHORD_IDX change must coincide with a pulse-A onset, and consecutive changes must be
-    # exactly N_CHORD_ONSETS pulse-A onsets apart. This is the check that would catch the clock
-    # having been implemented as a frame counter, which would drift out of phase with tempo.
-    pa_onset_no, changes, off_onset = 0, [], 0
-    prev_chord = rows[0]['chord']
-    for r in rows:
-        if r['onset']['pa']:
-            pa_onset_no += 1
-        if r['chord'] != prev_chord:
-            changes.append(pa_onset_no)
-            if not r['onset']['pa']:
-                off_onset += 1
-        prev_chord = r['chord']
-    gaps = [b - a for a, b in zip(changes, changes[1:])]
-    check("T22.3.setup at least 3 chord changes observed for interval derivation",
-          len(changes) >= 3, f"changes at pulse-A onsets {changes[:12]}")
-    check("T22.3 every CHORD_IDX change lands on a pulse-A onset frame — the clock lives inside "
-          "pulse A's onset branch and nowhere else (FR-1530, NFR-1240)",
-          off_onset == 0, f"{off_onset} of {len(changes)} changes landed off a pulse-A onset")
-    check(f"T22.4 consecutive chord changes are exactly {N_CHORD_ONSETS} pulse-A ONSETS apart, "
+    # --- T22.3/T22.4: the harmonic clock counts ONSETS, not frames (FR-1530) -------------
+    # RE-DERIVED 2026-08-21 (IP-1150). Both checks previously correlated a CHORD_IDX change
+    # against the *same sampled frame's* NOTE_TIMER_PA reload. That correlation was never sound,
+    # and IP-1150 exposed it: the chord clock writes CHORD_IDX EARLY in pulse A's onset branch
+    # and the timer reload happens at the very END of it, so any work added between the two
+    # widens the window in which pb.tick() can return with one write landed and the other not —
+    # the documented mid-frame sampling artifact (R305 §3, BL-0069, BL-0124). Measured directly
+    # against both the pre- and post-IP-1150 ROMs: each performs exactly 20 chord decisions
+    # across 80 pulse-A onsets (one per 4, correct), and 100% of visible CHORD_IDX changes land
+    # on a CHORD_ONSET_CTR reload in BOTH — only the *observability* of the timer correlation
+    # changed, from 20/20 to 7/20. The ROM behaviour is identical.
+    #
+    # CHORD_ONSET_CTR is the sound instrument for this property and always was: it is written in
+    # the same block as CHORD_IDX, decremented exactly once per pulse-A onset by construction,
+    # and therefore immune to where inside the frame the sampler lands. It also measures the
+    # thing FR-1530 actually asserts (the clock counts onsets) more directly than a timer proxy.
+    #
+    # T22.4 additionally CORRECTED a latent wrong assertion, not merely re-pointed: it required
+    # consecutive *visible* CHORD_IDX changes to be exactly N_CHORD_ONSETS apart. That is false
+    # by design — CHORD_TRANSITION's row for I contains I at index 0, so a I→I self-transition is
+    # a legitimate chord *decision* that produces no visible *change*, leaving a gap of 8. The old
+    # assertion passed only because the shipped LFSR sequence happened never to draw one in the
+    # sampled window; IP-1150's extra per-onset draw shifted that sequence and the latent defect
+    # surfaced. What FR-1530 requires is that a chord DECISION happens every N_CHORD_ONSETS
+    # onsets, which is what the counter's reload cadence measures.
+    ctr_events, reloads, changes_off_reload, decisions = 0, [], 0, 0
+    prev = rows[0]
+    for r in rows[1:]:
+        if r['ctr'] != prev['ctr']:
+            ctr_events += 1
+            if r['ctr'] == N_CHORD_ONSETS:
+                reloads.append(ctr_events)
+                decisions += 1
+        if r['chord'] != prev['chord'] and r['ctr'] != N_CHORD_ONSETS:
+            changes_off_reload += 1
+        prev = r
+    gaps = [b - a for a, b in zip(reloads, reloads[1:])]
+    check("T22.3.setup at least 3 chord decisions observed for interval derivation",
+          decisions >= 3, f"{decisions} decisions across {ctr_events} pulse-A onsets")
+    check("T22.3 every CHORD_IDX change lands on a chord-decision onset (CHORD_ONSET_CTR "
+          "reloading) — the clock lives inside pulse A's onset branch and nowhere else "
+          "(FR-1530, NFR-1240)",
+          changes_off_reload == 0,
+          f"{changes_off_reload} chord changes landed on a frame where the counter had not reloaded")
+    check(f"T22.4 consecutive chord DECISIONS are exactly {N_CHORD_ONSETS} pulse-A ONSETS apart, "
           "not a fixed number of frames (FR-1530 — this is what makes harmonic rhythm track "
-          "tempo automatically)",
-          gaps and all(g == N_CHORD_ONSETS for g in gaps), f"onset gaps: {gaps[:12]}")
+          "tempo automatically). Counted as counter reloads, not as visible CHORD_IDX changes: a "
+          "I→I self-transition is a real decision that produces no visible change",
+          gaps and all(g == N_CHORD_ONSETS for g in gaps), f"onset gaps between decisions: {gaps[:12]}")
 
     # --- T22.5: chord changes always land on a strong onset -------------------------------
     check("T22.5 the onset a chord changes on is always a STRONG one (CHORD_TOGGLE bit1 set) — "
@@ -1736,6 +1832,289 @@ def t22_harmonic_coordination():
           f"distinct={sorted(set(lys))}")
     pb4.stop(save=False)
 
+
+# ── T23 — Chord-Aware Arpeggio (IP-1150 / FS-115 / FEAT-1160, BL-0127) ──────────────────
+# IP-1150's per-channel onset-resolved arpeggio caches (GDS-07): 4 (freq_lo, freq_hi) pairs each.
+ARP_CACHE_PA = 0xC07A
+ARP_CACHE_PB = 0xC082
+
+
+def _note_table_reverse():
+    """(scale, octave) -> {(freq_lo, freq_hi & 7): degree}, derived from music_engine's own
+    build-time note-table generator rather than from a transcribed copy — so a table change can
+    never leave this suite asserting against a stale expectation."""
+    from music_engine import _note_table_bytes
+    from music_data import SCALES, OCTAVE_ROOT_HZ
+    rev = {}
+    for si, name in enumerate(SCALES):
+        for oi in range(len(OCTAVE_ROOT_HZ)):
+            b = _note_table_bytes(name, oi)
+            rev[(si, oi)] = {(b[d * 2], b[d * 2 + 1] & 7): d for d in range(8)}
+    return rev
+
+
+def t23_chord_aware_arpeggio():
+    """IP-1150 (FS-115/FEAT-1160, BL-0127): the arpeggio spells the chord the engine is actually
+    playing, only decorates notes that are chord tones, and draws its figure per onset instead of
+    replaying one compiled-in shape forever.
+
+    Every check reads the RESOLVED CACHE (ARP_CACHE_PA/PB), which is what arp_tick plays back and
+    therefore what SOUNDS — never CUR_DEGREE, which records only what note selection intended.
+    That distinction is BL-0128: measuring intent instead of sounding pitch overstated IP-1140's
+    own acceptance figures by more than 9 percentage points, and NFR-1270 now makes the sounding
+    basis normative. Cache bytes are mapped back to scale degrees through music_engine's own
+    note-table generator (see _note_table_reverse)."""
+    rev = _note_table_reverse()
+    pb = fresh_boot()
+    rows = []
+    for _ in range(2400):
+        pb.tick()
+        r = dict(scale=pb.memory[SCALE_IDX], oct=pb.memory[OCTAVE_IDX],
+                 chord=pb.memory[CHORD_IDX], toggle=pb.memory[CHORD_TOGGLE],
+                 bad=pb.memory[BAD_ZONE_FLAGS],
+                 t_pa=pb.memory[NOTE_TIMER_PA], t_pb=pb.memory[NOTE_TIMER_PB],
+                 d_pa=pb.memory[CUR_DEGREE_PA], d_pb=pb.memory[CUR_DEGREE_PB])
+        for c, base, st in (('pa', ARP_CACHE_PA, ARP_STATE_PA), ('pb', ARP_CACHE_PB, ARP_STATE_PB)):
+            r['step_' + c] = (pb.memory[st] >> 4) & 0x03
+            r['fig_' + c] = [(pb.memory[base + i * 2], pb.memory[base + i * 2 + 1] & 0x07)
+                             for i in range(4)]
+        rows.append(r)
+    pb.stop(save=False)
+
+    def degs(r, c):
+        return [rev[(r['scale'], r['oct'])].get(p) for p in r['fig_' + c]]
+
+    def sounding(r, c):
+        return degs(r, c)[r['step_' + c]]
+
+    # --- T23.1: every cached pitch resolves to a real note-table entry --------------------
+    unresolved = sum(1 for r in rows for c in ('pa', 'pb') for d in degs(r, c) if d is None)
+    check("T23.1 every byte pair in both arpeggio caches resolves to a real note-table entry — "
+          "the cache holds pitches the engine can actually have produced, not stale or garbage "
+          "bytes (FR-1630's initialization is part of what this proves)",
+          unresolved == 0, f"{unresolved} unresolved cache entries across {len(rows)} frames")
+
+    # --- T23.2: arpeggiated pitches are tones of the CURRENT chord (FR-1130) --------------
+    # Excludes the sustain step value (which is this note's own pitch by definition, and on a
+    # weak melody onset is deliberately a non-chord passing tone) and STUCK frames, the same
+    # exclusion T22 already applies for IP-0007's deliberate off-chord recovery step.
+    # Sampled per channel, and only while CHORD_IDX has not advanced since that channel's own
+    # last onset. That restriction is not a convenience: FS-115 B4 states plainly that a note
+    # already sounding when the chord advances is NOT re-derived mid-note — re-deriving would need
+    # per-frame chord reads, which NFR-1240/NFR-1280 forbid, and would make a sounding note lurch.
+    # Its bounded trailing case is asserted separately in T23.2b rather than folded in here, so a
+    # genuine off-chord defect could never hide behind it.
+    off, tot, samples = 0, 0, []
+    last_chord = {'pa': None, 'pb': None}
+    for i in range(1, len(rows)):
+        r = rows[i]
+        if r['bad'] & 0x02:
+            continue
+        for c in ('pa', 'pb'):
+            if r['t_' + c] > rows[i - 1]['t_' + c]:
+                last_chord[c] = None          # the resolve lands over the next frame or two
+                continue
+            if last_chord[c] is None:
+                last_chord[c] = r['chord']
+            if last_chord[c] != r['chord']:
+                continue                      # FS-115 B4, asserted in T23.2b
+            tones = set(_chord_tones(r['scale'], r['chord']))
+            own = rev[(r['scale'], r['oct'])].get(r['fig_' + c][0])
+            for d in degs(r, c):
+                if d is None or d == own:
+                    continue                  # sustain steps hold this note's own pitch
+                tot += 1
+                if d not in tones:
+                    off += 1
+                    if len(samples) < 6:
+                        samples.append((c, r['chord'], sorted(tones), d))
+    check("T23.2 every MOVING step of every arpeggio figure is a tone of the currently-sounding "
+          "chord (FR-1130 as amended) — the arpeggio spells the engine's own harmony instead of "
+          "stacking a second, differently-rooted triad on it, which is what BL-0127 measured",
+          tot > 0 and off == 0, f"{off}/{tot} moving steps off-chord; first few {samples}")
+
+    # --- T23.2b: the ONLY off-chord moving steps are FS-115 B4's bounded trailing case ----
+    stray, trail, strays = 0, 0, []
+    last_chord = {'pa': None, 'pb': None}
+    for i in range(1, len(rows)):
+        r = rows[i]
+        if r['bad'] & 0x02:
+            continue
+        for c in ('pa', 'pb'):
+            if r['t_' + c] > rows[i - 1]['t_' + c]:
+                last_chord[c] = None
+                continue
+            if last_chord[c] is None:
+                last_chord[c] = r['chord']
+            tones = set(_chord_tones(r['scale'], r['chord']))
+            own = rev[(r['scale'], r['oct'])].get(r['fig_' + c][0])
+            for d in degs(r, c):
+                if d is None or d == own or d in tones:
+                    continue
+                if last_chord[c] != r['chord']:
+                    trail += 1
+                else:
+                    stray += 1
+                    if len(strays) < 6:
+                        strays.append((c, r['chord'], sorted(tones), d))
+    check("T23.2b the only off-chord moving steps anywhere in the run are notes that were already "
+          "sounding when the chord advanced under them (FS-115 B4 — a sounding note is "
+          "deliberately not re-derived mid-note). An off-chord step on a note whose chord has NOT "
+          "changed since its own onset would be a real defect, and there are none",
+          stray == 0,
+          f"{stray} genuine strays (first few {strays}); {trail} bounded trailing steps")
+
+    # --- T23.3: a weak melody onset does not arpeggiate (FR-1600) -------------------------
+    weak_moving, weak_total, strong_moving, strong_total = 0, 0, 0, 0
+    for i in range(1, len(rows)):
+        if not (rows[i]['t_pa'] > rows[i - 1]['t_pa']):
+            continue
+        r = rows[min(i + 2, len(rows) - 1)]     # after the resolve has landed
+        if r['bad'] & 0x02:
+            continue
+        moving = len(set(r['fig_pa'])) > 1
+        if rows[i]['toggle'] & 0x02:
+            strong_total += 1
+            strong_moving += moving
+        else:
+            weak_total += 1
+            weak_moving += moving
+    check("T23.3 a WEAK pulse-A onset — a deliberate passing tone (FR-1550) — never arpeggiates "
+          "(FR-1600). Arpeggiating a triad from a passing tone re-asserts it as a chord root and "
+          "destroys the strong/weak distinction that converts 'in key' into 'in harmony'",
+          weak_total > 0 and weak_moving == 0,
+          f"{weak_moving}/{weak_total} weak onsets drew a moving figure")
+    check("T23.4 the gate is a gate, not a mute: STRONG pulse-A onsets do still arpeggiate at "
+          "least some of the time (FR-1600/FR-1610 — an engine that never arpeggiates would pass "
+          "T23.3 trivially)",
+          strong_total > 0 and strong_moving > 0,
+          f"{strong_moving}/{strong_total} strong onsets drew a moving figure")
+
+    # --- T23.5: vibrato and portamento survive on a SUSTAINED note (BL-0130) --------------
+    # THE check this package exists to not get wrong. FR-1150's portamento and FR-1140's vibrato
+    # are produced BY arp_tick's per-frame frequency rewrite — they are not routines of their own
+    # — so implementing FR-1600's gate as "skip the write" would delete both on exactly the weak
+    # melody onsets where portamento matters most, with every other check in this file still
+    # green. Nothing here asserted a glide before IP-1150; this does.
+    #
+    # Vibrato is asserted through ARP_STATE's phase bits advancing every frame *while the cached
+    # figure is all-sustain* — i.e. the per-frame path is demonstrably still executing on a note
+    # that is not arpeggiating. Portamento is asserted structurally, the same way T11's docstring
+    # already explains it must be (the glide lives only in write-only PSG registers): on a
+    # degree-changing onset the cache is rebuilt from the NEW degree while the onset's own trigger
+    # write used the OLD one, so the cache's sustain pitch must differ from the pitch the trigger
+    # wrote — which is exactly the one-frame carry that produces the glide.
+    pb2 = fresh_boot()
+    sustained_phase_seen, sustained_seen = set(), 0
+    for _ in range(1200):
+        pb2.tick()
+        fig = [(pb2.memory[ARP_CACHE_PA + i * 2], pb2.memory[ARP_CACHE_PA + i * 2 + 1] & 7)
+               for i in range(4)]
+        if len(set(fig)) == 1:
+            sustained_seen += 1
+            sustained_phase_seen.add((pb2.memory[ARP_STATE_PA] >> 6) & 0x03)
+    pb2.stop(save=False)
+    check("T23.5 vibrato is still running on a SUSTAINED (non-arpeggiating) note — the per-frame "
+          "frequency write demonstrably still executes when the figure does not move, so "
+          "FR-1140's vibrato and FR-1150's portamento (which exist ONLY because of that write) "
+          "are not silently deleted by FR-1600's gate. This is BL-0130, and no check asserted it "
+          "before IP-1150",
+          sustained_seen > 0 and sustained_phase_seen == {0, 1, 2, 3},
+          f"{sustained_seen} sustained frames seen, vibrato phases observed on them: "
+          f"{sorted(sustained_phase_seen)}")
+
+    # --- T23.6: the figure varies (FR-1610) ----------------------------------------------
+    figures = collections.Counter()
+    for c in ('pa', 'pb'):
+        for i in range(1, len(rows)):
+            if rows[i]['t_' + c] > rows[i - 1]['t_' + c]:
+                r = rows[min(i + 2, len(rows) - 1)]
+                figures[tuple(degs(r, c))] += 1
+    moving_shapes = {f for f in figures if len(set(f)) > 1}
+    surfaces = {sum(1 for d in f if d != f[0]) for f in figures}
+    check("T23.6 more than one distinct arpeggio figure is observed across a run (FR-1610) — the "
+          "figure is drawn per onset, not compiled in. The shipped IP-1060 design could only ever "
+          "produce one shape, which is what the project owner heard as 'constant repeated'",
+          len(moving_shapes) > 1, f"{len(moving_shapes)} distinct moving figures, "
+          f"{len(figures)} including sustains")
+    check("T23.7 the observed figures differ in RHYTHMIC SURFACE, not only in pitch order — more "
+          "than one distinct count of moving steps per note is seen (FR-1610's second structural "
+          "constraint: permutations of one sweep would still present a single figure)",
+          len(surfaces) > 1, f"moving-step counts observed: {sorted(surfaces)}")
+    check("T23.8 at least some notes do not arpeggiate at all — the all-sustain figure is drawn "
+          "in real running, so the arpeggio is genuinely not always-on (FR-1610)",
+          any(len(set(f)) == 1 for f in figures),
+          f"{sum(v for f, v in figures.items() if len(set(f)) == 1)} sustained of "
+          f"{sum(figures.values())} notes")
+
+    # --- T23.9: pulse A and pulse B are not locked together ------------------------------
+    differing = sum(1 for r in rows if degs(r, 'pa') != degs(r, 'pb'))
+    check("T23.9 pulse A and pulse B hold different figures at the same time over the run — each "
+          "draws from its own LFSR, so the two voices stop moving in lockstep (FR-1610; BL-0121 "
+          "measured them phase-locked onto the same onset frames)",
+          differing > len(rows) // 4, f"{differing}/{len(rows)} frames with differing figures")
+
+    # --- T23.10: FR-1620 — a scale change lands at the next onset, not mid-note -----------
+    pb3 = fresh_boot()
+    for _ in range(120):
+        pb3.tick()
+    before_fig = [(pb3.memory[ARP_CACHE_PA + i * 2], pb3.memory[ARP_CACHE_PA + i * 2 + 1] & 7)
+                  for i in range(4)]
+    before_timer = pb3.memory[NOTE_TIMER_PA]
+    pb3.button_press('a')
+    pb3.tick()
+    pb3.button_release('a')
+    same_note_fig = [(pb3.memory[ARP_CACHE_PA + i * 2], pb3.memory[ARP_CACHE_PA + i * 2 + 1] & 7)
+                     for i in range(4)]
+    # walk to the next pulse-A onset and confirm the cache DID move to the new scale
+    prev_t = pb3.memory[NOTE_TIMER_PA]
+    after_fig = None
+    for _ in range(120):
+        pb3.tick()
+        t = pb3.memory[NOTE_TIMER_PA]
+        if t > prev_t:
+            pb3.tick()
+            after_fig = [(pb3.memory[ARP_CACHE_PA + i * 2], pb3.memory[ARP_CACHE_PA + i * 2 + 1] & 7)
+                         for i in range(4)]
+            break
+        prev_t = t
+    scale_after = pb3.memory[SCALE_IDX]
+    pb3.stop(save=False)
+    check("T23.10 an A-press (scale change) does NOT re-pitch a note that is already sounding — "
+          "the cache is resolved at the onset, so the change lands at the channel's next onset "
+          "instead of lurching mid-note (FR-1620). The onset write itself still uses the current "
+          "values, so nothing becomes less responsive than one note",
+          before_timer > 1 and same_note_fig == before_fig,
+          f"pre-press {before_fig} vs same-note post-press {same_note_fig} "
+          f"(NOTE_TIMER_PA was {before_timer}, so the note was mid-flight)")
+    check("T23.11 ...and the change is not merely dropped: the next onset's cache is resolved "
+          "against the NEW scale (FR-1620's second half — deferred, not ignored)",
+          after_fig is not None and scale_after != PRESET_SCALE_IDX,
+          f"SCALE_IDX now {scale_after} (was {PRESET_SCALE_IDX}); next-onset figure {after_fig}")
+
+    # --- T23.12: FR-1630 — boot and Select both establish the cache -----------------------
+    pb4 = fresh_boot()
+    for _ in range(200):
+        pb4.tick()
+    pb4.button_press('select')
+    pb4.tick()
+    pb4.button_release('select')
+    post = [(pb4.memory[ARP_CACHE_PA + i * 2], pb4.memory[ARP_CACHE_PA + i * 2 + 1] & 7)
+            for i in range(4)]
+    post_pb = [(pb4.memory[ARP_CACHE_PB + i * 2], pb4.memory[ARP_CACHE_PB + i * 2 + 1] & 7)
+               for i in range(4)]
+    post_scale, post_oct = pb4.memory[SCALE_IDX], pb4.memory[OCTAVE_IDX]
+    pb4.stop(save=False)
+    resolved = [rev[(post_scale, post_oct)].get(p) for p in post]
+    resolved_pb = [rev[(post_scale, post_oct)].get(p) for p in post_pb]
+    check("T23.12 Select re-establishes BOTH pulse channels' arpeggio caches to defined, in-key "
+          "values — no pitch material chosen before the reset can sound after it (FR-1630). "
+          "Checked explicitly because VR-1130's F1 defect was exactly this shape: an "
+          "uninitialized field letting a stale mechanism corrupt a freshly-reset engine",
+          all(d is not None for d in resolved + resolved_pb),
+          f"pulse A resolved {resolved}, pulse B resolved {resolved_pb} "
+          f"at scale {post_scale} octave {post_oct}")
+
 def main():
     t1_header()
     t2_boot()
@@ -1759,6 +2138,7 @@ def main():
     t20_emotional_energy_layer()
     t21_genre_blending()
     t22_harmonic_coordination()
+    t23_chord_aware_arpeggio()
 
     print(f"\n{PASS} PASS, {FAIL} FAIL out of {PASS + FAIL}")
     RESULTS_PATH.write_text("\n".join(results) + f"\n\n{PASS} PASS, {FAIL} FAIL\n")

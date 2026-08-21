@@ -55,6 +55,11 @@ roadmap R9, separately blocked); see `T20`.
 genre-blending state: `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` now glide toward a newly-selected
 `STYLE_TABLE` row over `BLEND_STEP`'s 0-4 progress instead of landing instantly; `SCALE_IDX` still
 hard-switches the same frame as the Start press. See `T21` and the Known Good Behavior note below.
+**`ARP_CACHE_PA`/`ARP_CACHE_PB` at `0xC07A`-`0xC089` (`IP-1150`, `BL-0127`)** — 4
+(freq_lo, freq_hi) pairs per pulse channel, the whole of the note's arpeggio figure resolved at
+that channel's own onset and merely played back by `arp_tick`. `0xC08A`-`0xC08C`
+(`ARP_ROW_SCRATCH`/`ARP_BASE_LO`/`ARP_BASE_HI`) are working storage used only *within* one
+`arp_resolve` call. This is what returned a scanline of VBlank head-room (see below).
 **`CHORD_IDX`/`CHORD_ONSET_CTR`/`CHORD_TOGGLE` at `0xC077`-`0xC079` (`IP-1140`, `BL-0119`)** —
 the **shared harmonic context**: which chord is sounding, how many pulse-A onsets until it
 advances, and packed bass-alternation / strong-weak-parity / published-melody-slot bits. One
@@ -113,9 +118,17 @@ Pulse A/B (not wave — it keeps its plain sustained bass role) get four layered
 all always-on, no new input control:
 
 - **Arpeggio** → every few frames (`ARP_SUBTICK_RELOAD`), the channel's frequency register is
-  rewritten (no retrigger — envelope keeps decaying naturally) to cycle through
-  `ARPEGGIO_OFFSETS`, a period-4 up/down pattern of scale-degree deltas from the currently-held
-  root note, implying a chord on a single channel.
+  rewritten (no retrigger — envelope keeps decaying naturally) to cycle through four cached
+  pitches. **Rewritten by `IP-1150` (2026-08-21) — see the Known Good Behavior entry; the old
+  description said "`ARPEGGIO_OFFSETS`, a period-4 pattern of scale-degree deltas from the
+  currently-held root note, implying a chord on a single channel," and every part of that is
+  now wrong.** The pitches are tones of the **currently-sounding shared chord** (`CHORD_TABLE`),
+  the figure is **drawn per onset** from `ARP_PATTERNS`, and a note whose pitch is not a chord
+  tone (notably the melody's weak-onset passing tone) **does not arpeggiate at all**. The
+  per-frame routine no longer computes anything — `arp_resolve`, called from each channel's own
+  onset branch, resolves the whole figure into `ARP_CACHE_PA`/`PB` and `arp_tick` just indexes it.
+  **Sustaining never means skipping the frame's frequency write** — see the portamento bullet
+  below for why that would silently delete two other shipped effects.
 - **Duty cycle** → `NR11`/`NR21`'s duty bits vary per onset (`DUTY_BY_DEGREE`, indexed by
   `CUR_DEGREE mod 4`) instead of staying fixed at 50%.
 - **Vibrato** → every frame, a tiny +-1 low-byte wobble is added to the held frequency
@@ -179,6 +192,22 @@ wv=6, 0=Scheme W/1=Scheme E) — preset 0 must stay all-Scheme-W (no regression 
 default). Scheme E's onset-timing/pitch-selection logic itself lives in `_emit_channel_gen`'s
 note-selection step (`IP-1070`/`BL-0020`) — extending it to a new scheme means adding another
 branch there, keyed off a new bit in the same spare-bit range (`ADR-0001`).
+
+### Change the arpeggio's figures
+`ARP_PATTERNS` in `music_data.py` — 4 rows x 4 steps; entries are **chord-tone slots (0-2)** into
+the current chord's own `CHORD_TABLE` row, plus the reserved `ARP_SUSTAIN` (=3) meaning "hold this
+note's own pitch for that step." Two structural constraints, both `FR-1610` and both load-bearing
+rather than stylistic: **row 0 must stay all-sustain** (it is how the chord-tone gate is
+expressed — `_emit_channel_gen` forces index 0 on a weak melody onset or a stuck bad-zone frame),
+and **step 0 of every row must stay `ARP_SUSTAIN`** (so a note begins on the pitch its own onset
+triggered, which is what leaves `IP-1061`'s portamento glide intact). The rows must also differ in
+*how many* steps move, not merely in the order of slots — four permutations of one sweep would
+still present a single figure to a listener, which is the complaint this replaced.
+`ARP_PATTERN_PICK` (4 entries, LFSR-indexed, shaped like `DELTA_TABLE`) is the weighting; making
+every entry `0` retires the arpeggio outright, which is `ADR-0005`'s named fallback and is
+deliberately a one-line data edit. First-guess values throughout (`BL-0005` class).
+**Do not** reintroduce degree offsets here: that was the defect (`BL-0127`), and the `AND 0x07`
+it needed is the octave-seam arithmetic `ADS-108` D3 already ruled incorrect for chord math.
 
 ### Change the harmony (chords, progression, voice roles)
 `CHORD_TABLE` in `music_data.py` — 4 scales x 4 chords x 3 tones, flattened, entries are scale
@@ -400,6 +429,13 @@ exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
   **Measured result** (boot defaults, 3600 frames, pitch classes derived from degrees rather than
   from the engine's own one-frame-lagged `SEMI_*` bytes): harsh vertical intervals on
   **strong-beat sonorities 23.3% → 12.2%**, weak-beat 36.6% → 30.6%, aggregate 30.0% → 21.5%.
+  **⚠️ Those four figures are OVERSTATED and are corrected below (`BL-0128`, 2026-08-21).** They
+  were computed from `CUR_DEGREE` — what the harmony layer *intends* — while `arp_tick` rewrote
+  the frequency register afterwards on every frame, so the pitch that actually sounded was never
+  measured. On **sounding pitch**, the same build and the same run read strong-beat **25.7%**,
+  weak-beat **36.1%**, aggregate **30.9%**. The improvement was real but roughly half of it was
+  being overwritten by the arpeggio; `IP-1150` fixes the cause, and `NFR-1270` now makes sounding
+  pitch the normative measurement basis.
   The strong-beat figure is the acceptance instrument (`NFR-1270`/`BL-0122`) — a chord-tone/
   passing-tone melody sounds non-chord tones on weak beats *on purpose*, so the aggregate would
   report a working design as a near-failure. `R225` §5f's simulation predicted exactly this shape.
@@ -409,7 +445,54 @@ exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
   phrases. A human listening pass is what decides whether this is now pleasant — a green suite has
   never once predicted that, which is the whole point of `BL-0097`/`BL-0120`.
 
-**171/171 `test_rom.py` checks pass** (T1-T22). An 8000+ frame stress run with continuous input
+- **The arpeggio re-rooted, gated and varied (`IP-1150`, `BL-0127`/`FS-115`/`FEAT-1160`,
+  `ADS-108` §12/D14 + `ADR-0005`) — THE BOOT SOUND CHANGED AGAIN, DELIBERATELY.** The project
+  owner listened to `IP-1140`'s result and reported **"constant repeated arpeggios."** He was
+  right, and the cause was a mechanism nobody had revisited: `IP-1060` added the arpeggio in
+  2026-07 to *imply a chord on a single channel* (`R216`) — i.e. to **fake harmony in its
+  absence** — and when `IP-1140` supplied real harmony, the arpeggio kept adding
+  `[0, 2, 4, 2]` scale-degree offsets **to the chord tone the harmony had just chosen**, stacking
+  a second, differently-rooted triad on the engine's own chord, every frame, on both pulse
+  channels, forever.
+  **Measured before/after on sounding pitch** (boot defaults, 3600 frames, `3e635ed` → this
+  build): harsh vertical intervals on **strong beats 25.7% → 10.9%**, weak-beat 36.1% → 27.8%,
+  aggregate 30.9% → 19.3%. Sounding pulse-channel frames that are tones of the current chord:
+  **46.4% → 74.9%** (not 100%, and correctly so — a sustained passing tone is a non-chord tone on
+  purpose). Bad-zone activity 15/121 → **7/121** sampled onsets, again with no threshold retuning.
+  **On the complaint itself**, measured at the source rather than by ear-proxy: the shipped build
+  produced **3** distinct articulation shapes across a run and **0%** of notes went un-arpeggiated
+  — and those 3 were one compiled-in shape plus two octave-seam wrap variants, one of which
+  (13.2% of notes) inverted the figure into a downward leap of a sixth, the `R225` §3g defect
+  audibly present. This build produces **21** distinct shapes and **47.1%** of notes do not
+  arpeggiate at all.
+  **It also gave VBlank head-room back.** `arp_tick` no longer computes anything: `arp_resolve`,
+  called from each channel's existing onset branch, resolves the figure into `ARP_CACHE_PA`/`PB`
+  and the per-frame routine just indexes it — deleting the `SCALE_IDX`/`OCTAVE_IDX` → `ptr_table`
+  → note-table address resolution that ran twice per frame forever. Measured over 600 idle frames:
+  `VIS_ENTRY_LY` **152/153 → 151/152**, a clean one-scanline (~456-cycle) recovery on *every*
+  frame. This is the first per-frame head-room recovered since `R101` §8.5 measured the budget
+  exhausted, and `IP-9040` was abandoned over three instructions (`BL-0113`).
+  **The trap this package existed to not fall into** (`BL-0130`): `FR-1150`'s portamento and
+  `FR-1140`'s vibrato are not routines of their own — they are produced **by** `arp_tick`'s
+  per-frame frequency rewrite, which is why `engine_tick` calls it *before* `gen_tick`. So
+  implementing the gate as "skip the write" would have deleted both on every weak melody onset,
+  where portamento matters most, **with the whole suite still green** because nothing asserted a
+  glide had occurred. Sustaining means *write this note's own pitch*, never *stop writing*, and
+  `T23.5` now asserts it.
+  **Two behaviours that changed on purpose and are requirements, not side effects**: a
+  scale/octave change during an already-sounding note now lands at that channel's **next onset**
+  rather than mid-note (`FR-1620` — the onset write itself still uses current values, so nothing
+  is less responsive than one note); and `init_engine` repopulates both caches on boot **and**
+  Select (`FR-1630`), the `BLEND_STEP` defect class `VR-1130` already found once.
+  **Retirement was weighed as the strongest rival and rejected on evidence** (`ADS-108` §12.5):
+  with no rests and no phrase structure yet (`CR-0003`), sub-note motion is currently the only
+  thing happening between onsets, so removing it trades "mechanically busy" for "static and
+  plodding." It survives as a one-line fallback — an all-sustain `ARP_PATTERN_PICK` *is*
+  retirement.
+  **Still not built, and still audible as missing**: rests and phrase boundaries (`CR-0003`) —
+  unchanged by this package, and now the largest remaining structural gap.
+
+**187/187 `test_rom.py` checks pass** (T1-T23). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

@@ -222,6 +222,7 @@ a feature it depends on.
 | *FEAT-1130 Genre blending* (not yet catalogued) | **R8** | ⬜ Needs a catalog row |
 | *FEAT-1140 Visual evolution* (not yet catalogued) | **R9** | ⬜ Needs a catalog row; gated |
 | **FEAT-1150 Harmonic coordination** | **MVP-critical remediation — jumps the R-queue** | 🟢 Catalogued 2026-08-20; spec/plan/build in flight |
+| **FEAT-1160 Arpeggio re-rooted, gated & varied** | **MVP-critical remediation — rides directly behind `FEAT-1150`** | 🟢 Catalogued 2026-08-21; spec/plan/build in flight |
 
 The two italic rows are **forward placeholders, not catalog entries** — `05-feature-decomposition`
 must add real `FEAT-1130`/`FEAT-1140` rows when R8/R9 reach decomposition. Named here so the
@@ -246,9 +247,37 @@ music does not sound good. Three facts put it ahead of the queue:
    baselined. Nothing in R8 or R9 blocks it, and it blocks neither of them — the graph edge does not
    exist in either direction, so re-ordering costs nothing structurally.
 
-It does, uniquely in this plan, **change shipped behavior rather than adding to it** (the boot sound
-changes; `T5`/`T6`-class assertions need re-authoring). That is authorized, not accidental — see
-`FEAT-1150`'s own catalog row and `GDS-04` §4.1's dated amendment.
+It does **change shipped behavior rather than adding to it** (the boot sound changes; `T5`/`T6`-class
+assertions need re-authoring). That is authorized, not accidental — see `FEAT-1150`'s own catalog row
+and `GDS-04` §4.1's dated amendment.
+
+**`FEAT-1160` is bucketed immediately behind it, 2026-08-21, and this is the clearest sequencing call
+in the plan.** It is not a competing candidate weighed against R8/R9 — it is the completion of
+`FEAT-1150`. The measurement says so plainly: `FEAT-1150` places the harmony voice on a chord tone at
+**100 %** of its onsets, and the arpeggio then moves it off that chord for **more than half** of the
+frames it sounds, taking strong-beat harsh intervals from 12.0 % on the notes selected to **25.7 % on
+the pitch actually heard**. Until `FEAT-1160` lands, the majority of what `FEAT-1150` delivered is not
+reaching the listener, so shipping anything else first would be building on a benefit the ROM does not
+actually have. Three further facts:
+
+1. **It is the project owner's own live complaint**, reported by ear against the current build —
+   *"constant repeated arpeggios"* — under the same standing instruction that sequenced `FEAT-1150`
+   (*"iterate pipeline until it is deemed pleasant and ready for human ears to review"*).
+2. **Its dependencies are satisfied and it blocks nothing.** `FEAT-1150` is `COMPLETE` and its chord
+   table — the exact structure this feature reads — is shipped. `ADS-108` §12/`ADR-0005` are decided;
+   `FR-1130` (amended)/`FR-1600`-`FR-1630`/`NFR-1280` are baselined. No graph edge runs between it and
+   R8 or R9 in either direction.
+3. **It is expected to *return* per-frame budget rather than consume it** (`NFR-1280`), which makes it
+   the only item in the plan that leaves the next feature better off than it found it — `R101` §8.5's
+   exhausted VBlank budget is a standing constraint on everything downstream, and `IP-9040` is
+   `BLOCKED` on exactly it.
+
+The honest counter-argument, recorded rather than buried: this is the **second** consecutive
+behavior-changing remediation ahead of the roadmap queue, and a plan that keeps re-opening the same
+area can be a plan that is chasing rather than sequencing. It is accepted here because the trigger was
+a *human listening report* against a *measured* cause, not a further round of self-directed polish —
+and because `ADR-0005` names its own fallback (retirement, a one-table-edit) so the area cannot absorb
+unbounded further iteration.
 
 ---
 

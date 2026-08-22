@@ -287,10 +287,16 @@ def t6_pulse_b_and_wave():
 def t7_noise_density():
     from patterns import DENSITY_K
 
-    pb = fresh_boot()
     onset_counts = {}
     for density_idx in (0, len(DENSITY_K) - 1):  # sparsest and densest — non-default included
-        # Drive DENSITY_IDX to the target value via B presses (wraps mod 8, starts at preset 0).
+        # FIXTURE REPAIRED by IP-1160. This loop used to share one emulator across iterations and
+        # press Select at the end of each to "reset back to preset (density 0) before the next
+        # iteration's relative B-taps". Select no longer resets DENSITY_IDX (ADR-0006), so that
+        # assumption is now false — and it was only ever load-bearing-and-correct because the
+        # shipped pair happens to be (0, max), i.e. the wrap lands on the right value by luck.
+        # Leaving it would hand the next person to add a middle density silently wrong numbers.
+        # Each iteration now takes a fresh boot and steps absolutely from the known preset 0.
+        pb = fresh_boot()
         for _ in range(density_idx):
             tap(pb, 'b')
         check(f"T7.setup DENSITY_IDX reached {density_idx}",
@@ -308,13 +314,11 @@ def t7_noise_density():
               seen_steps == set(range(16)), f"seen: {sorted(seen_steps)}")
         check(f"T7.{density_idx}.2 Channel 4 (noise) triggers at least once at density {density_idx}",
               onsets > 0, f"onset-frame count: {onsets}")
-        # Reset back to preset (density 0) before the next iteration's relative B-taps.
-        tap(pb, 'select')
+        pb.stop(save=False)
 
     check("T7.3 Denser preset (max DENSITY_IDX) produces more onset-frames than the sparsest",
           onset_counts[len(DENSITY_K) - 1] > onset_counts[0],
           f"onset_counts={onset_counts}")
-    pb.stop(save=False)
 
 
 # ── T8: Bad-zone detection (IP-0004) ──────────────────────────────────
@@ -465,26 +469,55 @@ def t9_visualizer():
 
 # ── T5: Select resets to the known-good preset unconditionally ───────
 def t5_reset():
+    """IP-1160 (ADR-0006, FR-1070 as amended 2026-08-21): Select is a REROLL, not a reset.
+
+    It reseeds every channel's LFSR (new melodic material) and clears the bad-zone state, and it
+    leaves the listener's own six steering values — TEMPO_IDX/OCTAVE_IDX/SCALE_IDX/DENSITY_IDX/
+    CHMIX_IDX/DUTY_BIAS — bit-identical. T5.2/T5.3/T5.4 below assert the OPPOSITE of what they
+    asserted before this package: they are inverted against the new contract, not loosened. The
+    drift setup is deliberately unchanged — it is what makes the assertions mean anything, and a
+    version that drifted nothing would pass vacuously."""
     pb = fresh_boot()
-    # Drift several parameters away from preset first.
+    # Drift several parameters away from preset first. (Unchanged from the pre-IP-1160 fixture.)
     for button in ("up", "up", "right", "a", "b", "start"):
         tap(pb, button)
+    # 'start' begins an IP-1130 blend, which glides TEMPO_IDX/DENSITY_IDX/DUTY_BIAS over several
+    # frames. Let it settle so "before" is a stable reading and the comparison below is about the
+    # Select press alone, not about a blend that was still in flight across it.
+    settle_blend(pb)
     drifted = (pb.memory[TEMPO_IDX], pb.memory[OCTAVE_IDX], pb.memory[SCALE_IDX])
+    before_all = (pb.memory[TEMPO_IDX], pb.memory[OCTAVE_IDX], pb.memory[SCALE_IDX],
+                  pb.memory[DENSITY_IDX], pb.memory[CHMIX_IDX], pb.memory[DUTY_BIAS])
     check("T5.1 Setup: parameters actually drifted from preset before reset",
           drifted != (PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX, PRESET_SCALE_IDX), f"drifted={drifted}")
 
-    # Read on the exact reset frame (press + one tick), before any post-reset onset has a chance
-    # to fire — since IP-0007, LFSR seeds randomize on reset (GDS-03 SS5 amended) and the
+    # Read on the exact press frame (press + one tick), before any post-press onset has a chance
+    # to fire — since IP-0007, LFSR seeds randomize on the press (GDS-03 SS5 amended) and the
     # same-frame-fires-immediately effect can move CUR_DEGREE_PA away from 0 within a couple of
-    # extra settle frames purely as correct, intentional new-walk behavior, not a reset defect.
+    # extra settle frames purely as correct, intentional new-walk behavior, not a defect.
     pb.button_press("select")
     pb.tick()
     pb.button_release("select")
 
-    check("T5.2 Select restores TEMPO_IDX to preset", pb.memory[TEMPO_IDX] == PRESET_TEMPO_IDX)
-    check("T5.3 Select restores OCTAVE_IDX to preset", pb.memory[OCTAVE_IDX] == PRESET_OCTAVE_IDX)
-    check("T5.4 Select restores SCALE_IDX to preset", pb.memory[SCALE_IDX] == PRESET_SCALE_IDX)
-    # RE-AUTHORED by IP-1140 (not merely left passing). init_engine resets CUR_DEGREE_PA to 0 as
+    check("T5.2 Select leaves TEMPO_IDX UNCHANGED at the listener's value (IP-1160: the drifted "
+          f"value survives the press; pre-IP-1160 this asserted a reset to PRESET_TEMPO_IDX="
+          f"{PRESET_TEMPO_IDX})",
+          pb.memory[TEMPO_IDX] == before_all[0],
+          f"before={before_all[0]} after={pb.memory[TEMPO_IDX]}")
+    check("T5.3 Select leaves OCTAVE_IDX UNCHANGED at the listener's value (IP-1160)",
+          pb.memory[OCTAVE_IDX] == before_all[1],
+          f"before={before_all[1]} after={pb.memory[OCTAVE_IDX]}")
+    check("T5.4 Select leaves SCALE_IDX UNCHANGED at the listener's value (IP-1160)",
+          pb.memory[SCALE_IDX] == before_all[2],
+          f"before={before_all[2]} after={pb.memory[SCALE_IDX]}")
+    after_all = (pb.memory[TEMPO_IDX], pb.memory[OCTAVE_IDX], pb.memory[SCALE_IDX],
+                 pb.memory[DENSITY_IDX], pb.memory[CHMIX_IDX], pb.memory[DUTY_BIAS])
+    check("T5.4b All SIX protected steering values are bit-identical across the press "
+          "(TEMPO/OCTAVE/SCALE/DENSITY/CHMIX/DUTY_BIAS) — the package's Definition of Done, "
+          "asserted as one tuple so a partial implementation that moves five writes and misses "
+          "the SONG_TABLE[0] pair cannot pass",
+          after_all == before_all, f"before={before_all} after={after_all}")
+    # RE-AUTHORED by IP-1140 (not merely left passing). The reroll resets CUR_DEGREE_PA to 0 as
     # the starting point, but the same-frame-fires-immediately effect (NOTE_TIMER_PA primed to 1)
     # means one note-selection step already happens within this very frame, before any read is
     # possible. What that step *is* changed with IP-1140, and this check's previous reasoning —
@@ -494,10 +527,17 @@ def t5_reset():
     # chord 0 in the reset scale: degrees {0, 2, 4} for major. That is a strictly *narrower*
     # invariant than the one it replaces, which is the point — a re-authored check must describe
     # the new contract, not be loosened until it stops failing.
-    _reset_chord0 = set(CHORD_TABLE[PRESET_SCALE_IDX * 12: PRESET_SCALE_IDX * 12 + 3])
-    check("T5.5 Select resets the chord context too, so pulse A's first post-reset onset lands on "
-          "a tone of chord 0 in the reset scale (IP-1140; supersedes the old DELTA_TABLE-step "
-          "reasoning, which no longer describes the engine)",
+    #
+    # IP-1160 changes ONE thing here and nothing else: the chord-0 tones are resolved in the
+    # LISTENER's current SCALE_IDX, because under the new contract the scale in force after the
+    # press *is* the drifted scale. The assertion stays exactly as narrow as it was — it is the
+    # check that caught IP-1140's real CHORD_TOGGLE off-by-one, and widening it (e.g. to "any
+    # degree") would have let that ship.
+    _live_scale = pb.memory[SCALE_IDX]
+    _reset_chord0 = set(CHORD_TABLE[_live_scale * 12: _live_scale * 12 + 3])
+    check("T5.5 Select resets the chord context too, so pulse A's first post-press onset lands on "
+          "a tone of chord 0 in the LISTENER's current scale (IP-1140 + IP-1160; supersedes the "
+          "old DELTA_TABLE-step reasoning, which no longer describes the engine)",
           pb.memory[CUR_DEGREE_PA] in _reset_chord0,
           f"got {pb.memory[CUR_DEGREE_PA]}, chord 0 tones {sorted(_reset_chord0)}")
     check("T5.6 Select restores the shared chord context itself (IP-1140)",
@@ -505,6 +545,89 @@ def t5_reset():
           == (0, True),
           f"CHORD_IDX={pb.memory[CHORD_IDX]} CHORD_ONSET_CTR={pb.memory[CHORD_ONSET_CTR]}")
     pb.stop(save=False)
+
+    # ── T5.7 (NEW, IP-1160) — FR-1630 as strengthened ────────────────────────────────────
+    # The one defect in this package that would SOUND wrong rather than look wrong: if the
+    # arpeggio caches re-resolved against PRESET_SCALE_IDX/PRESET_OCTAVE_IDX instead of the
+    # listener's, a Select at a non-default scale would reseed the engine into pitch material
+    # from a scale it is not playing. Resolution alone cannot see that — note tables for
+    # different (scale, octave) pairs share individual period values — so the check is made
+    # decidable instead: a reroll resolves the all-sustain row 0 against a freshly-zeroed
+    # CUR_DEGREE, so every cache entry must be exactly the LISTENER's table's degree-0 pitch,
+    # and that pitch must differ from the PRESET table's degree-0 pitch. Two named pitches
+    # compared, no set-membership hand-waving.
+    rev = _note_table_reverse()
+    pb7 = fresh_boot()
+    for button in ("a", "right", "up"):        # scale +1, octave +1, tempo +1
+        tap(pb7, button)
+    live_scale, live_oct = pb7.memory[SCALE_IDX], pb7.memory[OCTAVE_IDX]
+    pb7.button_press('select'); pb7.tick(); pb7.button_release('select')
+    cache = {}
+    for cname, base in (('pa', ARP_CACHE_PA), ('pb', ARP_CACHE_PB)):
+        cache[cname] = [(pb7.memory[base + i * 2], pb7.memory[base + i * 2 + 1] & 7)
+                        for i in range(4)]
+    pb7.stop(save=False)
+    def _degree0_pitch(scale, octv):
+        for pitch, deg in rev[(scale, octv)].items():
+            if deg == 0:
+                return pitch
+        return None
+
+    listener_tonic = _degree0_pitch(live_scale, live_oct)
+    preset_tonic = _degree0_pitch(PRESET_SCALE_IDX, PRESET_OCTAVE_IDX)
+    all_pitches = cache['pa'] + cache['pb']
+    check("T5.7 After a Select at a non-default scale AND octave, both pulse channels' arpeggio "
+          "caches are resolved against the LISTENER's scale/octave: every one of the eight "
+          "entries is that table's degree-0 pitch, which is NOT the preset table's degree-0 "
+          "pitch (FR-1630 as strengthened by IP-1160; the mirror of VR-1130's BLEND_STEP "
+          "defect, and the one bug in this package that would sound wrong rather than look it)",
+          listener_tonic is not None and preset_tonic is not None
+          and listener_tonic != preset_tonic
+          and all(p == listener_tonic for p in all_pitches),
+          f"scale={live_scale} oct={live_oct} listener degree-0 pitch={listener_tonic}; "
+          f"preset {PRESET_SCALE_IDX}/{PRESET_OCTAVE_IDX} degree-0 pitch={preset_tonic}; "
+          f"pa={cache['pa']} pb={cache['pb']}")
+
+    # ── T5.8 (NEW, IP-1160) — the reroll demonstrably rerolls ────────────────────────────
+    # Measured at the OUTPUT boundary per NFR-1270 as amended: the signal is SOUNDING pitch —
+    # the (freq_lo, freq_hi) pair arp_tick writes to NR13/NR14 this frame, read from the
+    # step-indexed ARP_CACHE entry rather than from CUR_DEGREE, which records only what note
+    # selection intended (BL-0128). NR13/NR14 are write-only in PyBoy, so the cache read at the
+    # step arp_tick is currently playing is the register write, one frame's remove from the pin.
+    #   Scope:  both pulse channels (pa and pb) — the two arpeggiating pitched voices.
+    #   Window: 300 frames (~5 s at 60 fps, several notes at any tempo) immediately before the
+    #           press and 300 immediately after.
+    #   Assertion: the two sequences differ. They can only be identical if the DIV reseed failed
+    #           to change the melodic walk — i.e. if the reroll did not reroll.
+    def _sounding_window(emu, frames):
+        seq = []
+        for _ in range(frames):
+            emu.tick()
+            scale, octv = emu.memory[SCALE_IDX], emu.memory[OCTAVE_IDX]
+            frame = []
+            for base, st in ((ARP_CACHE_PA, ARP_STATE_PA), (ARP_CACHE_PB, ARP_STATE_PB)):
+                step = (emu.memory[st] >> 4) & 0x03
+                frame.append((emu.memory[base + step * 2], emu.memory[base + step * 2 + 1] & 7))
+            seq.append((scale, octv, tuple(frame)))
+        return seq
+
+    pb8 = fresh_boot()
+    for button in ("up", "up", "a", "right"):   # non-default tempo, scale and octave
+        tap(pb8, button)
+    settle_blend(pb8)
+    before_seq = _sounding_window(pb8, 300)
+    pb8.button_press('select'); pb8.tick(); pb8.button_release('select')
+    after_seq = _sounding_window(pb8, 300)
+    steer_after = (pb8.memory[TEMPO_IDX], pb8.memory[OCTAVE_IDX], pb8.memory[SCALE_IDX],
+                   pb8.memory[DENSITY_IDX], pb8.memory[CHMIX_IDX], pb8.memory[DUTY_BIAS])
+    pb8.stop(save=False)
+    n_diff = sum(1 for a, b in zip(before_seq, after_seq) if a != b)
+    check("T5.8 A Select at non-default settings genuinely changes the melodic material — the "
+          "sounding-pitch sequence of both pulse channels over a 300-frame window differs from "
+          "the 300-frame window immediately before the press (NFR-1270 output boundary: the "
+          "step-indexed ARP_CACHE entry arp_tick writes to NR13/NR14, never CUR_DEGREE)",
+          before_seq != after_seq and n_diff >= 30,
+          f"{n_diff}/300 sampled frames differ; steering after the press={steer_after}")
 
 
 def t11_arpeggio_vibrato_duty():
@@ -803,17 +926,23 @@ def t15_genre_aware_style_presets():
           f"after={(pb3.memory[BAD_ZONE_FLAGS], pb3.memory[STALE_COUNT_PA], pb3.memory[ONSET_WINDOW_COUNT])}")
     pb3.stop(save=False)
 
-    # (f): Select resets DUTY_BIAS to 0 alongside every other per-preset field it already resets.
+    # (f): RE-AUTHORED by IP-1160, inverted against the new contract. DUTY_BIAS is the sixth
+    # protected steering value (GDS-04 §1.4 registers it as such) and Select must now leave it
+    # alone: it is part of the articulation the listener's Start-selected style established, and
+    # discarding it was the same defect as discarding tempo. Pre-IP-1160 this asserted == 0.
     pb4 = fresh_boot()
     tap(pb4, 'start')  # drift DUTY_BIAS away from 0 (preset 1's style sets duty_bias=1)
     settle_blend(pb4)  # DUTY_BIAS is one of IP-1130's blended fields, not same-frame
     check("T15.6.setup DUTY_BIAS drifted away from 0 before Select", pb4.memory[DUTY_BIAS] != 0,
           f"got {pb4.memory[DUTY_BIAS]}")
+    duty_before = pb4.memory[DUTY_BIAS]
     pb4.button_press('select')
     pb4.tick()
     pb4.button_release('select')
-    check("T15.6 Select resets DUTY_BIAS to 0 (read on the exact reset frame)",
-          pb4.memory[DUTY_BIAS] == 0, f"got {pb4.memory[DUTY_BIAS]}")
+    check("T15.6 Select leaves DUTY_BIAS UNCHANGED at the listener's style value (IP-1160, read "
+          "on the exact press frame; pre-IP-1160 this asserted a reset to 0)",
+          pb4.memory[DUTY_BIAS] == duty_before,
+          f"before={duty_before} after={pb4.memory[DUTY_BIAS]}")
     pb4.stop(save=False)
 
 
@@ -1056,10 +1185,45 @@ def t17_song_form_via_autonomous_phase_cycling():
     pb5.button_release('select')
     check("T17.7 Select resets SONG_STATE to phase 0 (read on the exact reset frame)",
           pb5.memory[SONG_STATE] == 0, f"got {pb5.memory[SONG_STATE]}")
-    check("T17.8 Select re-applies phase 0's TEMPO_IDX/DENSITY_IDX target values",
-          (pb5.memory[TEMPO_IDX], pb5.memory[DENSITY_IDX]) == (SONG_TABLE[0][0], SONG_TABLE[0][1]),
-          f"got {(pb5.memory[TEMPO_IDX], pb5.memory[DENSITY_IDX])}")
     pb5.stop(save=False)
+
+    # T17.8 — RE-AUTHORED by IP-1160, and it asserts the exact OPPOSITE of what it asserted
+    # before. This check is the canary for this package's highest risk: init_engine wrote the
+    # protected steering values EIGHT times, not five, and the eighth pair is phase 0's own
+    # TEMPO_IDX/DENSITY_IDX write from SONG_TABLE[0], sitting 50 lines below the obvious five.
+    # An implementation that moved only the five PRESET_* writes into the boot prologue ships a
+    # Select that preserves octave, scale and channel-mix while silently resetting tempo and
+    # density — and passes a naive test. So the fixture drives TEMPO_IDX/DENSITY_IDX away from
+    # BOTH the boot preset AND SONG_TABLE[0]'s values before pressing, which is the only setup
+    # that can tell the two implementations apart (SONG_TABLE[0] == the preset by construction).
+    pb6 = fresh_boot()
+    for _ in range(plain_transition_frame + 5):
+        pb6.tick()
+    for _ in range(3):
+        tap(pb6, 'up')     # TEMPO_IDX away from preset and from SONG_TABLE[0][0]
+    for _ in range(2):
+        tap(pb6, 'b')      # DENSITY_IDX away from preset and from SONG_TABLE[0][1]
+    settle_blend(pb6)
+    t_before, d_before = pb6.memory[TEMPO_IDX], pb6.memory[DENSITY_IDX]
+    check("T17.8.setup TEMPO_IDX/DENSITY_IDX drifted away from BOTH the preset and phase 0's "
+          "own SONG_TABLE[0] values before the press — without this the check cannot "
+          "distinguish a five-write implementation from a correct eight-write one",
+          (t_before, d_before) != (SONG_TABLE[0][0], SONG_TABLE[0][1])
+          and (t_before, d_before) != (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX),
+          f"got tempo={t_before} density={d_before}, SONG_TABLE[0]="
+          f"{(SONG_TABLE[0][0], SONG_TABLE[0][1])}")
+    pb6.button_press('select')
+    pb6.tick()
+    pb6.button_release('select')
+    check("T17.8 Select does NOT re-apply phase 0's TEMPO_IDX/DENSITY_IDX — restarting the song "
+          "form at phase 0 is bookkeeping, but re-applying phase 0's tempo and density would be "
+          "a steering write, and a reroll performs none (IP-1160; pre-IP-1160 this asserted "
+          "that the re-application DID happen, and was green because the defect was shipped)",
+          (pb6.memory[TEMPO_IDX], pb6.memory[DENSITY_IDX]) == (t_before, d_before),
+          f"before={(t_before, d_before)} after="
+          f"{(pb6.memory[TEMPO_IDX], pb6.memory[DENSITY_IDX])}, "
+          f"SONG_TABLE[0]={(SONG_TABLE[0][0], SONG_TABLE[0][1])}")
+    pb6.stop(save=False)
 
 
 # ── T18: Settings & control visibility (IP-1110, BL-0051/ADS-104) ────
@@ -1120,35 +1284,57 @@ def t18_settings_and_control_visibility():
     t18_8_mismatches = []
     t18_9_mismatches = []
     t18_10_mismatches = []
+    t18_10_reverted_to_preset = []
     for seq_i, sequence in enumerate(pre_select_sequences):
         pb2 = fresh_boot()
         for button in sequence:
             tap(pb2, button)
+        # IP-1160: settle the IP-1130 blend both sequences start with, so the "before" reading is
+        # stable. Without this a still-gliding TEMPO/DENSITY would move across the press for
+        # reasons that have nothing to do with Select, and the inverted assertions below would be
+        # measuring the blend rather than the reroll.
+        settle_blend(pb2)
         drifted = [pb2.memory[addr] for addr in SETTINGS_CELLS]
         if drifted == expected:
             t18_8_mismatches.append((seq_i, drifted))
+        wram_before = (pb2.memory[TEMPO_IDX], pb2.memory[OCTAVE_IDX], pb2.memory[SCALE_IDX],
+                       pb2.memory[DENSITY_IDX], pb2.memory[CHMIX_IDX])
+        cells_before = [pb2.memory[addr] for addr in SETTINGS_CELLS]
         pb2.button_press('select')
         pb2.tick()
         pb2.button_release('select')
         reset_frame_wram = (pb2.memory[TEMPO_IDX], pb2.memory[OCTAVE_IDX], pb2.memory[SCALE_IDX],
                             pb2.memory[DENSITY_IDX], pb2.memory[CHMIX_IDX])
-        if reset_frame_wram != tuple(settings_presets):
-            t18_9_mismatches.append((seq_i, reset_frame_wram))
-        pb2.tick()  # one-frame render-vs-reset-timing lag (see above) — self-heals here
+        # RE-AUTHORED by IP-1160, inverted: the five underlying settings fields must be
+        # UNCHANGED across the press, not restored to the preset.
+        if reset_frame_wram != wram_before:
+            t18_9_mismatches.append((seq_i, wram_before, reset_frame_wram))
+        pb2.tick()  # one further frame — the render lag T18.10 documents would surface here
         cells_after_reset = [pb2.memory[addr] for addr in SETTINGS_CELLS]
-        if cells_after_reset != expected:
-            t18_10_mismatches.append((seq_i, cells_after_reset))
+        # RE-AUTHORED by IP-1160, inverted: the indicators must still show the LISTENER's
+        # settings a frame later — i.e. the display does not move either. `expected` (the boot
+        # fill levels) is now the value they must NOT have taken, and it is checked against
+        # explicitly below rather than merely being absent, so this cannot pass vacuously.
+        if cells_after_reset != cells_before:
+            t18_10_mismatches.append((seq_i, cells_before, cells_after_reset))
+        if cells_after_reset == expected:
+            t18_10_reverted_to_preset.append((seq_i, cells_after_reset))
         pb2.stop(save=False)
     check("T18.8.setup At least one settings indicator drifted away from its boot value before "
           f"Select, across all {len(pre_select_sequences)} pre-Select sequences",
           not t18_8_mismatches, f"sequences that failed to drift: {t18_8_mismatches}")
-    check("T18.9 Select resets the underlying WRAM fields on the reset frame itself, across all "
-          f"{len(pre_select_sequences)} pre-Select sequences",
-          not t18_9_mismatches, f"mismatches (seq_i, got): {t18_9_mismatches}")
-    check("T18.10 The settings-indicator display catches up to the restored preset within one "
-          f"further frame, across all {len(pre_select_sequences)} pre-Select sequences "
-          "(one-frame render-vs-reset-timing lag, self-healing)",
-          not t18_10_mismatches, f"mismatches (seq_i, got): {t18_10_mismatches}")
+    check("T18.9 Select leaves the 5 underlying settings fields UNCHANGED on the press frame "
+          f"itself, across all {len(pre_select_sequences)} pre-Select sequences (IP-1160, "
+          "inverted: pre-IP-1160 this asserted they were reset to the boot preset)",
+          not t18_9_mismatches, f"mismatches (seq_i, before, after): {t18_9_mismatches}")
+    check("T18.10 The settings indicators keep showing the LISTENER's settings a frame after the "
+          f"press, across all {len(pre_select_sequences)} pre-Select sequences — and in "
+          "particular do NOT fall back to the boot fill levels (IP-1160, inverted: the "
+          "pre-IP-1160 one-frame catch-up to the preset no longer happens because there is "
+          "nothing to catch up to)",
+          not t18_10_mismatches and not t18_10_reverted_to_preset,
+          f"mismatches (seq_i, before, after): {t18_10_mismatches}; "
+          f"sequences that fell back to the boot preset: {t18_10_reverted_to_preset}")
     pb2.stop(save=False)
 
 
@@ -1420,23 +1606,38 @@ def t20_emotional_energy_layer():
     check("T20.10 site 5/6: song_tick's transition branch recomputes AROUSAL/VALENCE on the "
           "transition frame itself", got == want, f"got={got} want={want}")
 
-    # Site 6: init_engine's Select-reset path -- drift the steering state first, then check the
-    # reset frame itself.
+    # Site 6: the Select reroll path (engine_reroll) -- drift the steering state first, then check
+    # the press frame itself. RE-AUTHORED by IP-1160: FR-1420's Select clause is now a NO-OP that
+    # must STAY a no-op. The mood_update call still runs on this path, but there are no longer any
+    # steering writes for it to react to, so what this check now asserts is (a) AROUSAL/VALENCE
+    # still satisfy their formula on the press frame, and (b) they satisfy it against the
+    # LISTENER's drifted inputs, unchanged across the press — not against the boot preset's.
+    # Both halves matter: (a) alone would pass if mood_update were deleted from the shared body
+    # and the values happened to already be right; (b) is what makes the no-op observable.
     pb8 = fresh_boot()
     for button in ("up", "up", "a", "b"):
         tap(pb8, button)
+    settle_blend(pb8)
+    steer_before = (pb8.memory[TEMPO_IDX], pb8.memory[DENSITY_IDX], pb8.memory[SCALE_IDX])
+    mood_before = (pb8.memory[AROUSAL], pb8.memory[VALENCE])
     pb8.button_press('select')
     pb8.tick()
     pb8.button_release('select')
     got = (pb8.memory[AROUSAL], pb8.memory[VALENCE])
     want = (expected_arousal(pb8), expected_valence(pb8))
-    reset_correct = (pb8.memory[TEMPO_IDX] == SONG_TABLE[0][0]
-                      and pb8.memory[DENSITY_IDX] == SONG_TABLE[0][1]
-                      and pb8.memory[SCALE_IDX] == PRESET_SCALE_IDX)
+    steer_after = (pb8.memory[TEMPO_IDX], pb8.memory[DENSITY_IDX], pb8.memory[SCALE_IDX])
+    drifted_from_preset = steer_after != (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX)
     pb8.stop(save=False)
-    check("T20.11 site 6/6: init_engine's Select-reset path recomputes AROUSAL/VALENCE on the "
-          "reset frame itself", got == want and reset_correct,
-          f"got={got} want={want} reset_correct={reset_correct}")
+    check("T20.11 site 6/6: the Select REROLL path leaves AROUSAL/VALENCE correct on the press "
+          "frame — mood_update still runs after every steering write on its path, but on this "
+          "path there are none, so it is a no-op that must remain correct against the "
+          "LISTENER's drifted inputs (IP-1160; pre-IP-1160 this asserted the press had reset "
+          "TEMPO/DENSITY/SCALE to SONG_TABLE[0]/preset values)",
+          got == want and got == mood_before and steer_after == steer_before
+          and drifted_from_preset,
+          f"got={got} want={want} mood_before={mood_before} "
+          f"steer_before={steer_before} steer_after={steer_after} "
+          f"drifted_from_preset={drifted_from_preset}")
 
     # (d) Boot-correctness: AROUSAL/VALENCE already correct on the first tested frame, before any
     # input (FR-1420, boot half) -- init_engine's own call, exercised via the boot path rather

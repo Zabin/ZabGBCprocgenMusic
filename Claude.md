@@ -31,7 +31,7 @@ visuals.py       — tile/palette visualizer, read-only consumer of engine state
                     engine state or PSG registers); tile/palette data now lives in tiles.py
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 154 checks across T1-T21
+                    sound registers + WRAM engine state) — 191 checks across T1-T23
 ```
 
 ### Data layout, WRAM map
@@ -76,15 +76,17 @@ same music; see the Known Good Behavior entry below.
 | A | Next scale/mode |
 | B | Next density preset (noise-channel Euclidean pattern) |
 | Start | Next channel-mix preset (`CHMIX_MASKS`-gated — only the preset's included channels sound, `IP-9010`) |
-| Select | Reset all channels + bad-zone state to the known-good preset **and randomize each channel's melodic seed** (unconditional, manual override — not the only recovery path, see below) |
+| Select | **Reroll** — reseed every channel's melodic LFSR from `DIV` (genuinely new material) and clear all bad-zone state, **leaving every one of the listener's own settings untouched** (`IP-1160`/`ADR-0006`/amended `FR-1070`, 2026-08-21). Unconditional manual override — not the only recovery path, see below. **This control's meaning changed**: it used to also reset `TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX`/`DUTY_BIAS` to the boot preset, which discarded everything the listener had dialled in. There is deliberately no longer any single "return everything to default" control — every value is reachable in at most 7 presses of its own control (`ADR-0006`, an accepted cost) |
 
 All edge-triggered (rising edge only — holding does not repeat).
 
 ### Autonomous bad-zone avoidance/recovery (IP-0007)
 
 The engine detects **and acts on** a bad zone every frame, without requiring Select (MSTR-001 C5
-amended v1.1). Select remains available as a manual "reset and randomize" override, but is no
-longer the only way out:
+amended v1.1). Select remains available as a manual **reroll** override — new melodic material
+plus a cleared bad-zone slate, with the listener's settings preserved (`IP-1160`) — but it has not
+been the only way out since `IP-0007` (2026-07), and that is exactly why it no longer needs to
+reset anything the listener chose:
 
 - **Dissonant** → each pitched channel's next scale-degree step is overridden to pull toward the
   tonic (degree 0) instead of the normal LFSR-picked delta, converging the channels toward the
@@ -308,10 +310,18 @@ exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
 - The engine autonomously biases its own generation out of dissonant/stuck/overloaded states,
   every frame, with no input required (confirmed: a long headless run enters a bad zone and
   recovers from it on its own — `test_rom.py` T10)
-- Select unconditionally resets every channel's generation state and all bad-zone counters to the
-  known-good preset (major scale, mid tempo/octave, sparse density) **and randomizes each
-  channel's melodic seed from the `DIV` register** — engine resumes playing immediately on the
-  same frame, with a genuinely different starting point each press
+- **Select is a reroll, not a reset (`IP-1160`, 2026-08-21 — the control's meaning changed).** It
+  resets every channel's generation state and all bad-zone counters and **randomizes each
+  channel's melodic seed from the `DIV` register**, so the engine resumes immediately on the same
+  frame from a genuinely different starting point. What it no longer does is touch the listener's
+  own settings: `TEMPO_IDX`, `OCTAVE_IDX`, `SCALE_IDX`, `DENSITY_IDX`, `CHMIX_IDX` and `DUTY_BIAS`
+  are **bit-identical across the press**. Confirmed at the output boundary on captured audio: at
+  non-default settings the sounded pitch track changes across 28/40 250 ms windows while all six
+  values read unchanged on the press frame itself. Mechanically, `init_engine` is now a boot-only
+  prologue holding all eight steering writes (the five `PRESET_*`, `DUTY_BIAS`, and phase 0's own
+  `SONG_TABLE[0]` tempo/density pair) that falls through into `engine_reroll`, the shared body the
+  Select handler calls directly. **Boot is unchanged**, verified byte-for-byte: WRAM `0xC000`-
+  `0xC09F` and the 10 s sounded pitch track are identical to the pre-change build
 - Visualizer: LCD on, 4 tile indicators reflect `NR52`'s per-channel active bits every frame; BG
   palette swaps from calm (blue/green) to bad-zone (red) tones based on `BAD_ZONE_FLAGS` bit3
 - Pulse A/B arpeggiate (frequency cycles through a 4-step chord-tone pattern every few frames,
@@ -492,7 +502,7 @@ exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
   **Still not built, and still audible as missing**: rests and phrase boundaries (`CR-0003`) —
   unchanged by this package, and now the largest remaining structural gap.
 
-**187/187 `test_rom.py` checks pass** (T1-T23). An 8000+ frame stress run with continuous input
+**191/191 `test_rom.py` checks pass** (T1-T23). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 

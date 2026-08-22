@@ -403,3 +403,528 @@ for iteration through planning stages, and this project's own standing rule is t
 package, however thoroughly, is never itself authorization to build it. **Recorded: authorization
 `NOT GRANTED`.** `IP-1120` is `READY` (fully specified, its two dependency Features both
 `VERIFIED`) but not authorized — the pipeline's next step is the G3 gate itself, not a build.
+
+## TWBS — `IP-9040` (2026-08-14, `BL-0111`, `10-integration-review`'s R7 tranche finding F2)
+
+**No-split decision.** The fix is two `CALL('mood_update')` additions inside two already-existing,
+already-`VERIFIED` routines (`_emit_begin_blend`, `_emit_blend_tick`, both `music_engine.py`) —
+no new WRAM, no new routine, no new file. A single tightly-scoped package matches the size of the
+defect; splitting a two-line fix into more than one package would be pure overhead.
+
+**Verb inventory.** Only *generate* applies (both call sites recompute `AROUSAL`/`VALENCE` from
+already-current state) — no *render* (`visuals.py` still has no consumer, unaffected by this
+package, per `IP-1120`'s own still-standing non-scope), no *apply* (nothing new is steered), no
+*persist*, no *review* (two derived numeric bytes, not art/music data). Same shape as `IP-1120`'s
+own verb inventory, since this package is closing a gap in that same capability's write coverage,
+not introducing a new one.
+
+**Supersession sweep — the actual finding this package exists to fix.** `BL-0111` *is* the result
+of a supersession sweep `IP-1130`'s own planning never ran: `10-integration-review` grepped every
+current write site touching `TEMPO_IDX`/`DENSITY_IDX`/`SCALE_IDX` tree-wide (not just within
+`IP-1120`'s own 6 named sites) and found `IP-1130`'s `_emit_begin_blend`/`_emit_blend_tick` write
+all three without ever calling `mood_update` — exactly `IP-1120`'s own Risks field's named "7th
+write path" hazard, materialized by a package that shipped after it. Re-ran the same sweep this
+pass, tree-wide, once more before authoring: confirmed these are the **only** two write sites to
+any of the three fields that don't already call `mood_update` (the 6 `IP-1120`-named sites still
+do; `init_engine`'s own writes still do) — closing both closes the gap completely, no third site
+missed.
+
+**Placement, not just presence.** `_emit_begin_blend`'s call lands immediately after its own
+`SCALE_IDX` write (mirroring `IP-1120`'s own convention of calling `mood_update` right after the
+triggering write lands) — at that point `TEMPO_IDX`/`DENSITY_IDX` are still their pre-press
+values (only `BLEND_SRC_*` has been captured, not yet applied — `SCALE_IDX` is the one field that
+changes immediately on a Start press), so `AROUSAL` correctly stays at its pre-press value on the
+press frame itself while `VALENCE` correctly updates immediately, matching each field's own
+already-established instant-vs-gradual semantics exactly. `_emit_blend_tick`'s call lands inside
+the active-blend branch, after the 3-field interpolation loop writes `TEMPO_IDX`/`DENSITY_IDX`/
+`DUTY_BIAS` for that step, **before** falling through to `bt_done`'s early-exit label — this
+means the call only executes on the frames `BLEND_STEP` is actually incrementing (1-4), never on
+the overwhelming steady-state majority of frames (`BLEND_STEP` already `4`), preserving
+`NFR-1170`'s zero-added-per-frame-cost contract exactly as `IP-1120`'s original 6 sites do.
+
+**Timing risk, named explicitly.** `VR-1130`'s own F1 finding measured that `_emit_blend_tick`'s
+per-frame cost was tight enough on active-blend frames to matter (the original per-frame
+`STYLE_TABLE` re-derivation blew the budget; the `BLEND_DELTA_*` precompute fix brought it back
+within budget). `mood_update` adds roughly a dozen more instructions to that same per-active-blend-
+frame path. This is real added cost on a path already shown to be budget-sensitive — Risks field
+below names it explicitly and requires `08`/`09` to re-measure `VIS_ENTRY_LY` on an active-blend
+frame with this addition in place, not merely assume the earlier margin still holds.
+
+**Authorization — explicit judgment call.** No standing grant covers this. The session's earlier
+grants (`IP-9030`'s re-confirmed basis; `IP-8010`/`IP-8020`'s "Continue include refactoring";
+`IP-1120`'s "Yes proceed"; `IP-1130`'s "Yes, build it.") were each reactive answers to a specific
+flagged question about a specific, already-named package — none extends to fresh remediation work
+authored today. This defect was found by review, not by the user, and nothing in the current,
+user-approved release plan (`01-release-plan.md`) named it, since it didn't exist to name until
+this session's `10-integration-review` surfaced it. **Recorded: authorization `NOT GRANTED`.**
+
+## TWBS — `IP-9040` v2 re-scope (2026-08-17, re-scoping after v1's Blocking Report)
+
+**No-split decision, unchanged.** Still one package, same two call sites, same files — v1's fix
+shape (two `mood_update`-derived recomputes inside `_emit_begin_blend`/`_emit_blend_tick`) was
+correct in principle; only the *implementation cost* of getting `AROUSAL`/`VALENCE` correct at
+each site needed to shrink. No new file, no new routine, no new WRAM byte.
+
+**Grounding, not guessing — three claims independently measured before re-authoring** (throwaway,
+uncommitted experimental builds, same convention `VR-9030`/`VR-1130` used for their own live
+`pyboy` measurements; nothing from these experiments was left in the tree):
+
+1. **Isolated each v1 call site's own cost.** `_emit_begin_blend`'s full `CALL('mood_update')`
+   alone (press-frame only, not per-active-blend-frame) measured **within budget** on both a
+   plain single blend and a mid-blend-restart (`VIS_ENTRY_LY` 152-153 throughout). `_emit_blend_
+   tick`'s full `CALL('mood_update')` alone (every active-blend frame) measured **the actual
+   regression** — `VIS_ENTRY_LY` 0-1 on both scenarios, isolating v1's Blocking Report finding to
+   one of its two sites, not both.
+2. **A full `mood_update()` call recomputes both `AROUSAL` and `VALENCE` at every site, but each
+   site only ever writes inputs to one of the two.** `_emit_begin_blend` only writes `SCALE_IDX`
+   (`TEMPO_IDX`/`DENSITY_IDX` are read but not written there) — it only needs `VALENCE`'s
+   recompute, not `AROUSAL`'s (no write, no `FR-1410` obligation to touch it). `_emit_blend_tick`
+   only writes `TEMPO_IDX`/`DENSITY_IDX` — it only needs `AROUSAL`'s recompute, not `VALENCE`'s
+   (`SCALE_IDX` is never touched there). Replacing each site's full `mood_update()` `CALL`/`RET`
+   with an **inline, half-sized recompute** (the one field each site's own writes actually
+   obligate) — reusing registers already live in `_emit_blend_tick`'s own interpolation loop
+   (`tempo`'s just-written value stashed in the otherwise-free `D` register, added to `density`'s
+   own value the moment it lands in `A`, written to `AROUSAL` immediately — before `duty`'s own
+   iteration even begins, since duty is irrelevant to `AROUSAL`) instead of two fresh WRAM re-
+   reads — measured **within budget on every ordinary single-blend frame, all 4 interpolation
+   steps, matching `FR-1410` exactly with no CPU overhead beyond the ~6-7 lean instructions each
+   site now adds.**
+3. **The mid-blend-restart collision frame remains a genuine, specific, narrower residual risk,
+   honestly disclosed rather than declared solved.** Even with the minimized inline design above,
+   the exact frame a second Start press lands mid-blend (`_emit_begin_blend` and `_emit_blend_
+   tick` both firing fully, same frame, `FR-1490`'s own scenario) still measured `VIS_ENTRY_LY`
+   dropping to `0` — out of range — while the *first* press's own begin_blend+blend_tick(step
+   0→1) collision frame (functionally the same shape) measured in-budget (152). The size of the
+   swing (153→0, not a marginal few cycles) plus the asymmetry between two structurally similar
+   collision frames is consistent with the already-disclosed, general ~30-frame-periodic engine-
+   wide characteristic (`BL-0106`) landing unluckily on this specific restart timing, not a defect
+   in the minimized design's own logic — but this is a hypothesis, not independently confirmed
+   this pass, and doesn't change what Task 6 below must still do.
+
+**Why the deferred-recompute idea (compute `AROUSAL` for last frame's write, one frame late,
+exploiting `FR-1410`'s own explicit "no more than one frame after" tolerance) is named but NOT
+adopted as this package's design:** cleanly flushing the *final* settle-frame's own deferred value
+without ever running the recompute on a genuinely idle steady-state frame (which would violate
+`NFR-1170`'s zero-unconditional-per-frame-cost contract) requires a sentinel/flag distinguishing
+"settled, recompute pending" from "settled, already flushed" — realistically a new `BLEND_STEP`
+value (5) or a new WRAM byte, either of which risks crossing condition 3 of the G3 pre-
+authorization path ("no different approach than the original design already committed to") and
+changes `BLEND_STEP`'s own existing observable contract that `test_rom.py`'s `T21`/`T22` suites
+already assert exact values against. Named here as a candidate for `08` to revisit only if the
+minimized design's own residual restart-collision risk (point 3 above) turns out not to clear
+budget in the real build — not prescribed, since it wasn't required to prove out the general case.
+
+**Files to Create/Modify, updated from v1**: same two routines, same two files
+(`music_engine.py` only) — only the *body* of each `CALL('mood_update')` site changes, from a full
+`CALL`/`RET` into `mood_update` to an inline, half-sized, single-field recompute reusing already-
+live registers. `AROUSAL`/`VALENCE` WRAM addresses, `mood_update`'s own label/body, and its 6
+existing `IP-1120` call sites are all unchanged and untouched.
+
+**Task 6, re-scoped and widened**: v1's Task 6 asked for "an active-blend frame" (singular,
+generic). v2's Task 6 must independently re-measure `VIS_ENTRY_LY` across, at minimum: (a) every
+intermediate step of a plain single blend (the case now measured clean); (b) the initial press
+frame itself (`BLEND_STEP` 0→1, begin_blend+blend_tick collision — measured clean, but with the
+final shipped instruction sequence, not this pass's exact throwaway experiment); (c) **the mid-
+blend-restart collision frame specifically** (`FR-1490`'s own scenario) — the one case this pass
+could not close within budget with the minimized design alone. If (c) still regresses in the real
+08 build, the correct response is another Blocking Report (or the deferred-recompute redesign
+above, evaluated fresh against condition 3), not a silent absorb — same standing convention this
+package's own v1 already established.
+
+**Authorization (G3), re-verified fresh against v2's actual design, not inherited from v1.** All 4
+conditions of the `00-pipeline-manager` conformance-remediation pre-authorization path re-checked:
+(1) `IP-1130` (the package this remediates) is release-plan-covered (`01-release-plan.md` §2.2,
+R8, v1.0 scope) and separately carries its own explicit G3 grant (commit `351c0cf`) — unchanged
+from v1's own basis, still holds. (2) The finding (`BL-0111`) is still a conformance gap against
+the already-baselined `FR-1410` — v2 doesn't change what's being restored, only how cheaply.
+(3) v2's fix still lands inside `IP-1130`'s own `music_engine.py` mechanism/file footprint — no
+new file, no new routine, no new WRAM byte, same two call sites, only their bodies changed from a
+shared-routine `CALL` to an inline recompute of the same underlying formula `mood_update` itself
+already uses — this is a leaner instantiation of the *same* mechanism, not a different one.
+(4) Severity unchanged, Medium-High, below Critical. **Qualifies — G3 granted on that basis, both
+bases (original `IP-1130` authorization + `BL-0111`) cited again below**, same as v1.
+
+## TWBS — `IP-8030` (2026-08-17, `BL-0089`, module-decomposition refactor)
+
+**Origin.** `BL-0089` (filed 2026-08-07, full-repo audit): `08-content-authoring`'s declared write
+scope names `tiles.py`/`patterns.py`/`music_data.py`; none exists — content data lives inline in
+`visuals.py` (tile pixel bytes) and `music_engine.py` (every scale/tempo/style/song/motif/rhythm
+table). `GDS-09` §1 records this honestly at the interface level ("three of those five do not
+exist here... `visuals.py` owns its tile bytes inline... `music_engine.py` owns its own data
+tables as module-level Python constants"). **The user decided 2026-08-07: create the three
+modules** — extract the data out, restoring the decomposition `GDS-03`/`GDS-09` always described,
+over the two cheaper alternatives (repoint the skill scope at where content actually lives, or
+retire/narrow the skill). This is the release plan's own named critical-path prerequisite
+"immediately before R12.5" (`01-release-plan.md` §2.5) — R12.5's retuning pass needs a working
+`08-content-authoring` write surface to retune *through*, which does not exist today.
+
+**No design work owed here — this is execution of an already-made decision, not a fresh one.**
+The split below is this planning pass's own judgment call (the user specified *that* the modules
+should exist, not their exact per-table membership); recorded explicitly rather than left
+implicit, since a guessed split is exactly the kind of drift stage 08 would otherwise discover
+mid-implementation.
+
+**Split, by content category, not by size:**
+
+- **`tiles.py`** — visualizer tile pixel art + palette color data: `_tile_off_bytes()`,
+  `_tile_on_bytes()`, `_bar_tile_bytes(n)` (currently `visuals.py:64-80`), `CALM_PALETTE`/
+  `BAD_PALETTE` (currently `visuals.py:87-88`). All four are pure, `rom`-independent — no ROM
+  object dependency, straightforward move.
+- **`patterns.py`** — rhythm-pattern generation: `_euclidean_pattern(k, n)` (currently
+  `music_engine.py:369-377`, pure function, no `rom` dependency), `DENSITY_K`, `NOISE_STEP_TABLE`
+  (currently `music_engine.py:362-366`). `NOISE_STEPS` (the `n=16` default) moves alongside since
+  `_euclidean_pattern`'s own default argument needs it.
+- **`music_data.py`** — scale/mode/pitch/style/song/motif tables, the "curated musical building
+  blocks" the content-authoring skill's scope names: `TEMPO_BPM`/`TEMPO_TABLE`, `OCTAVE_ROOT_HZ`,
+  `SCALE_SEMITONES`/`SCALES`, `SEMITONE_TABLE_DATA`, `DISSONANCE_WEIGHT_BY_IC`, `DELTA_TABLE`,
+  `VALENCE_TABLE`, `STYLE_TABLE`, `SONG_TABLE`/`N_SONG_PHASES`, `ARPEGGIO_OFFSETS`,
+  `DUTY_BY_DEGREE`, `MOTIF_TABLE`/`N_VARIANTS`, `MOTIF_VARIANT_SELECTOR`, `CHMIX_MASKS`
+  (currently scattered `music_engine.py:99-360`, per-table line numbers in the package's own
+  Files to Create/Modify field — re-verify against the tree at implementation time, this planning
+  pass's own line numbers may have shifted).
+
+**Deliberately staying in `music_engine.py` (not content, engine wiring):** `CHANNELS` (ties
+WRAM/register constants together with behavioral parameters, keyed to `music_engine.py`'s own
+local WRAM address names — moving it would need those addresses re-exported and risks a real
+import cycle, for a table that is wiring, not tunable musical content); `LFSR_POLY`/
+`LFSR_SEED_PA`/`PB`/`WV` (algorithmic seeds, not musical content); `DIV`, `PRESET_*` (already
+live in `wram_constants.py`, `IP-8020`). Named explicitly so a future pass doesn't assume these
+were simply missed.
+
+**Naming convention decision.** `GDS-09` §1 records the *reference project's* expected interface
+names (`build_tile_data()`, `ALL_PATTERNS`, `music_data()`) as never having existed in this
+project. This package does **not** adopt those wrapper-function/registry names — it uses plain
+module-level constants in each new file, the same convention this project's own `wram_constants.py`
+(`IP-8020`, `BL-0065`) already established for its own content-adjacent split. Inventing a
+function/registry wrapper solely to match the reference project's naming, when this project's own
+shipped convention is flat constants, would add ceremony without changing behavior — `GDS-09`
+itself favors "record plainly rather than documenting interfaces that aren't there." Once this
+package lands, `GDS-09` §1's "three of those five do not exist" note becomes stale and needs a
+follow-up correction pass (owned by `03-architecture-design-synthesis`, not this package — refactor
+packages don't edit the GDS ladder).
+
+**Verb inventory:** N/A — a structural relocation of existing data, not a new capability spanning
+runtime verbs.
+
+**Supersession sweep:** every other module's imports of the moved names were checked
+(`build_rom.py`, `test_rom.py`, `input_map.py`, `gbc_lib.py`). `build_rom.py`/`input_map.py`/
+`gbc_lib.py` import only functions/register constants from `music_engine.py`/`visuals.py`, never
+the moved data tables — clean, nothing to update there. `test_rom.py` imports `STYLE_TABLE`,
+`MOTIF_TABLE`/`N_VARIANTS`, `SONG_TABLE`/`N_SONG_PHASES`, `VALENCE_TABLE` (module-level, lines
+94-97) and `DENSITY_K` (function-local, line 277) directly `from music_engine import ...` — these
+5 import lines must be repointed to `music_data`/`patterns` respectively; this is the one real
+call-site update the sweep found, named in Files to Create/Modify below. No other tree-wide
+reference to the old locations survives (a leftover `from music_engine import STYLE_TABLE` would
+`ImportError` immediately, not silently pass — the equivalence contract's own full-suite run is
+sufficient to catch a missed site).
+
+**No split within this package** — the three new modules are one coherent Definition of Done (one
+equivalence contract covering all three, one full-suite pass); splitting by target file would
+triple the review overhead for no independent value, since none of the three can be verified in
+isolation without the others.
+
+---
+
+## Tranche — `FS-115` / `FEAT-1160`: the arpeggio re-rooted, gated and varied (`BL-0127`) — 2026-08-21
+
+**One package: [`IP-1150`](packages/IP-1150-arpeggio-rerooted-gated-varied.md)**, executor
+`08-code-implementation`.
+
+### Why one package and not three
+
+`ADR-0005` states four rules (chord-aware, gated, varied, cheaper) and the obvious cut is one
+package per rule. It is the wrong cut, for a reason that is structural rather than a matter of
+convenience:
+
+- **Gated and varied are the same table lookup, by design.** `FR-1610` requires the figure set to
+  contain a member under which the note does not arpeggiate. That member *is* the gate — `FR-1600`
+  is expressed by forcing the pattern index, not by a separate branch. There is no intermediate
+  state in which one exists and the other does not, so a "gate" package and a "vary" package would
+  share one mechanism and neither could be verified without the other.
+- **Chord-aware alone is a shippable state that we have decided not to ship.** It would fix the
+  measurable defect (46.4 % → 100 % chord tones) while leaving the *reported* one untouched — a
+  perfectly in-chord figure still repeating identically 2.5×/second forever. `ADS-108` §12.5
+  rejects that as answering the measurement instead of the listener. Cutting it as its own package
+  would make shipping it an available outcome, and this tranche exists because the listener's
+  complaint is the acceptance criterion.
+- **Cheaper is not separable work at all.** The per-frame saving comes from *deleting* the address
+  arithmetic that only exists to support degree-offset resolution. Remove the offsets (chord-aware)
+  and the saving falls out; keep them and there is nothing to optimize that `BL-0125` has not
+  already found blocked. `NFR-1280` is a constraint on the same edit, not a follow-on to it.
+
+One package, one Definition of Done, one before/after measurement whose delta is attributable to
+one change. The cost of the choice is a package that touches two files across the stage-08 peer
+seam (declared in its Risk 5, same as `IP-1140`) and a larger single review surface.
+
+### Verb inventory
+
+The capability spans *generate* and *apply*; *render*, *persist* and *review* have named owners or
+explicit deferrals:
+
+| Verb | Owner |
+|---|---|
+| **generate** — decide which figure this note gets | `IP-1150`, per-onset draw inside `_emit_channel_gen`'s existing onset branch |
+| **apply** — sound it, frame by frame | `IP-1150`, `_emit_arpeggio_tick` rewritten as cache playback |
+| **render** — show it on the visualizer | **Deliberately deferred, not silent.** `visuals.py` is untouched; nothing in `ADS-108` §12, `FS-115` or `FR-1600`-`FR-1630` asks for a visual signal, and the existing channel-activity tiles already reflect `NR52` unchanged. Revisit only if roadmap R9 wants articulation as a visual axis. |
+| **persist** | N/A — this project persists nothing (`MSTR-001` C2, `ADR-0002`). |
+| **review** | `09-content-review`, named in `FS-115`'s Verification Plan and in `IP-1150`'s Verification Checklist, with its question stated concretely (*"does the arpeggio still read as a constant looping figure?"*) rather than left as "review the sound." |
+
+### Collision & obsolescence sweep
+
+All four questions asked; all four answered. This sweep is worth reading rather than skimming,
+because **this tranche exists because the sweep's own question 3 was not asked when `IP-1140` was
+planned** — the sweep was widened to four questions on 2026-08-20 for exactly this class of defect,
+and this is its first real exercise.
+
+**1 — Who else writes the state I write?**
+`IP-1150` writes `NR13`/`NR14` and `NR23`/`NR24` (pulse A/B frequency) every frame, plus new
+per-channel WRAM cache bytes. Grepped, not assumed:
+
+- `_emit_channel_gen`'s onset branch writes the same four frequency registers, once per onset, with
+  the trigger bit set. **This is the collision `IP-1140` shipped into**, and it is now explicit and
+  intended: the onset write triggers the envelope at the note's pitch, `arp_tick` articulates it
+  afterwards, and the cache the onset builds is what `arp_tick` reads — one producer, one consumer,
+  a defined hand-off instead of two mechanisms overwriting each other.
+- `input_map.py` writes **none** of these registers (confirmed by grep — it is `GDS-03`-forbidden
+  from touching PSG registers and honours it).
+- The new cache bytes have exactly **one writer** (the owning channel's own onset branch) and one
+  reader (`arp_tick`, same channel). Not a shared broadcast field, unlike `CHORD_IDX`.
+- `CHORD_IDX`/`CHORD_TOGGLE` are **read only** by this package. Its one write to `CHORD_TOGGLE`
+  bits 2-3 stays where `IP-1140` put it; no new writer is introduced.
+
+**2 — Does anything still encode a model I am retiring?**
+The retired model is *"the arpeggio is a fixed degree-offset pattern applied to `CUR_DEGREE`."*
+Grepped `ARPEGGIO_OFFSETS`, `arpeggio_offsets_table`, `ARP_SUBTICK_RELOAD`, `ARP_DEGREE_SCRATCH`
+across the tree. Live encodings found and named in Files to Create/Modify: `music_data.py` L145
+(the table), `music_engine.py` L24 (import), ~L1074 (the lookup), ~L1590 (the emission), and
+`test_rom.py`'s `T11.1`, which asserts the step index cycles — a statement about the *retired*
+design that will keep passing while meaning nothing, which is precisely why it is re-authored
+rather than left. `Claude.md`'s "Sound design techniques" **Arpeggio** bullet describes the retired
+design in prose and is named in Documentation Updates. `ARP_DEGREE_SCRATCH` is shared, so it is
+grepped again before removal rather than assumed dead.
+
+**3 — Does what I am ADDING make something existing redundant, vestigial, or contradictory?**
+Asked in both directions:
+
+- *Does the new mechanism obsolete something?* The arpeggio itself was the workaround (`R216`:
+  "implying a chord on a single channel" — a harmony substitute) and this tranche is the belated
+  answer to it. Nothing further is obsoleted: bad-zone recovery acts on note *selection* and stays
+  orthogonal (`FR-1590`); vibrato and portamento are **not** made redundant and must survive
+  (Risk 1); the mute gate is untouched.
+- *Does it revive something previously blocked?* Yes, and it is recorded rather than quietly taken:
+  `BL-0125`/`FR-1560`'s pulse-B octave placement was withheld by `IP-1140` **because `arp_tick`
+  hardcoded `octave_delta = 0`** — a constraint this package removes. `FS-115` OQ3 records it as
+  *unblocked, not owed*, and this package deliberately does not exercise it, so the before/after
+  measurement stays attributable to one change.
+
+**4 — Does my change alter what any existing metric actually measures?**
+Yes, and this is the question that produced `BL-0128`. `NFR-1270`'s harsh-interval acceptance metric
+was sampled at `CUR_DEGREE` — the harmony layer's *intent* — while `arp_tick` rewrote the frequency
+register afterwards, so every figure recorded under it describes a pitch that was never heard.
+`NFR-1270` has been amended (2026-08-21) to make **sounding pitch** the normative basis, and the one
+package that claimed the NFR (`IP-1140`) has its recorded figures corrected as part of this tranche:
+**strong 25.7 %, weak 36.1 %, aggregate 30.9 %**, not 12.2 %/30.6 %/21.5 %. `IP-1150`'s own
+before/after is measured on the corrected basis from the start. No other metric in the tree samples
+an intermediate this package inserts itself in front of (`VIS_ENTRY_LY` samples a frame boundary;
+`DISSONANCE_SCORE` is computed from `SEMI_*` and is engine-internal, already caveated by `BL-0124`).
+
+### Sequencing note
+
+`IP-1150`'s only real dependency, `IP-1140`, is `COMPLETE` but **not `VERIFIED`** — so by the letter
+of this plan's `READY` rule the package is `BLOCKED`. That is recorded honestly on the Master Build
+Plan rather than smoothed over, together with the reason it does not stop the work: the project
+owner's standing instruction is to iterate toward a pleasant result, `IP-1140`'s missing
+verification is a *fresh-session* obligation rather than a defect finding, and `IP-1150` would be
+re-planned anyway if that verification returned findings. The two packages verify as a pair.
+
+---
+
+## Tranche — Select becomes a reroll (`ADR-0006` / amended `FR-1070`) → `IP-1160`
+
+**Source:** [`ADR-0006`](../architecture/adr/ADR-0006-select-becomes-reroll-not-reset.md) and the
+amended `FR-1070`/`FR-1420`/`FR-1630` (`docs/requirements/01-functional-requirements.md`, Delta
+Review 2026-08-21 second pass). Trigger: the project owner's own instruction — *"The select-reset
+does not need to bring it back to the boot default either, just course correct from a bad zone"* —
+plus his approval of folding reroll into the same button.
+
+### Why one package, and why stages 05/06 were skipped
+
+**One package.** The change has a single seam (`init_engine`'s entry structure), a single
+Definition of Done ("a Select press changes the material and changes nothing the listener set"),
+and its test work is inseparable from its code work — seven shipped checks assert the behaviour
+being removed, so a package that changed the code without re-authoring them would leave a red tree
+by construction. Splitting produces two halves neither of which is independently verifiable.
+
+**05 skipped.** `05-feature-decomposition` exists to group requirements into features and features
+into releases. This tranche adds no capability: it redefines the contract of a control that has
+existed since `IP-0001`, under a requirement that already exists (`FR-1070`) and was amended rather
+than added. There is no new `FEAT-xxxx` row to catalog and no release-bucket question to answer.
+
+**06 skipped.** `06-feature-specification` exists to turn a catalog row into a behavior contract.
+That contract already exists in full and in two places: `ADR-0006` decides the design and records
+the alternatives weighed, and the amended `FR-1070` states the observable behaviour — including the
+clause a spec would otherwise have had to discover, *"by every write path."* An `FS-116` would have
+restated both without adding a decision. **Recorded as a deliberate skip with a reason, not as a
+shortcut**: if a reader later finds the design underdetermined, the defect is in `ADR-0006` or
+`FR-1070` and routes there, not to a missing FS.
+
+### Verb inventory
+
+The capability is *reroll*. Its verbs and their owners:
+
+| Verb | Owner | Note |
+|---|---|---|
+| **generate** (produce genuinely new material) | `IP-1160` — reuses the existing `DIV` reseed | Already shipped since `IP-0007`; this package does not touch it, and that is worth stating: two-thirds of the capability was already present (`R217` §3a). |
+| **apply** (course-correct out of a bad zone) | `IP-1160` — reuses the existing bad-zone clear | Unchanged behaviour, unchanged code. |
+| **preserve** (leave the listener's settings alone) | `IP-1160` — **the only new work in the tranche** | This is the whole package. |
+| **render** (show the listener what changed) | **Deliberately deferred, and the deferral is the point.** | The settings-indicator row (`IP-1110`) already shows the five indices, and after this change they *do not move* on a Select — so there is nothing new for the display to render. A listener sees the reroll by hearing it. Naming this rather than leaving it silent, per the verb-inventory rule: no visualizer feedback for the press itself is planned, and if listening says the press feels unacknowledged, that is a `09-content-review` finding routing to `03`, not a gap in this package. |
+| **persist** | **N/A — no persisted state exists** (MSTR-001 C2, no SRAM). | |
+| **review** | `09-package-verification` (mechanical) + `09-content-review` (does the reroll actually feel like new music with the same settings?) | The content review additionally owns `BL-0144`, escalated by the requirements pass. |
+
+### Collision & obsolescence sweep
+
+Run in full. This is the amended sweep's **first real customer**, and its performance is assessed
+honestly at the end of this section rather than assumed.
+
+**1 — Who else writes the state I write?**
+
+The state whose write behaviour changes is the six values `FR-1070` clause (c) protects. Consulted
+[`GDS-04` §1.2](../architecture/04-domain-model.md) (steering indices) and
+[`GDS-04` §1.4](../architecture/04-domain-model.md) (pitch/output layer, authored 2026-08-21), then
+`grep`ped the tree to confirm the registries are current. Both were.
+
+| Value | Writers, per §1.2/§1.4 and confirmed by grep | Effect of this package |
+|---|---|---|
+| `OCTAVE_IDX` | D-pad L/R; `init_engine` | one writer removed from the Select path |
+| `SCALE_IDX` | A; `init_engine`; style application | one writer removed from the Select path |
+| `CHMIX_IDX` | Start; `init_engine` | one writer removed from the Select path |
+| **`TEMPO_IDX`** | D-pad U/D; `init_engine`; style application; **song-form phase transition** | **two** writers removed from the Select path — see below |
+| **`DENSITY_IDX`** | B; `init_engine`; style application; **song-form phase transition** | **two** writers removed from the Select path |
+| `DUTY_BIAS` (§1.4) | style application; `blend_tick` interpolation; `init_engine` | one writer removed from the Select path |
+
+**This question is what produced `D1`, and it produced it directly.** §1.2 has recorded *song-form
+phase transition* as an independent writer of `TEMPO_IDX`/`DENSITY_IDX` since 2026-07-26. Following
+that entry into `init_engine` finds a **second** write of both from `SONG_TABLE[0]`
+(`music_engine.py:1637-1638`), 50 lines below the five obvious `PRESET_*` writes and under a
+comment explaining why it is harmless — *"`SONG_TABLE[0]`'s tempo_idx/density_idx match
+`PRESET_TEMPO_IDX`/`PRESET_DENSITY_IDX` exactly, so the writes just above are not disturbed."* That
+reasoning is correct today and stops being correct the moment the writes above are removed. **Eight
+writes, not five.** An implementation working from the obvious five would ship a Select that
+preserves octave, scale and channel-mix while silently resetting tempo and density.
+
+`GDS-04` §1.4 contributed a second, independent consequence: its `ARP_CACHE_PA`/`_PB` row records
+that the caches are written *"only at onset, and by `init_engine` (boot and Select — `FR-1630`)"*
+and resolve pitches through `SCALE_IDX`/`OCTAVE_IDX`. Since the reroll path no longer sets those
+first, the caches now resolve against **the listener's** scale and octave. That is correct and
+required (`FR-1630` as strengthened), and it is only obviously correct once the registry has said
+who reads what. The same reasoning applies to `AROUSAL`/`VALENCE` (`FR-1420`) and to `BLEND_STEP`.
+
+**Collisions:** none introduced. Every removal is a removal; the `last-write-wins` contract §1.2
+governs is untouched, and no new writer of anything is added.
+
+**2 — Does anything still encode a model I am retiring?**
+
+The retired model is *"Select restores the boot preset."* `grep`ped its literal signature across
+the tree, not only the files `Files to Modify` names:
+
+| Location | What it encodes | Disposition |
+|---|---|---|
+| `input_map.py:80-85` | comment *"Select: unconditional reset to the known-good preset (FR-1070)"* + `CALL init_engine` | **In scope** — the call target changes and the comment is rewritten. |
+| `music_engine.py`'s `init_engine` header comment (*"boot init AND Select-reset target, GDS-03 §5"*) | the conflated single entry point | **In scope.** |
+| `test_rom.py` — `T5.2`/`T5.3`/`T5.4`/`T5.5`, `T15.6`, `T17.8`, `T18.9`/`T18.10` | assert the removed behaviour | **In scope**, re-authored per `D4`. |
+| `test_rom.py` — `t7_noise_density:312` | `tap(pb, 'select')` with the comment *"Reset back to preset (density 0) before the next iteration's relative B-taps"* | **In scope**, and see question 4 — this is a fixture that *uses* Select as a reset primitive, which is a different failure from asserting Select's behaviour. |
+| `Claude.md` — the input-mapping table row, the autonomous-recovery section, the Known Good Behavior bullet | the old prose | **In scope.** |
+| **`GDS-03` §3's control table and §5 (*"Reset-to-preset behavior (Select)"*, incl. §5's `IP-0007` amendment)** | the architecture-level statement of the old model | **OUT OF SCOPE — routed upstream, not planned around.** `GDS-03` belongs to `03-architecture-design-synthesis`. `ADR-0006` supersedes it and `GDS-01`/`GDS-04` were amended in the same run, but `GDS-03` was not, and this skill does not edit architecture. Filed for `03`. |
+| `PRESET_TEMPO_IDX` … `PRESET_CHMIX_IDX` constants | the preset itself | **Retained, and still used** — by boot, and by the tests' own expected values. Not vestigial. |
+
+**3 — Does what I am ADDING make something existing redundant, vestigial, or contradictory?**
+
+This package is almost entirely *removal*, which is the unusual case for this question. What it
+adds is a boot-only prologue and a second entry label. Asked anyway, three answers:
+
+- **`DUTY_BIAS ← 0` on the reroll path becomes contradictory** — not redundant, actively wrong.
+  `DUTY_BIAS` is derived from the style row `CHMIX_IDX` selects; `CHMIX_IDX` now survives a Select,
+  so clearing the bias would leave the engine's timbre disagreeing with the preset that chose it.
+  Moved to the boot prologue (`D3` settled this at requirements altitude; recorded here because the
+  implementation must not treat it as an afterthought).
+- **`BLEND_STEP ← 4` on the reroll path is *not* obsoleted — it is strengthened, and this is worth
+  recording because the opposite conclusion is the easy one.** `VR-1130`'s F1 defect was that a
+  Select during an active blend left `blend_tick` running with stale source/delta values that
+  overwrote *the freshly-reset* `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` on the following frames. A
+  reader could reason: "Select no longer resets those, so there is nothing to protect." Exactly
+  wrong — a stale blend would now overwrite **the listener's** values, which is precisely the
+  promise this package exists to make. **Kept deliberately, with the reason recorded.**
+- **`init_engine`'s name becomes misleading**, since it will no longer be the Select target. A
+  naming issue, not a mechanism one; handled by the entry-label split rather than left implicit.
+
+**4 — Does my change alter what any existing metric actually measures?**
+
+**Yes — one real hit, and it is not the hit the question's own example predicts.**
+
+`t7_noise_density` (`test_rom.py:312`) presses Select **as a reset primitive**, not to test Select:
+*"Reset back to preset (density 0) before the next iteration's relative B-taps."* Its loop drives
+`DENSITY_IDX` to each target by pressing B a *relative* number of times from an assumed zero. After
+this package that assumption is false, and each iteration's taps accumulate from wherever the
+previous one ended — so `T7` would be measuring densities other than the ones it labels.
+
+**It would not have failed loudly.** The shipped loop iterates over exactly `(0, len(DENSITY_K)-1)`;
+the first iteration taps B zero times, so it happens to leave `DENSITY_IDX` at 0 and the second
+still lands on 7. `T7.setup` passes, `T7.3`'s max-versus-min comparison passes, and the suite stays
+green — **while the fixture's stated invariant is false and the next person to add a middle density
+gets wrong numbers with no warning.** That is the exact shape of defect this question exists to
+catch: a measurement quietly re-pointed, not a test that breaks.
+
+Two metrics checked and cleared: **`VIS_ENTRY_LY` on the Select frame** (`T19.4`) still measures
+what it claims — the reroll path does strictly *less* work, so the frame gets cheaper, and the
+assertion is a range check that does not encode the old cost. **`NFR-1270`'s harsh-interval
+figures** are unaffected in basis, but any future measurement driver that presses Select to reach a
+known baseline inherits `T7`'s problem; the requirement's newly-normative *scope* clause
+(`BL-0140`) already forces such a driver to state what it measured over.
+
+### How the amended sweep actually performed — an honest assessment
+
+Recorded because the pipeline's own audit is the reason the sweep was amended, and a quiet success
+would be worth less than a real reading.
+
+- **Question 1 earned its place unambiguously, and the registries are why.** `D1` — eight writes,
+  not five — came directly from following §1.2's *song-form phase transition* row into
+  `init_engine`. Without the registry the natural move is to grep `TEMPO_IDX` in `init_engine`,
+  find the `PRESET_*` write, and stop; the second write sits 50 lines later behind a comment
+  arguing it is harmless, and that argument is *true* until this package makes it false. This is
+  the strongest evidence in the run that the registries pay for themselves — and note the registry
+  entry that mattered has existed since 2026-07-26. What changed is that a stage was told to
+  consult it.
+- **Question 4 earned its place, and did so on merit rather than by example.** Its own illustrative
+  case is about an acceptance metric sampled at an internal intermediate. The hit here is
+  structurally different — a *test fixture* using the changed behaviour as a primitive — and the
+  question still caught it, because "what does this change cause to be measured differently"
+  generalises past its example. It also caught something that would not have gone red.
+- **Question 3 is the one to be honest about: on this case it did not do independent work.** Its
+  text names *this exact Select scenario* as one of its two worked examples, so surfacing it here
+  proves nothing about the question — the answer was written into the prompt. Asked on the merits
+  (*what does adding a boot-only prologue make redundant?*), question 3 returned mostly naming
+  observations; its one genuinely useful output was the **inverse** result — that `BLEND_STEP`'s
+  guard is *strengthened*, not obsoleted, and must be kept for a reason opposite to the intuitive
+  one. That is worth having, but it is a smaller yield than the question's framing implies.
+  **Recommendation:** the amendment should not draw confidence from this case. Question 3's real
+  test is a package that *adds* a mechanism — the next one that does should be watched, and the
+  Select example arguably ought to be retired from the question's text now that it has been acted
+  on, so a future reader does not mistake a worked example for evidence.
+- **Question 2 performed as it always has** — it is the original supersession sweep, and it did its
+  ordinary job of enumerating call sites, including catching that `GDS-03` §5 still encodes the old
+  model and belongs upstream rather than in this package.
+- **One structural observation about the sweep as a whole:** three of its four questions found
+  something here, and *two of the three findings would have shipped green*. The sweep's value is
+  concentrated in exactly the cases where the test suite cannot help, which is an argument for
+  running it on removal-shaped packages too — the wording ("EVERY package that writes shared
+  state or adds a mechanism") arguably does not obviously cover a package whose whole content is
+  *stopping* writes. Suggested clarification, routed to whoever maintains the skill: say **"writes,
+  stops writing, or adds a mechanism."**
+
+### Findings routed upstream from this planning pass
+
+| Finding | Owner |
+|---|---|
+| `GDS-03` §3's control table and §5 (*Reset-to-preset behavior (Select)*) still state the retired model. `ADR-0006` supersedes them; `GDS-01`/`GDS-04` were amended in the same run and `GDS-03` was not. | `03-architecture-design-synthesis` |
+| The collision & obsolescence sweep's own scope wording covers packages that *write* shared state; a package that *stops* writing it is equally in need of the sweep and is arguably not obviously covered. Suggest "writes, stops writing, or adds a mechanism." Also: question 3's Select example has now been acted on and should probably be retired from the text. | the `.claude/skills/07-implementation-planning` maintainer |
+

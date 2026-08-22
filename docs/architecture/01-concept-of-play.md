@@ -10,7 +10,7 @@ role: the single-page description of what the player actually does, moment to mo
 
 There is exactly one state: **running**. No title screen, no menu, no win/lose screen. On power-on,
 after a brief fixed init sequence (LCD/sound hardware setup, generator seeded to the same known-
-good preset Select resets to — GDS-03), the engine starts generating and the visualizer starts
+good preset — GDS-03; boot is the only event that lands on it, see step 6), the engine starts generating and the visualizer starts
 rendering, immediately and continuously, for as long as the ROM is powered.
 
 Every frame:
@@ -29,10 +29,26 @@ Every frame:
    for the music to keep sounding intentional.
 5. The visualizer reads current engine state (tempo, per-channel activity via `NR52`, bad-zone
    flag) and updates its tile/palette animation on its own budget-appropriate cadence.
-6. Select, at any time, resets the generator to the known-good preset **and randomizes each
-   channel's melodic starting point** (`IP-0007`) — usable whether or not the bad zone is
-   currently flagged; it's a manual "start over, differently" control, not the only recovery path
-   and not conditionally gated on bad-zone state.
+6. Select, at any time, is the listener's **reroll**: it randomizes each channel's melodic
+   starting point (`IP-0007`) and clears the bad-zone counters, **while leaving every parameter
+   the listener has set exactly where they set it** — usable whether or not the bad zone is
+   currently flagged; a manual "give me different music, keep my settings" control, not the only
+   recovery path and not conditionally gated on bad-zone state.
+
+   > **Amended 2026-08-21** ([`ADR-0006`](adr/ADR-0006-select-becomes-reroll-not-reset.md)). This
+   > step previously read *"resets the generator to the known-good preset and randomizes each
+   > channel's melodic starting point."* The index reload dates from `IP-0001`, when Select was the
+   > engine's **only** bad-zone escape; `IP-0007` made recovery autonomous in 2026-07 (step 4
+   > above), and this document has said so ever since without anything re-examining the mechanism
+   > that supersession obsoleted. The project owner settled it directly: *"The select-reset does
+   > not need to bring it back to the boot default either, just course correct from a bad zone."*
+   > **The flat single-state model is untouched** — a button press adds no menu, no mode and no
+   > screen, so this is not the scope change `R217` §3 routed through `01-vision`; see that topic's
+   > own 2026-08-21 addendum.
+
+   The line this draws is worth stating once, plainly, because it is now the rule for every future
+   mechanism: **what the listener chose survives a Select; what the engine wandered into does
+   not.** Boot is unaffected and still lands on the known-good preset every time.
 
 There is no pause, no save, no exit. Turning the device off is the only "stop."
 

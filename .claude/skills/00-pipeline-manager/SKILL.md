@@ -229,12 +229,35 @@ ROM.
 Before invoking anything, stop and ask the user (via `AskUserQuestion`) if the step requires:
 
 - **G3 authorization** — the step would implement a package that is neither (a) already scheduled
-  by the current, user-approved release plan in the shape the plan describes, nor (b) carrying its
-  own explicit user go-ahead on record. Release-plan coverage satisfies G3 automatically — cite
-  the matching release-plan section/row rather than asking again. A package not on the release
-  plan, or diverging materially from what it describes (different scope/approach, or a plan the
-  user hasn't actually approved), still requires a fresh per-package go-ahead before any
-  `08-code-implementation`/`08-content-authoring`/`08-refactoring` run;
+  by the current, user-approved release plan in the shape the plan describes, (b) carrying its own
+  explicit user go-ahead on record, nor (c) a **conformance-remediation package**, defined next.
+  Release-plan coverage satisfies G3 automatically — cite the matching release-plan section/row
+  rather than asking again. A package not on the release plan, or diverging materially from what
+  it describes (different scope/approach, or a plan the user hasn't actually approved), still
+  requires a fresh per-package go-ahead before any `08-code-implementation`/
+  `08-content-authoring`/`08-refactoring` run.
+
+  **Conformance-remediation packages (user policy, set 2026-08-14) are pre-authorized under the
+  original item's own G3 grant** — no fresh ask — when **all** of the following hold:
+  1. the finding is against a feature/package that was itself already release-plan-covered or
+     explicitly user-authorized (the *original* build had valid G3, by either path a or b);
+  2. the finding is that the shipped result fails to conform to a requirement/spec/invariant
+     already baselined *before* the finding (an `FR-xxxx`/`NFR-xxxx`, an `ADS`/`FS` contract, an
+     established architectural invariant) — restoring conformance, not adding a capability the
+     baseline never asked for; a finding that argues for new scope (a capability nothing upstream
+     ever specified) is not covered by this path and still needs its own go-ahead;
+  3. the fix stays inside the same mechanism/file footprint the original package already touched
+     — no new architecture, no new file, no different approach than the original design already
+     committed to (the same "diverging materially" bar the release-plan path itself uses);
+  4. the finding's severity is below Critical. A Critical finding always gets a fresh, explicit
+     ask regardless of how contained the fix looks — severity that high is the one case this
+     policy doesn't extend to.
+
+  When invoking a package under this path, cite **both** bases explicitly in the journal row and
+  the package doc: the original authorization (release-plan row or recorded grant) *and* the
+  finding ID that makes remediation necessary — never invoked silently on "it's obviously fine."
+  A package that fails any of the four conditions above falls back to a normal fresh ask, same as
+  any other package outside the release plan.
 - **a release GO** — the step would flip baseline records;
 - **adjudication** — the step builds on a review with unadjudicated Critical/High findings;
 - **a ripe `NEEDS-USER` backlog entry** — the decision the entry is waiting on is needed now, and

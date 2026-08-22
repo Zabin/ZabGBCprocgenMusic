@@ -1,0 +1,343 @@
+"""
+music_data.py — Driftune's curated musical building blocks: scale/tempo/style/song/motif/
+valence tables (IP-8030, BL-0089).
+
+Pure content module: every scale/tempo/style/song/motif/valence table previously declared
+inline in music_engine.py, moved verbatim (byte-for-byte identical values). Genuinely
+dependency-free per this package's own Definition of Done (imports nothing from
+music_engine.py/visuals.py/input_map.py/build_rom.py/gbc_lib.py/wram_constants.py/test_rom.py —
+imports nothing at all, in fact). STYLE_TABLE's and SONG_TABLE's own rows were always defined in
+terms of the shipped default preset (PRESET_TEMPO_IDX=4, PRESET_DENSITY_IDX=0,
+PRESET_SCALE_IDX=0, wram_constants.py) — rather than importing wram_constants.py (which the DoD
+above bars from this module), those three literal values are substituted directly below, with
+this comment as the cross-reference; the values are compile-time constants, so substituting them
+is a pure, meaning-preserving relocation, not a hardcoded guess. Verified identical: wram_constants.py's PRESET_TEMPO_IDX/PRESET_SCALE_IDX/PRESET_DENSITY_IDX = 4/0/0 exactly.
+"""
+
+# 8 tempo steps: frames-per-note-step at 59.7fps ~ 60fps, spanning ~60-180 BPM quarter notes.
+TEMPO_BPM = [60, 75, 90, 105, 120, 140, 160, 180]
+TEMPO_TABLE = [round(3600 / bpm) for bpm in TEMPO_BPM]  # frames per quarter note
+
+# 4 octave roots (C3..C6) — OCTAVE_IDX selects which is the walk's home octave.
+OCTAVE_ROOT_HZ = [130.81, 261.63, 523.25, 1046.50]
+
+# 4 scales, each extended to exactly 8 degrees so the on-device walk never needs
+# variable-length wraparound logic (GDS-03 SS3's "shape, not values" note) — degrees beyond
+# each scale's own unique pitch count continue into the next octave.
+SCALE_SEMITONES = {
+    'major':      [0, 2, 4, 5, 7, 9, 11, 12],
+    'minor':      [0, 2, 3, 5, 7, 8, 10, 12],
+    'dorian':     [0, 2, 3, 5, 7, 9, 10, 12],
+    'pentatonic': [0, 2, 4, 7, 9, 12, 14, 16],
+}
+SCALES = ['major', 'minor', 'dorian', 'pentatonic']
+
+# IP-0004: semitone (mod 12, octave-independent) per (scale, degree) — 4 scales x 8 degrees,
+# for dissonance scoring (R204). Precomputed the same "compute once in Python" way as the note
+# frequency tables.
+SEMITONE_TABLE_DATA = [
+    SCALE_SEMITONES[scale_name][degree] % 12
+    for scale_name in SCALES
+    for degree in range(8)
+]
+
+# 7 interval-class weights (0=unison/octave .. 6=tritone), folding inversions together (a
+# standard pitch-class-set-theory simplification of R204's raw 12-entry proposal — m2/M7 both
+# fold to ic=1, etc.) — ordering/magnitudes still derived from R204's Helmholtz-roughness-cited
+# ordering: m2(ic1)/tritone(ic6) highest, P4/P5(ic5) lowest nonzero.
+DISSONANCE_WEIGHT_BY_IC = [0, 15, 11, 3, 2, 1, 13]
+
+# Small signed scale-degree deltas the LFSR-driven walk picks from (R201's "scale-constrained
+# random walk" — weighted toward staying/small steps, indexed by the LFSR's low 2 bits).
+DELTA_TABLE = [0xFF, 0x00, 0x00, 0x01]  # -1, 0, 0, +1 (two's complement)
+
+# IP-1120: VALENCE is a fixed lookup keyed by SCALE_IDX (0-3) -- a lookup table is definitionally
+# a fixed one-to-one mapping (FR-1400). Illustrative first-guess placement values, not tuned by
+# ear (BL-0005-class deferral, same as every other untuned preset/threshold this project has
+# shipped) -- a future 09-content-review pass, once R9 gives this a real consumer, is the right
+# place to retune.
+VALENCE_TABLE = [10, 6, 12, 4]
+
+# IP-9010 (BL-0019): channel-mix gating — an 8-entry table of 4-bit masks, one per CHMIX_IDX
+# preset, indexed the same way as every other preset table (GDS-03 SS6). bit0=pulse A,
+# bit1=pulse B, bit2=wave, bit3=noise — matching NR52's own channel-bit order for a direct,
+# low-risk lookup (no remapping needed anywhere a mask bit is tested against an NR52 bit).
+# Preset 0 (PRESET_CHMIX_IDX) MUST be "all 4 active" (0b1111) — every pre-existing test (T2/T3/
+# T6/T7/T9) assumes all channels active at boot/reset. The remaining 7 presets explore useful
+# combinations (GDS-03 SS3's own example: "a channel-mix preset using only the two pulse
+# channels" is preset 1 below) — first-guess placeholders, not tuned by ear, same convention as
+# every other untuned preset table (BL-0005's existing disposition covers this). Every entry is
+# deliberately nonzero (Risks section, IP-9010 package doc) — an all-silent preset would leave
+# the engine audibly dead with no recovery path short of Select.
+# IP-1070 (BL-0020): bits 4-6 (spare in every preset above) now carry per-channel Scheme-select
+# bits (pa=bit4, pb=bit5, wv=bit6; 0=Scheme W, 1=Scheme E) — packed into the same byte per
+# ADR-0001, at zero additional preset-table cost. Preset 6 assigns Scheme E to the wave channel
+# (bit6 set) alongside pulse A/B still on Scheme W — ADS-100 SS4's own worked example ("a wave
+# channel on Scheme E reads as a recognizable repeating bass motif against pulse A/B's freer
+# Scheme-W drift"). Every other preset leaves bits4-6 clear (all-Scheme-W) — first-guess
+# placeholder assignment, not tuned by ear, same convention as every other untuned preset data
+# (BL-0005's disposition covers this). Preset 0 (boot/Select default) MUST stay all-Scheme-W
+# (bits4-6 clear) — FS-107's own State Changes field requires no regression to the shipped
+# default listening experience.
+CHMIX_MASKS = [
+    0b1111,  # 0: all four active, all Scheme W (preset default — required, see above)
+    0b0011,  # 1: pulse A + pulse B (GDS-03 SS3's own example)
+    0b0101,  # 2: pulse A + wave
+    0b1001,  # 3: pulse A + noise
+    0b0110,  # 4: pulse B + wave
+    0b1100,  # 5: wave + noise
+    0b1000111,  # 6: pulse A + pulse B + wave active; wave on Scheme E (bit6 set)
+    0b1011,  # 7: pulse A + pulse B + noise (no wave)
+]
+
+# IP-1080: Genre-aware style presets (roadmap R5, ADS-101/FS-108) — a second table, independent
+# of CHMIX_MASKS above (ADS-101 SS2's "two tables stay independent" design), keyed by the same
+# CHMIX_IDX index. Each row: (tempo_idx, density_idx, scale_idx, duty_bias). Applied immediately
+# (not gated to next onset, unlike CHMIX_MASKS's channel-mix/scheme half — FR-1240) by
+# _emit_apply_style, called right after CHMIX_IDX is stepped on a Start press.
+# Index 0 MUST match the shipped default preset exactly (PRESET_TEMPO_IDX/PRESET_SCALE_IDX/
+# PRESET_DENSITY_IDX, duty_bias=0) — FR-1260, no regression to current boot/reset behavior.
+# Indices 1-3 carry the three named v1 styles (FR-1250, ADS-101 SS3, first-guess placeholder
+# values per this project's standing untuned-preset convention, BL-0005):
+#   1: Techno/Chiptune-Driving — fast tempo, dense Euclidean percussion, dorian mode, bright duty.
+#   2: Ambient/Lo-Fi — slow tempo, sparse density, pentatonic mode, soft duty (the "anchor" style,
+#      deliberately closest to the shipped default's overall character).
+#   3: Holiday — moderate tempo, moderate-steady density, major mode, bright duty (R219 SS8's
+#      "cheapest genre-style addition" finding: major/moderate-tempo/steady-density/bright-timbre
+#      all map directly onto these four fields).
+# Indices 4-7 default to index 0's row until a future content-authoring pass assigns a 4th+ style
+# (BL-0039) — every index has a defined, non-arbitrary row, not an unreviewed combination.
+# (4, 0, 0, ...) below = (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, ...) —
+# substituted as literals per this module's own docstring note (wram_constants.py import barred
+# by the DoD; values verified identical: 4/0/0).
+STYLE_TABLE = [
+    (4, 0, 0, 0x00),  # 0: default
+    (6, 6, 2, 0x01),                                                 # 1: Techno/Chiptune-Driving
+    (1, 0, 3, 0xFF),                                                 # 2: Ambient/Lo-Fi
+    (3, 3, 0, 0x01),                                                 # 3: Holiday
+    (4, 0, 0, 0x00),  # 4: default (unassigned)
+    (4, 0, 0, 0x00),  # 5: default (unassigned)
+    (4, 0, 0, 0x00),  # 6: default (unassigned)
+    (4, 0, 0, 0x00),  # 7: default (unassigned)
+]
+
+# IP-1100 (roadmap R6, ADS-103): autonomous song-form phase table — 4 rows of (tempo_idx,
+# density_idx, duration_lo, duration_hi), duration in frames (16-bit, ~60fps) so a full cycle
+# genuinely spans multiple minutes per R6's own framing. First-guess placeholder values/durations,
+# not tuned by ear (BL-0005's standing disposition). IP-1100's own explicit decision (package
+# Implementation Task 5), REVISED from this package's own initial draft after discovering it broke
+# 10 pre-existing tests that assume boot/Select-reset lands exactly on PRESET_TEMPO_IDX/
+# PRESET_DENSITY_IDX: phase 0 (INTRO) DOES match the shipped default preset exactly — the same
+# no-regression discipline STYLE_TABLE/MOTIF_TABLE's own index-0 rows already established, applied
+# here too rather than treated as an exception.
+SONG_TABLE = [
+    (4, 0, 1800 & 0xFF, (1800 >> 8) & 0xFF),  # 0: INTRO (matches shipped default) - ~30s
+    (4, 4, 1800 & 0xFF, (1800 >> 8) & 0xFF),  # 1: BUILD - 120 BPM, k=6, ~30s
+    (6, 6, 1200 & 0xFF, (1200 >> 8) & 0xFF),  # 2: PEAK  - 160 BPM, k=10, ~20s
+    (3, 2, 1800 & 0xFF, (1800 >> 8) & 0xFF),  # 3: BREAKDOWN - 105 BPM, k=4, ~30s
+]
+N_SONG_PHASES = 4
+
+# ── IP-1150 (FS-115/FEAT-1160, BL-0127, ADS-108 §12/D14 + ADR-0005) ──────────────────────
+# The arpeggio's figure table, replacing IP-1060's ARPEGGIO_OFFSETS = [0, 2, 4, 2].
+#
+# WHAT CHANGED AND WHY, because a reader who does not know will reintroduce the old design:
+# ARPEGGIO_OFFSETS held *scale-degree offsets added to CUR_DEGREE*. That was correct in 2026-07,
+# when the engine had no harmony and R216's arpeggio existed to *imply* a chord on one channel —
+# i.e. to fake harmony in its absence. Since IP-1140, CUR_DEGREE *is* the chord tone the shared
+# harmony just chose, so adding [0,2,4,2] to it stacked a second, differently-rooted triad on the
+# engine's own chord: measured on the shipped ROM, pulse B was placed on a chord tone at 100% of
+# its onsets while only 46.4% of its *sounding* frames were chord tones, and strong-beat harsh
+# intervals read 12.0% on the notes selected against 25.7% on the pitch actually heard. The
+# offsets were also masked AND 0x07, which is exactly the octave-seam arithmetic ADS-108 D3 had
+# already ruled *incorrect* for chord math (R225 §3g) — degree 4 + 4 wraps to 0 where the correct
+# pitch is degree 8's.
+#
+# Entries here are therefore CHORD-TONE SLOTS (0-2) into the current chord's own CHORD_TABLE row,
+# never degree offsets — the same data CHORD_TABLE already resolves correctly per scale, taken at
+# authoring time rather than at runtime.
+#
+# ARP_SUSTAIN is the reserved fourth value: "sound this note's OWN pitch for that step." It is
+# what makes FR-1600's chord-tone gate and FR-1610's per-onset variation ONE mechanism rather
+# than two branches — a row of all-sustain is "this note does not arpeggiate," and a *table* of
+# all-sustain rows is ADR-0005's named retirement fallback, reachable as a data edit rather than
+# a redesign. NOTE that sustain never means "skip the frame's frequency write": the write still
+# happens, with this note's own pitch, because FR-1150's portamento and FR-1140's vibrato are
+# produced BY that per-frame write (BL-0130).
+ARP_SUSTAIN = 3
+
+# Four rows of 4 steps. Step 0 is ARP_SUSTAIN in EVERY row on purpose: the note begins on the
+# pitch its own onset triggered, so the figure grows out of the note instead of jumping off it on
+# the first sub-tick — which also leaves IP-1061's portamento glide (the trigger fires at the
+# outgoing pitch, arp_tick carries it to the target on the following frame) intact by
+# construction.
+#
+# FR-1610 requires the rows to differ in RHYTHMIC SURFACE, not merely in the order of pitches —
+# four permutations of one triad sweep would still present a single figure to a listener. These
+# four sound a non-onset pitch on 0, 3, 2 and 1 of their four steps respectively. First-guess
+# placeholder shapes, not tuned by ear (BL-0005's existing disposition), but the *spread* is the
+# architectural commitment, not a preference.
+ARP_PATTERNS = [
+    3, 3, 3, 3,   # row 0 — sustain: this note does not arpeggiate at all (0 moving steps)
+    3, 0, 1, 2,   # row 1 — full sweep: note, root, third, fifth (3 moving steps)
+    3, 2, 3, 0,   # row 2 — note, fifth, note, root (2 moving steps, gapped)
+    3, 1, 3, 3,   # row 3 — a single grace flick to the third, then held (1 moving step)
+]
+N_ARP_PATTERNS = 4
+assert len(ARP_PATTERNS) == N_ARP_PATTERNS * 4
+assert all(0 <= e <= ARP_SUSTAIN for e in ARP_PATTERNS)
+assert ARP_PATTERNS[:4] == [ARP_SUSTAIN] * 4, "row 0 must be the all-sustain row (the gate uses it)"
+assert all(ARP_PATTERNS[r * 4] == ARP_SUSTAIN for r in range(N_ARP_PATTERNS)), \
+    "every row must start on the note's own pitch — see the comment above"
+
+# Which row this note gets, indexed by 2 bits of the drawing channel's own LFSR. Shaped exactly
+# like DELTA_TABLE / MOTIF_VARIANT_SELECTOR / CHORD_TRANSITION: the weighting lives in the
+# *distribution of entries*, never in arithmetic (R211 §8). Uniform as a first guess, so one note
+# in four sustains outright — first-guess weighting, not tuned by ear.
+ARP_PATTERN_PICK = [1, 2, 3, 0]
+assert len(ARP_PATTERN_PICK) == 4 and all(0 <= r < N_ARP_PATTERNS for r in ARP_PATTERN_PICK)
+
+# IP-1060: duty-cycle variation (R216) — NR11/NR21 whole-byte values (length bits stay 0, unused,
+# same as the existing fixed-duty boot init), one per CUR_DEGREE mod 4.
+DUTY_BY_DEGREE = [0x00, 0x40, 0x80, 0xC0]  # 12.5% / 25% / 50% / 75%
+
+# IP-1070 (BL-0020, ADS-100 SS5): Scheme E's fixed motif — one shared 8-entry table of *absolute*
+# scale-degree targets (0-7, not deltas), a short recognizable up/down phrase distinct from
+# ARPEGGIO_OFFSETS' period-4 chord pattern. Absolute targets (rather than deltas) keep the
+# on-device math a plain SUB (target - old_degree, wrapping mod 256, then masked mod 8 exactly
+# like every other degree write) instead of needing signed accumulation across steps. One shared
+# table for all 3 pitched channels (not per-channel/per-scale-degree-set) — FR-1210 requires only
+# "a fixed... motif," not multiple selectable ones; a right-sized first version, not a ceiling.
+# First-guess placeholder shape, not tuned by ear (BL-0005's existing disposition covers this).
+#
+# IP-1090 (BL-0010, ADS-102): extended from a single 8-entry row into N_VARIANTS=4 rows of 8
+# bytes each (variant index * 8 + motif_step). Row 0 is byte-identical to the original shipped
+# sequence (FR-1300's no-regression requirement); rows 1-3 are new hand-composed variants sharing
+# row 0's start/end degree (0...7) with differing middle contour, so a variant switch reads as
+# development of the same phrase rather than an unrelated new one (IP-1090's own Risks section) —
+# first-guess placeholder shapes, not tuned by ear, same BL-0005 disposition as row 0.
+MOTIF_TABLE = [
+    0, 2, 4, 5, 4, 2, 0, 7,   # variant 0: original shipped sequence (unchanged)
+    0, 2, 4, 5, 4, 3, 0, 7,   # variant 1: softer descent (5->3 instead of 5->2 at step 5)
+    0, 2, 5, 5, 4, 2, 0, 7,   # variant 2: reaches the 5th one step earlier (step 2, not 3)
+    0, 3, 4, 5, 4, 2, 0, 7,   # variant 3: steps to the 4th via the 3rd instead of direct 2->4
+]
+N_VARIANTS = 4
+
+# IP-1090 (BL-0010, ADS-102, R211 SS8): weighted selection of the next motif variant, drawn only
+# at motif-cycle-boundary frames (the motif-step counter wrapping 7->0). Shaped exactly like
+# DELTA_TABLE — signed deltas *relative to the current variant index*, indexed by 2 LFSR-derived
+# bits, most entries 0 (retain the current variant) with one entry +1 (advance to the next
+# variant, wrapped mod N_VARIANTS) — directly implementing R214 SS8's "short but interesting,
+# recurrence dominates, switches are occasional" constraint. First-guess placeholder weighting
+# (3-in-4 retain), not tuned by ear (BL-0042, same BL-0005-style disposition).
+MOTIF_VARIANT_SELECTOR = [0x00, 0x00, 0x00, 0x01]
+
+# ── IP-1140 (FS-114/FEAT-1150, BL-0119, ADS-108 as amended by its §11/D13) ────────────────
+# Harmonic coordination: the four pure-data tables the shared chord context reads. Everything
+# here is scale *degrees* (0-7) or chord indices (0-3) — never pitches, never semitones — so a
+# SCALE_IDX or OCTAVE_IDX change flows through unchanged, exactly as CUR_DEGREE_* already does.
+#
+# CHORD_TABLE — 4 scales x 4 chords x 3 tones = 48 bytes, flattened; the byte for
+# (scale, chord, slot) lives at scale*12 + chord*3 + slot. Hand-authored, NOT derived at runtime
+# by stacking thirds, and this is a correctness requirement rather than a performance one
+# (FR-1510, ADS-108 D3): SCALE_SEMITONES rows are 8 entries whose 8th duplicates the 1st, and
+# _emit_channel_gen masks every degree AND 0x07, so third-stacking across the octave seam lands a
+# scale step wrong — the V chord's fifth computes as degree 4+4=8, which masks to 0 (C) where the
+# correct pitch is D. Authoring the table takes that octave decision at build time for free, and
+# is also LSDJ's own representation (R225 SS3g).
+#
+# major/minor/dorian all place their seven unique degrees in slots 0-6 with slot 7 duplicating
+# slot 0, so the same four degree-triples serve all three — the *quality* of each chord (major vs
+# minor third) falls out of the scale's own semitones automatically, which is exactly why the bass
+# rule can be root/fifth with no per-chord quality table (R225 SS3d).
+_DIATONIC_CHORDS = [
+    [0, 2, 4],   # 0 = I    (tonic)
+    [3, 5, 0],   # 1 = IV   (subdominant) — F A C; the third tone is degree 7 written as 0
+    [4, 6, 1],   # 2 = V    (dominant)    — G B D; the fifth is degree 8 written as 1
+    [5, 0, 2],   # 3 = vi   (submediant)  — A C E
+]
+
+# Pentatonic gets its own rows rather than being excluded (ADS-108 SS2.2/OQ3): its row is a 5-note
+# scale packed into 8 slots (C D E G A C' D' E'), so stacked thirds yield no triads there at all.
+# Excluding pentatonic from chord targeting was considered and rejected — one of four
+# user-selectable scales silently losing the feature is a worse listener experience than an
+# imperfect chord set. These four are idiomatic pentatonic sonorities, chosen so the four rows are
+# genuinely distinct while keeping the I/vi contrast the diatonic rows have; pentatonic contains no
+# semitone between any two of its first five degrees, so no row here can produce a m2 clash by
+# construction. First-guess values, not tuned by ear (BL-0005 class), same as every other untuned
+# table in this file. There is no true V chord available (pentatonic has no leading tone), so
+# slot 2 carries a quartal G-A-D sonority in its place rather than a fake dominant.
+_PENTATONIC_CHORDS = [
+    [0, 2, 3],   # 0 = "I"  — C E G  (a real major triad)
+    [4, 0, 2],   # 1 = "IV" — A C E  (a real minor triad)
+    [3, 4, 1],   # 2 = "V"  — G A D  (quartal/sus; no leading tone exists in pentatonic)
+    [1, 3, 4],   # 3 = "vi" — D G A  (sus4 stack)
+]
+
+CHORD_TABLE = [
+    degree
+    for scale_name in SCALES
+    for chord in (_PENTATONIC_CHORDS if scale_name == 'pentatonic' else _DIATONIC_CHORDS)
+    for degree in chord
+]
+assert len(CHORD_TABLE) == 48 and all(0 <= d <= 7 for d in CHORD_TABLE)
+
+N_CHORDS = 4
+
+# CHORD_TRANSITION — 4 rows x 4 entries = 16 bytes, row `chord` at chord*4, indexed by 2 bits of
+# the driving channel's own LFSR. Shaped exactly like DELTA_TABLE and MOTIF_VARIANT_SELECTOR: the
+# *distribution of entries* encodes the bias, never arithmetic (R211 SS8's "extend the table, not
+# the mechanism"). Sparse, asymmetric and tonic-biased per R225 SS3b — note that V never moves to
+# IV (the retrogression corpora report as rare), V returns to I three times in four with the
+# fourth being a deceptive move to vi, and IV only ever goes to V or I. First-guess weights; the
+# *shape* is the architectural commitment, the exact numbers are BL-0005 class.
+CHORD_TRANSITION = [
+    0, 1, 2, 3,   # from I  → stays 1/4, then IV, V, vi (tonic dwell comes from everything
+                  #            else returning here, not from stacking I into its own row)
+    2, 0, 2, 0,   # from IV → V half the time, I half the time; never vi
+    0, 0, 0, 3,   # from V  → I three times in four; vi once (deceptive cadence)
+    1, 2, 1, 0,   # from vi → IV half, V a quarter, I a quarter
+]
+assert len(CHORD_TRANSITION) == 16 and all(0 <= c < N_CHORDS for c in CHORD_TRANSITION)
+
+# Which of the current chord's three tones a voice takes, indexed by 2 LFSR bits. Two differently
+# weighted tables rather than one, so pulse A and pulse B differ *statistically* without either
+# reading the other's state — FR-1500 forbids the cross-channel read that literal
+# "pick a different tone from pulse A's" would need (FS-114 OQ2), and R225 SS5f found that the
+# separation which actually matters is the octave, not the degree. Melody leans on the third
+# (the tone that carries the chord's colour); harmony leans on the fifth and root (the tones that
+# reinforce it without doubling the melody's colour tone).
+MELODY_PICK = [0, 1, 2, 1]    # root, third, fifth, third
+
+# SLOT_NEXT — pulse B's chord-tone slot, derived from the slot pulse A last took (held in
+# CHORD_TOGGLE bits2-3) rather than from a second independent draw. Added by IP-1140's own first
+# measurement pass, which found the original two-independent-pick-tables design put pulse A and
+# pulse B on the SAME pitch class at 28% of onsets (up from 13% before the feature): they share an
+# octave and were drawing from the same three tones, so a quarter of the time two of the three
+# voices were literally one voice. Taking the NEXT slot up makes doubling structurally impossible
+# and yields parallel thirds/sixths, the classic inner-voice figure.
+#
+# This reads the shared context, not another channel's private state, so FR-1500's rule stands:
+# CHORD_TOGGLE is single-writer-per-field, broadcast, read at onsets — architecturally the same
+# shape as CHORD_IDX itself (ADS-108 D1's "coordination flows through the shared field," which
+# forbids pairwise negotiation over private state, not a wider shared context). Index 3 is
+# unreachable (slots are 0-2) but is given a defined value rather than left to fall off the table.
+SLOT_NEXT = [1, 2, 0, 1]
+
+# PASSING_TABLE — the melody's WEAK-onset step. Shaped like DELTA_TABLE but with no zero entry:
+# the passing tone always moves. Added by IP-1140's own first measurement pass for the same
+# reason as SLOT_NEXT: reusing DELTA_TABLE (= [-1, 0, 0, +1], deliberately 50% "hold") on weak
+# onsets produced a leap-then-hold melody rather than a line — mean directional run length fell
+# from 1.86 before the feature to 1.26 after, i.e. the melody got measurably LESS shaped even as
+# the harmony got better. DELTA_TABLE's own bias toward holding is right for an unaccompanied
+# drunk walk and wrong for a note whose entire job is to connect two chord tones.
+# DELTA_TABLE itself is untouched — Scheme E and the bad-zone recovery paths still use it.
+PASSING_TABLE = [0xFF, 0x01, 0xFF, 0x01]  # -1, +1, -1, +1 (two's complement)
+
+# Onsets of the driving channel (pulse A) per chord. Must be a power of two — the countdown wraps
+# with a plain AND, and this project's SM83 subset has no division (ADS-108 SS7 constraint 5).
+# 4 onsets at pulse A's boot-default 30-frame interval is ~2s, i.e. one chord per bar, R225 SS3c's
+# popular-music baseline. Counted in ONSETS, not frames, so the harmonic rhythm tracks TEMPO_IDX
+# and SONG_TABLE automatically instead of drifting out of phase with them (FR-1530).
+N_CHORD_ONSETS = 4

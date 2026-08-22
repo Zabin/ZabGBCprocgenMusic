@@ -25,6 +25,51 @@ engine state correctly); it does not confirm what the visualizer actually *shows
 actually *sounds like* to a listener, so a code package that adds/changes visualizer content or
 generated output is not "covered" just because its VR passed.
 
+## The holistic question — ask it FIRST, before any per-parameter question
+
+Added 2026-08-20, closing `BL-0120`'s skill-definition half. `R224`'s per-parameter method is
+excellent at routing a finding to a specific constant, and **structurally blind to whether the
+music is any good** — every question it asks is scoped to one control, so "is this worth
+listening to" is asked by nobody. That is not hypothetical: the first human listening pass ran all
+six `R224` parameters, returned three clean and three findings, and completely missed that the
+engine had no harmonic coordination at all (`BL-0119`) — a defect audible within seconds — because
+no question asked. `R224` §7 now carries the holistic dimension; this section makes asking it a
+required step rather than an available one.
+
+Ask these **before** the parameter questions, on a plain uninterrupted listen of at least 60
+seconds, and record the answers verbatim in the report:
+
+1. Is there a melodic idea you could hum back afterwards?
+2. Does it feel like it's going somewhere, or wandering?
+3. Would you leave it on for five minutes?
+4. What is the *first* thing you'd change?
+
+Answer these honestly even when every per-parameter check passes — especially then. A clean
+parameter sweep on unpleasant music is the exact failure this section exists to catch, and the
+holistic answer outranks the parameter answers when they disagree: the parameters serve the
+music, not the reverse.
+
+**Output-boundary rule (shared with `09-package-verification`).** Every measurement backing this
+review must be sampled where the listener actually receives it — captured audio or the PSG
+registers — never an engine-internal field a later stage rewrites. `CUR_DEGREE` is what the
+generator *intends*; `arp_tick` and friends rewrite the frequency register afterward. Two
+confident, wrong numbers have already reached a report this way (`BL-0124`, `IP-1140`).
+
+## Listening-session question design
+
+Before driving the ROM for dimensions 3-4, build the session's question set per
+[`R224`](../../../docs/research/encyclopedia/R224-listening-evaluation-methodology.md) — one
+**manipulation-check question** (isolates whether the change reads as designed, independent of
+taste) plus one **semantic-differential rating** (a bipolar adjective pair, e.g.
+sparse—cluttered) **per tunable parameter actually in scope for this review**, not one
+undifferentiated "does this sound good" verdict. R224 §4 gives the ready-to-use question pairs for
+tempo, register, mode, density, channel-mix/style, bad-zone recovery, motif variation, and
+song-form; reuse those verbatim for any parameter this review's scope touches, and compose new
+pairs in the same manipulation-check + rating shape (grounded, not invented ad hoc) for anything
+R224 doesn't already cover. Record both the question asked and the answer per parameter in the
+report — a finding must be traceable to the specific question that surfaced it, so it routes back
+to the specific constant/table row, not a vague "musicality felt off."
+
 ## What to check (the review dimensions)
 
 1. **Visual fidelity** — build the ROM and drive every affected visualizer pattern/state via
@@ -38,23 +83,29 @@ generated output is not "covered" just because its VR passed.
 3. **Musical correctness** — drive the ROM and capture the sound-register (NR1x-NR5x) sequences
    produced for each reviewed generation mode/preset; compare against the spec's notation (scale/
    mode, tempo, rhythm template, channel assignment). Audible check via emulator where practical,
-   register-level check via `music_data.py`/`music_engine.py` otherwise.
+   register-level check via `music_data.py`/`music_engine.py` otherwise — put each in-scope
+   parameter through its R224 manipulation-check + rating pair (above) rather than a single
+   holistic listen, so a "this sounds off" reaction lands on one constant, not the whole engine.
 4. **Bad-zone behavior** — if the reviewed content touches bad-zone detection or the Select reset:
    drive the engine into the bad zone (per the spec's trigger conditions), confirm the indicator
    and the audible degradation actually appear, then confirm Select produces the documented good
    starting state — not just that a state-machine transition fired, but that the resulting
-   register writes are actually the good-state values the spec names.
+   register writes are actually the good-state values the spec names. Use R224's bad-zone-recovery
+   question pair (never-recovers—over-corrects) rather than a pass/fail judgment — the two-sided
+   scale is deliberate, since either extreme is a defect.
 5. **Documentation coherence** — `memory.md`'s tile/palette/scale quick-refs and `Claude.md`'s
    relevant sections reflect the shipped content; the FS's acceptance criteria all have evidence.
 
 ## Output
 
 **`docs/reviews/content-review-<scope>.md`**: scope + package list (with the commit hash
-reviewed), the screenshots and sound-register captures taken (paths), evidence per dimension, and
-findings as one row each — `Finding | Artifacts involved | Description | Severity | Recommended
-owner` — using the project's Critical/High/Medium/Low scale. A clean review states what was
-actually exercised to earn the "clean." Update `ROADMAP.md`'s reviews row if it tracks review
-documents.
+reviewed), the screenshots and sound-register captures taken (paths), evidence per dimension, the
+R224 question set actually asked with its answer per parameter (`Parameter | Manipulation-check
+question | Answer | Rating question | Answer`), and findings as one row each — `Finding |
+Artifacts involved | Description | Severity | Recommended owner` — using the project's
+Critical/High/Medium/Low scale, with each finding citing the specific R224 question that surfaced
+it. A clean review states what was actually exercised to earn the "clean." Update `ROADMAP.md`'s
+reviews row if it tracks review documents.
 
 ## Quality gate
 
@@ -62,6 +113,10 @@ documents.
 - [ ] Every affected pattern/state was actually driven and screenshotted/register-captured — not
       judged from source.
 - [ ] All five dimensions exercised; a dimension with nothing to report says what was checked.
+- [ ] The four holistic questions were asked first, on an uninterrupted listen, and answered
+      verbatim in the report — including (especially) when every per-parameter check passed.
+- [ ] Every measurement was sampled at the output boundary (captured audio / PSG registers), not
+      at an engine-internal field something downstream rewrites.
 - [ ] Every finding has a severity and a concrete recommended owner; none fixed in-pass.
 - [ ] Nothing but the report (and tracker rows) was written.
 

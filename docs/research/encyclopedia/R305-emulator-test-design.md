@@ -1,6 +1,7 @@
 # R305 — Emulator-Based Test Design
 
-- **Tier:** R300 · **Owned by:** `02-research-tooling-and-testing` · **Status:** ✅ Authored 2026-07-21
+- **Tier:** R300 · **Owned by:** `02-research-tooling-and-testing` · **Status:** ✅ Authored
+  2026-07-21, extended 2026-08-17 (§5b, `BL-0103`/`BL-0105`)
 - **Supersedes:** part of `docs/research/R300-tooling-and-testing.md`
 
 ## 1. Purpose
@@ -121,6 +122,97 @@ independent drive:
 **Do not write a check whose name implies a claim from the bottom half of that table.** A test
 that cannot fail is worse than no test: it converts an open question into a false record of
 coverage, which is precisely what happened between `R308` §8 and `VR-1110`.
+
+### 5b. `NR52`-active-bit onset counting undercounts at high onset density (2026-08-17, `BL-0103`/`BL-0105`)
+
+`09-content-review`'s F2 finding measured `DENSITY_IDX`'s onset-event count (via `NR52` bit3
+rising-edge sampling, once per `tick()`, the same technique `test_rom.py`'s own `T7` uses) as
+non-monotonic at the top of the range — `27` at `DENSITY_IDX=6` and `13` at `DENSITY_IDX=7`,
+against an expected near-linear scaling with `DENSITY_K=[2,3,4,5,6,8,10,12]`. Two competing
+explanations were named, unresolved: (a) `IP-0007`'s overload throttle genuinely suppressing
+onsets, or (b) `NR52`-bit-continuity undercounting — two onsets landing close enough together
+never letting the channel's envelope/DAC drop back to inactive between them, merging two real
+onsets into one observed rising-edge event.
+
+**Register-write-level instrumentation conclusively resolves this in favor of (b).** A local
+experiment hooked the exact ROM instruction that writes the noise channel's `NR44` trigger bit
+(`pyboy.hook_register`, PyBoy 2.7.0 — located unambiguously via a byte-pattern search for the
+2-instruction sequence `LD A,0xC0 ; LDH (NR44),A` in the built ROM, found exactly once) and
+counted **real trigger-write executions**, independent of `NR52` sampling, across a 600-frame
+window at each `DENSITY_IDX`:
+
+| `DENSITY_IDX` | `DENSITY_K` | Raw trigger writes (ground truth) | `NR52`-sampled onsets (existing method) | Undercounted |
+|---|---|---|---|---|
+| 0 | 2 | 10 | 10 | 0 |
+| 1 | 3 | 15 | 15 | 0 |
+| 2 | 4 | 19 | 19 | 0 |
+| 3 | 5 | 24 | 24 | 0 |
+| 4 | 6 | 28 | 28 | 0 |
+| 5 | 8 | 38 | 38 | 0 |
+| 6 | 10 | 46 | 28 | **18** |
+| 7 | 12 | 55 | 37 | **18** |
+
+The raw trigger-write counts scale **monotonically and near-proportionally with `DENSITY_K`**
+(ratio ≈4.6-5.0 across every index, no anomaly) — the Euclidean-pattern generation and the
+engine's own onset-triggering logic work exactly as designed at every density level, including
+the two highest. The divergence appears *only* in the `NR52`-sampled count, and only at the two
+densest settings, exactly where onset spacing gets tight enough for two real triggers to land
+within the same continuously-active `NR52` window. **Explanation (a) — the overload throttle
+genuinely suppressing onsets — is not what's happening**; `IP-0007`'s throttle does still engage
+at high density (as `BL-0103`'s own original filing noted, "index 6 showed 154/600 overload
+frames"), but its effect is on note *duration*/*timing*, not on whether a trigger write happens at
+all — the raw write count proves every scheduled onset still fires.
+
+**Implication for `test_rom.py`/future onset-counting checks and `BL-0103`'s retuning question**:
+this is a genuine, standing limitation of `NR52`-active-bit sampling as an onset-counting
+technique at high onset density, not a defect in `DENSITY_K`/`OVERLOAD_THRESHOLD`/the Euclidean
+generation itself. Any future check needing an accurate onset count at `DENSITY_IDX` 6-7 should
+use register-write-level instrumentation (the `hook_register` technique demonstrated above) rather
+than `NR52` rising-edge sampling — the latter is fine at low-to-moderate density (0 undercounted
+through index 5) but not reliable at the top of the range. `BL-0103`'s original "does
+`DENSITY_IDX` reliably read as busier" question is **answered "yes" at the engine level** — the
+apparent non-monotonicity was a measurement artifact of the review's own methodology, not a
+listener-perceivable defect in what the engine actually schedules; whether the *perceived*
+busyness still reads correctly to a listener at those two densest settings (a separate, genuinely
+acoustic question `NR52`/trigger-write instrumentation cannot answer either) remains open per
+`BL-0105` below.
+
+**`BL-0105`'s acoustic-verification gap, addressed narrowly, not closed generally**: the register-
+write-level technique above only narrows the class of *mechanism*-level questions the harness's
+own onset-counting can miss — it is still not acoustic verification (no pitch/timbre information
+is recovered, only *how many times* and *when* a trigger register was written).
+
+`BL-0105`'s own concrete ask — whether PyBoy's `sound_emulated=True` APU state can yield raw audio
+samples at all — **was attempted this pass, with a positive result**: `pb.sound` (PyBoy 2.7.0)
+exposes `.ndarray` (a per-`tick()` stereo buffer, confirmed shape `(801, 2)`, `int8`, at
+`.sample_rate=48000`) with genuine nonzero waveform content reflecting the actual PSG mix — not a
+stub. A local experiment ticked the shipped ROM to a frame with active channels and read
+`pb.sound.ndarray` directly: 1512 of 1602 samples nonzero, values varying frame-to-frame in a way
+consistent with real audio output (not silence or a constant). **This means the standing "no
+acoustic-verification capability" gap is a real capability that has simply never been exercised**,
+not an actual PyBoy limitation — a future pass could FFT a captured buffer against the expected
+note frequency (`freq(hz)` in `music_engine.py`, `R108`/`R114`'s formula) to confirm actual pitch,
+closing the octave/scale acoustic-correctness question `BL-0105` names. **Not built here** — this
+pass confirms feasibility only; designing and adding a frequency-detection assertion helper to
+`run-driftune`'s toolkit (sample-buffer capture + FFT peak-frequency extraction + tolerance-banded
+comparison against `freq()`'s own expected value) is real implementation work for a future
+`02-research-tooling-and-testing`/`08-code-implementation` pass, not a research-topic-only task.
+
+### Sources
+- PyBoy 2.7.0's own `hook_register(bank, addr, callback, context)` API (docstring, installed
+  package) — confirmed working exactly as documented: a hook on a specific ROM address fires the
+  callback whenever the Game Boy executes that instruction, independent of `tick()`'s once-per-
+  frame `pyboy.memory` sampling granularity.
+- PyBoy 2.7.0's own `PyBoy.sound` → `pyboy.api.sound.Sound` object (installed package, `dir()`
+  inspected directly — no public docstring found on the class or its properties, so this claim
+  rests on direct local-experiment observation rather than documentation): exposes `.ndarray`,
+  `.raw_ndarray`, `.raw_buffer`/`.raw_buffer_dims`/`.raw_buffer_format`/`.raw_buffer_head`/
+  `.raw_buffer_length`, `.sample_rate`. Confirmed via direct instantiation with
+  `sound_emulated=True` and reading `.ndarray` after ticking to an active-channel frame: real,
+  non-constant stereo `int8` sample data at 48kHz, not a stub or all-zero buffer.
+- Local experiment (this topic, 2026-08-17): byte-pattern search + `hook_register`-based trigger
+  counting across all 8 `DENSITY_IDX` values, 600-frame windows, described above; not committed to
+  production (throwaway, per this skill's own read-only-experiment convention).
 
 ## 6. Feature Mapping
 

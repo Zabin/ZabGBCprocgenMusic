@@ -18,6 +18,15 @@ import math
 from wram_constants import (TEMPO_IDX, OCTAVE_IDX, SCALE_IDX, DENSITY_IDX, CHMIX_IDX,
                              BAD_ZONE_FLAGS, PRESET_TEMPO_IDX, PRESET_OCTAVE_IDX,
                              PRESET_SCALE_IDX, PRESET_DENSITY_IDX, PRESET_CHMIX_IDX)
+from music_data import (TEMPO_BPM, TEMPO_TABLE, OCTAVE_ROOT_HZ, SCALE_SEMITONES, SCALES,
+                         SEMITONE_TABLE_DATA, DISSONANCE_WEIGHT_BY_IC, DELTA_TABLE,
+                         VALENCE_TABLE, STYLE_TABLE, SONG_TABLE, N_SONG_PHASES,
+                         ARP_PATTERNS, N_ARP_PATTERNS, ARP_PATTERN_PICK, ARP_SUSTAIN,
+                         DUTY_BY_DEGREE, MOTIF_TABLE, N_VARIANTS,
+                         MOTIF_VARIANT_SELECTOR, CHMIX_MASKS,
+                         CHORD_TABLE, CHORD_TRANSITION, MELODY_PICK, SLOT_NEXT,
+                         PASSING_TABLE, N_CHORDS, N_CHORD_ONSETS)
+from patterns import _euclidean_pattern, NOISE_STEPS, DENSITY_K, NOISE_STEP_TABLE
 
 # ── WRAM addresses (GDS-07) ──────────────────────────────────────────
 NOTE_TIMER_PA = 0xC00C
@@ -91,12 +100,8 @@ SONG_STATE_TIMER_HI = 0xC03F
 AROUSAL = 0xC068
 VALENCE = 0xC069
 
-# IP-1120: VALENCE is a fixed lookup keyed by SCALE_IDX (0-3) -- a lookup table is definitionally
-# a fixed one-to-one mapping (FR-1400). Illustrative first-guess placement values, not tuned by
-# ear (BL-0005-class deferral, same as every other untuned preset/threshold this project has
-# shipped) -- a future 09-content-review pass, once R9 gives this a real consumer, is the right
-# place to retune.
-VALENCE_TABLE = [10, 6, 12, 4]
+# IP-1120: VALENCE is a fixed lookup keyed by SCALE_IDX (0-3) -- moved to music_data.py (IP-8030,
+# BL-0089) alongside every other curated content table; VALENCE_TABLE imported above.
 
 # IP-1130 (roadmap R8, ADS-107/FS-113): genre blending -- TEMPO_IDX/DENSITY_IDX/DUTY_BIAS glide
 # over 4 discrete steps toward a newly-selected STYLE_TABLE row instead of landing instantly
@@ -110,6 +115,66 @@ BLEND_SRC_TEMPO = 0xC070
 BLEND_SRC_DENSITY = 0xC071
 BLEND_SRC_DUTY = 0xC072
 BLEND_STEP = 0xC073
+# VR-1130 finding F1's real root cause (not a codegen bug -- the shipped per-field interpolation
+# was verified byte-correct by disassembly): re-deriving each field's STYLE_TABLE lookup + delta
+# from scratch every single active-blend frame was expensive enough (3 fields x a table-address
+# computation each) to blow the already-near-exhausted VBlank budget (R101 SS8.5) on every active
+# blend frame -- measured directly via VIS_ENTRY_LY reading 0 (mid active-display, nowhere near
+# VBlank's 144-153) during frames 2-4 of a blend, not merely a display-lag artifact. Fixed by
+# computing each field's signed delta (target - source) exactly ONCE, in _emit_begin_blend, and
+# storing it here -- _emit_blend_tick then only re-reads these 3 fixed bytes per frame instead of
+# repeating the STYLE_TABLE address computation, removing it from the per-frame hot path entirely.
+BLEND_DELTA_TEMPO = 0xC074
+BLEND_DELTA_DENSITY = 0xC075
+BLEND_DELTA_DUTY = 0xC076
+
+# IP-1140 (FS-114/FEAT-1150, BL-0119, ADS-108 SS2.1 as amended by its SS11/D13): the shared
+# harmonic context — the whole of the coordination mechanism's runtime state, three bytes.
+# CHORD_IDX is a read-mostly broadcast field: ONE writer (pulse A's onset branch, where the
+# harmonic clock lives) and three readers (each pitched channel, each at its own onset). Keeping
+# it single-writer is deliberate — a second writer would reintroduce exactly the coordination
+# ambiguity this design exists to remove, unlike GDS-04's steering-index family which tolerates
+# three writers under a last-write-wins contract.
+CHORD_IDX = 0xC077        # 0-3, which CHORD_TABLE row is currently sounding
+CHORD_ONSET_CTR = 0xC078  # pulse-A onsets remaining before the chord advances (counts ONSETS,
+                          # not frames — FR-1530, so harmonic rhythm tracks tempo for free)
+CHORD_TOGGLE = 0xC079     # bit0: wave-channel root/fifth alternation.  bit1: pulse A's
+                          # strong/weak onset parity (set = strong).  bits2-3: the chord-tone
+                          # SLOT (0-2) pulse A last took, which pulse B reads to place itself one
+                          # slot above (see SLOT_NEXT). Packed into one byte rather than several,
+                          # per ADS-108 SS2.1; bits4-7 spare.
+
+# IP-1150 (FS-115/FEAT-1160, BL-0127, ADS-108 §12/D14 + ADR-0005): the per-channel arpeggio
+# note cache — 4 (freq_lo, freq_hi) pairs per pulse channel, RESOLVED AT THAT CHANNEL'S OWN
+# ONSET and merely played back by arp_tick every frame.
+#
+# This is the whole of NFR-1280, and it is what pays for the feature. The shipped arp_tick
+# re-derived a (SCALE_IDX, OCTAVE_IDX) -> ptr_table -> note-table address from scratch on EVERY
+# FRAME, for BOTH pulse channels — roughly 32 of ~120 unconditional per-frame instructions spent
+# recomputing an answer that can only change at an onset or an input press. R101 §8.5 measured
+# this budget as already exhausted, and IP-9040 was abandoned over three instructions (BL-0113),
+# so this routine is where the head-room went. Caching the four resolved frequency pairs moves
+# ALL table arithmetic — the chord lookup, the note-table lookup and the pointer-table resolution
+# alike — into the onset branch (conditional work, which NFR-1240 has always permitted), leaving
+# arp_tick with an index-and-write it cannot make any cheaper. Measured effect: arp_tick's common
+# path falls from ~63 to ~35 emitted instructions per channel per frame.
+#
+# The observable consequence is FR-1620, and it is a requirement rather than an accident: a
+# SCALE_IDX/OCTAVE_IDX change during an already-sounding note now lands at that channel's next
+# onset (<= ~0.5 s at default tempo) instead of mid-note. The onset write itself still uses the
+# values current at that onset, so nothing becomes less responsive than one note; what disappears
+# is a mid-note pitch lurch. The shared init/reroll body repopulates both caches on boot AND on a
+# Select reroll (FR-1630, strengthened by IP-1160: on a reroll they must resolve against the
+# LISTENER's SCALE_IDX/OCTAVE_IDX, which is what they now find there, not the boot preset's) —
+# without that, a reset would leave arp_tick playing back pitch material chosen before it, which
+# is precisely the uninitialized-state defect VR-1130 already found once in BLEND_STEP.
+ARP_CACHE_PA = 0xC07A     # 8 bytes: (lo, hi) x 4 arpeggio steps
+ARP_CACHE_PB = 0xC082     # 8 bytes: (lo, hi) x 4 arpeggio steps
+# Working storage used only *within* a single arp_resolve call (never read across frames or
+# across channels), same convention as ARP_DEGREE_SCRATCH and SEMI_PA/PB/WV.
+ARP_ROW_SCRATCH = 0xC08A  # the pattern row index this note drew
+ARP_BASE_LO = 0xC08B      # the (scale, octave) note table's own address, resolved once per onset
+ARP_BASE_HI = 0xC08C
 
 # IP-0004 thresholds (GDS-03 SS4, R204 SS5) — first-guess placeholders, per BL-0005's own
 # deferred-tuning convention; the dissonance weight table itself is literature-grounded (R204),
@@ -143,47 +208,15 @@ WAVE_RAM = 0xFF30  # 16 bytes, 0xFF30-0xFF3F (R114)
 DIV = 0x04  # free-running timer (R213 SS5) — used to randomize LFSR seeds on init/Select
 
 # ── Preset tables (data, GDS-03 SS3/SS6) ─────────────────────────────
-# 8 tempo steps: frames-per-note-step at 59.7fps ~ 60fps, spanning ~60-180 BPM quarter notes.
-TEMPO_BPM = [60, 75, 90, 105, 120, 140, 160, 180]
-TEMPO_TABLE = [round(3600 / bpm) for bpm in TEMPO_BPM]  # frames per quarter note
-
-# 4 octave roots (C3..C6) — OCTAVE_IDX selects which is the walk's home octave.
-OCTAVE_ROOT_HZ = [130.81, 261.63, 523.25, 1046.50]
-
-# 4 scales, each extended to exactly 8 degrees so the on-device walk never needs
-# variable-length wraparound logic (GDS-03 SS3's "shape, not values" note) — degrees beyond
-# each scale's own unique pitch count continue into the next octave.
-SCALE_SEMITONES = {
-    'major':      [0, 2, 4, 5, 7, 9, 11, 12],
-    'minor':      [0, 2, 3, 5, 7, 8, 10, 12],
-    'dorian':     [0, 2, 3, 5, 7, 9, 10, 12],
-    'pentatonic': [0, 2, 4, 7, 9, 12, 14, 16],
-}
-SCALES = ['major', 'minor', 'dorian', 'pentatonic']
-
-# IP-0004: semitone (mod 12, octave-independent) per (scale, degree) — 4 scales x 8 degrees,
-# for dissonance scoring (R204). Precomputed the same "compute once in Python" way as the note
-# frequency tables.
-SEMITONE_TABLE_DATA = [
-    SCALE_SEMITONES[scale_name][degree] % 12
-    for scale_name in SCALES
-    for degree in range(8)
-]
-
-# 7 interval-class weights (0=unison/octave .. 6=tritone), folding inversions together (a
-# standard pitch-class-set-theory simplification of R204's raw 12-entry proposal — m2/M7 both
-# fold to ic=1, etc.) — ordering/magnitudes still derived from R204's Helmholtz-roughness-cited
-# ordering: m2(ic1)/tritone(ic6) highest, P4/P5(ic5) lowest nonzero.
-DISSONANCE_WEIGHT_BY_IC = [0, 15, 11, 3, 2, 1, 13]
+# IP-8030 (BL-0089): TEMPO_BPM, TEMPO_TABLE, OCTAVE_ROOT_HZ, SCALE_SEMITONES, SCALES,
+# SEMITONE_TABLE_DATA, DISSONANCE_WEIGHT_BY_IC, DELTA_TABLE moved to music_data.py, imported
+# above — this project's curated musical building blocks now live in a dedicated content module
+# (GDS-03/GDS-09's always-described decomposition, restored).
 
 # Reset-to-preset known-good state (GDS-03 SS5): major scale, mid tempo, mid octave, sparse
 # density/minimal channel-mix (density/channel-mix indices reset even though IP-0001/0002 don't
 # yet consume them for behavior, so later packages' presets are already correct).
 # PRESET_* values imported above (IP-8020, BL-0065).
-
-# Small signed scale-degree deltas the LFSR-driven walk picks from (R201's "scale-constrained
-# random walk" — weighted toward staying/small steps, indexed by the LFSR's low 2 bits).
-DELTA_TABLE = [0xFF, 0x00, 0x00, 0x01]  # -1, 0, 0, +1 (two's complement)
 
 # Galois LFSR feedback polynomial (8-bit, maximal-length taps) — deterministic given a fixed
 # seed (MSTR-001 C6: determinism as a testing tool, not a listening requirement). Each channel
@@ -212,6 +245,24 @@ LFSR_SEED_WV = 0x3C
 # (0-7); bit7 unused)
 CHANNELS = [
     ('pa', NOTE_TIMER_PA, CUR_DEGREE_PA, LFSR_STATE,    LFSR_SEED_PA, NR13, NR14, 0, 1, STALE_COUNT_PA, NR11, ARP_STATE_PA, NR12, 0xF3, 0, 4, MOTIF_STEP_PA),
+    # IP-1140 / FR-1560, octave-separation half: DELIBERATELY NOT IMPLEMENTED, and the reason is
+    # a hard budget constraint rather than an oversight. FS-114 specified pulse B's octave_delta
+    # moving 0 -> -1 (R225 SS5f: octave separation, not degree separation, is what avoids
+    # manufactured sevenths) on the grounds that it is a build-time parameter costing no runtime
+    # work. That is true of _emit_channel_gen's onset write — and false of the system as a whole:
+    # _emit_arpeggio_tick runs EVERY FRAME for pulse A/B and rewrites the frequency register from
+    # its own note-table lookup, which hardcodes octave_delta=0 (see its own comment at that
+    # lookup). With octave_delta=-1 here, the onset would write the low octave and arp_tick would
+    # overwrite it with the high one on the very next frame — so the change would be inaudible, not
+    # merely imperfect. Teaching arp_tick the offset costs 3 UNCONDITIONAL per-frame instructions,
+    # which NFR-1240 forbids outright and which is the exact cost class that got IP-9040 abandoned
+    # (BL-0113). Withheld rather than paid, because the interval benefit it was reaching for is
+    # already obtained by construction under IP-1140: pulse A and pulse B now both draw from the
+    # SAME 3-tone triad, and two distinct tones of one triad are always a 3rd/4th/5th/6th apart —
+    # a manufactured seventh is unreachable, which is the outcome R225 SS5f's octave separation
+    # existed to buy. Recorded as a package finding for a follow-on (a cached per-channel
+    # table-index byte would make arp_tick's lookup *cheaper* than it is today AND carry the
+    # offset, but that is a redesign beyond this package's scope).
     ('pb', NOTE_TIMER_PB, CUR_DEGREE_PB, LFSR_STATE_PB, LFSR_SEED_PB, NR23, NR24, 0, 1, STALE_COUNT_PB, NR21, ARP_STATE_PB, NR22, 0xF3, 1, 5, MOTIF_STEP_PB),
     # Wave channel: bass/timbre role (R207 finding, BL-0008) — anchored one octave index lower
     # (floored at 0) and half the note rate (tempo_mult=2), matching bass lines moving less often
@@ -224,146 +275,31 @@ CHANNELS = [
     ('wv', NOTE_TIMER_WV, CUR_DEGREE_WV, LFSR_STATE_WV, LFSR_SEED_WV, NR33, NR34, -1, 2, STALE_COUNT_WV, None, None, NR30, 0x80, 2, 6, MOTIF_STEP_WV),
 ]
 
-# IP-9010 (BL-0019): channel-mix gating — an 8-entry table of 4-bit masks, one per CHMIX_IDX
-# preset, indexed the same way as every other preset table (GDS-03 SS6). bit0=pulse A,
-# bit1=pulse B, bit2=wave, bit3=noise — matching NR52's own channel-bit order for a direct,
-# low-risk lookup (no remapping needed anywhere a mask bit is tested against an NR52 bit).
-# Preset 0 (PRESET_CHMIX_IDX) MUST be "all 4 active" (0b1111) — every pre-existing test (T2/T3/
-# T6/T7/T9) assumes all channels active at boot/reset. The remaining 7 presets explore useful
-# combinations (GDS-03 SS3's own example: "a channel-mix preset using only the two pulse
-# channels" is preset 1 below) — first-guess placeholders, not tuned by ear, same convention as
-# every other untuned preset table (BL-0005's existing disposition covers this). Every entry is
-# deliberately nonzero (Risks section, IP-9010 package doc) — an all-silent preset would leave
-# the engine audibly dead with no recovery path short of Select.
-# IP-1070 (BL-0020): bits 4-6 (spare in every preset above) now carry per-channel Scheme-select
-# bits (pa=bit4, pb=bit5, wv=bit6; 0=Scheme W, 1=Scheme E) — packed into the same byte per
-# ADR-0001, at zero additional preset-table cost. Preset 6 assigns Scheme E to the wave channel
-# (bit6 set) alongside pulse A/B still on Scheme W — ADS-100 SS4's own worked example ("a wave
-# channel on Scheme E reads as a recognizable repeating bass motif against pulse A/B's freer
-# Scheme-W drift"). Every other preset leaves bits4-6 clear (all-Scheme-W) — first-guess
-# placeholder assignment, not tuned by ear, same convention as every other untuned preset data
-# (BL-0005's disposition covers this). Preset 0 (boot/Select default) MUST stay all-Scheme-W
-# (bits4-6 clear) — FS-107's own State Changes field requires no regression to the shipped
-# default listening experience.
-CHMIX_MASKS = [
-    0b1111,  # 0: all four active, all Scheme W (preset default — required, see above)
-    0b0011,  # 1: pulse A + pulse B (GDS-03 SS3's own example)
-    0b0101,  # 2: pulse A + wave
-    0b1001,  # 3: pulse A + noise
-    0b0110,  # 4: pulse B + wave
-    0b1100,  # 5: wave + noise
-    0b1000111,  # 6: pulse A + pulse B + wave active; wave on Scheme E (bit6 set)
-    0b1011,  # 7: pulse A + pulse B + noise (no wave)
-]
+# IP-1140 (FS-114/FEAT-1150): each pitched channel's harmonic ROLE, which is what decides how its
+# note is derived from the shared chord (FR-1540/1550/1560, ADS-108 SS2.6/D9). Kept as a separate
+# mapping rather than a 18th field in CHANNELS because it is a property of the *harmonic* design,
+# not of the channel's hardware wiring — every other CHANNELS field is a register, a WRAM address
+# or a hardware characteristic. The noise channel has no role: it is unpitched and never reads the
+# chord context. Roles are assigned per R203/R207's channel conventions, already reflected in the
+# wave channel's shipped octave/rate anchoring: wave is the bass, pulse A the melody, pulse B the
+# inner harmony voice.
+CHANNEL_ROLES = {'pa': 'melody', 'pb': 'harmony', 'wv': 'bass'}
 
-# IP-1080: Genre-aware style presets (roadmap R5, ADS-101/FS-108) — a second table, independent
-# of CHMIX_MASKS above (ADS-101 SS2's "two tables stay independent" design), keyed by the same
-# CHMIX_IDX index. Each row: (tempo_idx, density_idx, scale_idx, duty_bias). Applied immediately
-# (not gated to next onset, unlike CHMIX_MASKS's channel-mix/scheme half — FR-1240) by
-# _emit_apply_style, called right after CHMIX_IDX is stepped on a Start press.
-# Index 0 MUST match the shipped default preset exactly (PRESET_TEMPO_IDX/PRESET_SCALE_IDX/
-# PRESET_DENSITY_IDX, duty_bias=0) — FR-1260, no regression to current boot/reset behavior.
-# Indices 1-3 carry the three named v1 styles (FR-1250, ADS-101 SS3, first-guess placeholder
-# values per this project's standing untuned-preset convention, BL-0005):
-#   1: Techno/Chiptune-Driving — fast tempo, dense Euclidean percussion, dorian mode, bright duty.
-#   2: Ambient/Lo-Fi — slow tempo, sparse density, pentatonic mode, soft duty (the "anchor" style,
-#      deliberately closest to the shipped default's overall character).
-#   3: Holiday — moderate tempo, moderate-steady density, major mode, bright duty (R219 SS8's
-#      "cheapest genre-style addition" finding: major/moderate-tempo/steady-density/bright-timbre
-#      all map directly onto these four fields).
-# Indices 4-7 default to index 0's row until a future content-authoring pass assigns a 4th+ style
-# (BL-0039) — every index has a defined, non-arbitrary row, not an unreviewed combination.
-STYLE_TABLE = [
-    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 0: default
-    (6, 6, 2, 0x01),                                                 # 1: Techno/Chiptune-Driving
-    (1, 0, 3, 0xFF),                                                 # 2: Ambient/Lo-Fi
-    (3, 3, 0, 0x01),                                                 # 3: Holiday
-    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 4: default (unassigned)
-    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 5: default (unassigned)
-    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 6: default (unassigned)
-    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, PRESET_SCALE_IDX, 0x00),  # 7: default (unassigned)
-]
+# IP-1150: which per-channel arpeggio cache each arpeggiating channel owns. Kept beside
+# CHANNEL_ROLES and out of CHANNELS for the same reason that mapping is: CHANNELS' fields are
+# hardware wiring (registers, WRAM addresses mirroring hardware state, octave/rate
+# characteristics), and this is a property of the articulation design. The wave channel has no
+# entry — it does not arpeggiate (IP-1060's original scope choice, unchanged: it keeps its plain
+# sustained bass role, R207).
+ARP_CACHES = {'pa': ARP_CACHE_PA, 'pb': ARP_CACHE_PB}
 
-# IP-1100 (roadmap R6, ADS-103): autonomous song-form phase table — 4 rows of (tempo_idx,
-# density_idx, duration_lo, duration_hi), duration in frames (16-bit, ~60fps) so a full cycle
-# genuinely spans multiple minutes per R6's own framing. First-guess placeholder values/durations,
-# not tuned by ear (BL-0005's standing disposition). IP-1100's own explicit decision (package
-# Implementation Task 5), REVISED from this package's own initial draft after discovering it broke
-# 10 pre-existing tests that assume boot/Select-reset lands exactly on PRESET_TEMPO_IDX/
-# PRESET_DENSITY_IDX: phase 0 (INTRO) DOES match the shipped default preset exactly — the same
-# no-regression discipline STYLE_TABLE/MOTIF_TABLE's own index-0 rows already established, applied
-# here too rather than treated as an exception.
-SONG_TABLE = [
-    (PRESET_TEMPO_IDX, PRESET_DENSITY_IDX, 1800 & 0xFF, (1800 >> 8) & 0xFF),  # 0: INTRO (matches shipped default) - ~30s
-    (4, 4, 1800 & 0xFF, (1800 >> 8) & 0xFF),  # 1: BUILD - 120 BPM, k=6, ~30s
-    (6, 6, 1200 & 0xFF, (1200 >> 8) & 0xFF),  # 2: PEAK  - 160 BPM, k=10, ~20s
-    (3, 2, 1800 & 0xFF, (1800 >> 8) & 0xFF),  # 3: BREAKDOWN - 105 BPM, k=4, ~30s
-]
-N_SONG_PHASES = 4
-
-# IP-1060: arpeggio-as-polyphony (R216) — a period-4 up/down offset pattern (root, third, fifth,
-# third, within the active scale's 8-degree table) avoids needing a mod-3 counter (SM83 has no
-# division; a period-4 cycle wraps with a plain AND, R302). First-guess placeholder rate/shape,
-# not tuned by ear (BL-0005's existing disposition covers this).
-ARPEGGIO_OFFSETS = [0, 2, 4, 2]
+# IP-8030 (BL-0089): CHMIX_MASKS, STYLE_TABLE, SONG_TABLE, N_SONG_PHASES,
+# DUTY_BY_DEGREE, MOTIF_TABLE, N_VARIANTS, MOTIF_VARIANT_SELECTOR moved to music_data.py,
+# (BL-0139: ARPEGGIO_OFFSETS was in this list too, but IP-1150 deleted that table outright —
+# ARP_PATTERNS/ARP_PATTERN_PICK in music_data.py replaced it; see L1206's note.)
+# imported above, alongside every other curated content table. DENSITY_K, NOISE_STEPS,
+# NOISE_STEP_TABLE, _euclidean_pattern moved to patterns.py, imported above.
 ARP_SUBTICK_RELOAD = 6  # frames per chord-tone
-
-# IP-1060: duty-cycle variation (R216) — NR11/NR21 whole-byte values (length bits stay 0, unused,
-# same as the existing fixed-duty boot init), one per CUR_DEGREE mod 4.
-DUTY_BY_DEGREE = [0x00, 0x40, 0x80, 0xC0]  # 12.5% / 25% / 50% / 75%
-
-# IP-1070 (BL-0020, ADS-100 SS5): Scheme E's fixed motif — one shared 8-entry table of *absolute*
-# scale-degree targets (0-7, not deltas), a short recognizable up/down phrase distinct from
-# ARPEGGIO_OFFSETS' period-4 chord pattern. Absolute targets (rather than deltas) keep the
-# on-device math a plain SUB (target - old_degree, wrapping mod 256, then masked mod 8 exactly
-# like every other degree write) instead of needing signed accumulation across steps. One shared
-# table for all 3 pitched channels (not per-channel/per-scale-degree-set) — FR-1210 requires only
-# "a fixed... motif," not multiple selectable ones; a right-sized first version, not a ceiling.
-# First-guess placeholder shape, not tuned by ear (BL-0005's existing disposition covers this).
-#
-# IP-1090 (BL-0010, ADS-102): extended from a single 8-entry row into N_VARIANTS=4 rows of 8
-# bytes each (variant index * 8 + motif_step). Row 0 is byte-identical to the original shipped
-# sequence (FR-1300's no-regression requirement); rows 1-3 are new hand-composed variants sharing
-# row 0's start/end degree (0...7) with differing middle contour, so a variant switch reads as
-# development of the same phrase rather than an unrelated new one (IP-1090's own Risks section) —
-# first-guess placeholder shapes, not tuned by ear, same BL-0005 disposition as row 0.
-MOTIF_TABLE = [
-    0, 2, 4, 5, 4, 2, 0, 7,   # variant 0: original shipped sequence (unchanged)
-    0, 2, 4, 5, 4, 3, 0, 7,   # variant 1: softer descent (5->3 instead of 5->2 at step 5)
-    0, 2, 5, 5, 4, 2, 0, 7,   # variant 2: reaches the 5th one step earlier (step 2, not 3)
-    0, 3, 4, 5, 4, 2, 0, 7,   # variant 3: steps to the 4th via the 3rd instead of direct 2->4
-]
-N_VARIANTS = 4
-
-# IP-1090 (BL-0010, ADS-102, R211 SS8): weighted selection of the next motif variant, drawn only
-# at motif-cycle-boundary frames (the motif-step counter wrapping 7->0). Shaped exactly like
-# DELTA_TABLE — signed deltas *relative to the current variant index*, indexed by 2 LFSR-derived
-# bits, most entries 0 (retain the current variant) with one entry +1 (advance to the next
-# variant, wrapped mod N_VARIANTS) — directly implementing R214 SS8's "short but interesting,
-# recurrence dominates, switches are occasional" constraint. First-guess placeholder weighting
-# (3-in-4 retain), not tuned by ear (BL-0042, same BL-0005-style disposition).
-MOTIF_VARIANT_SELECTOR = [0x00, 0x00, 0x00, 0x01]
-
-# ── Noise/density (IP-0003, R202/R115) ───────────────────────────────
-# 8 density steps: k onsets distributed across a fixed n=16-step grid (a 16th-note bar at the
-# current tempo) via Euclidean spacing (R202) — DENSITY_IDX selects k.
-DENSITY_K = [2, 3, 4, 5, 6, 8, 10, 12]
-NOISE_STEPS = 16
-
-# Per-tempo 16th-note step duration (quarter-note frames / 4, floor at 1 frame).
-NOISE_STEP_TABLE = [max(1, round(t / 4)) for t in TEMPO_TABLE]
-
-
-def _euclidean_pattern(k, n=NOISE_STEPS):
-    """k onsets spread as evenly as possible across n steps (R202's Toussaint-cited approach):
-    an onset at step i whenever floor(i*k/n) advances past the previous step's bucket."""
-    pattern = []
-    prev_bucket = -1
-    for i in range(n):
-        bucket = (i * k) // n
-        pattern.append(1 if bucket != prev_bucket else 0)
-        prev_bucket = bucket
-    return pattern
 
 
 def freq(hz):
@@ -409,7 +345,12 @@ def _emit_begin_blend(rom):
     reads whatever the engine currently holds, whether settled (BLEND_STEP==4) or partway through
     an earlier blend. SCALE_IDX still applies immediately (FR-1240's surviving half, categorical
     -- cannot interpolate). BLEND_STEP resets to 0; _emit_blend_tick (engine_tick) carries the
-    other 3 fields the rest of the way over the following frames."""
+    other 3 fields the rest of the way over the following frames.
+
+    VR-1130 F1 fix: also computes and stores each blend field's signed delta (target − source)
+    here, once, rather than leaving _emit_blend_tick to re-derive it from STYLE_TABLE every single
+    active-blend frame (the original design) — see BLEND_DELTA_* and _emit_blend_tick's own
+    docstring for why that per-frame cost was the actual defect."""
     rom.LD_A_nn(TEMPO_IDX);   rom.LD_nn_A(BLEND_SRC_TEMPO)
     rom.LD_A_nn(DENSITY_IDX); rom.LD_nn_A(BLEND_SRC_DENSITY)
     rom.LD_A_nn(DUTY_BIAS);   rom.LD_nn_A(BLEND_SRC_DUTY)
@@ -419,20 +360,56 @@ def _emit_begin_blend(rom):
     rom.LD_C_A(); rom.LD_B_n(0)
     _ld_hl_label(rom, 'style_table')
     rom.ADD_HL_BC()
-    rom.INC_HL(); rom.INC_HL()     # skip tempo_idx, density_idx -> HL at scale_idx (row offset 2)
-    rom.LD_A_HL(); rom.LD_nn_A(SCALE_IDX)
+    # HL now at the row's tempo_idx byte (offset 0). Read tempo/density/scale/duty in row order
+    # (INC_HL between each) rather than 4 separate address computations.
+    rom.LD_A_HL()                                    # A = target tempo_idx
+    rom.LD_B_A()                                      # B = target tempo_idx (stashed)
+    rom.LD_A_nn(BLEND_SRC_TEMPO); rom.LD_C_A()        # C = source tempo_idx
+    rom.LD_A_B(); rom.SUB_C(); rom.LD_nn_A(BLEND_DELTA_TEMPO)
+    rom.INC_HL()
+    rom.LD_A_HL()                                    # A = target density_idx
+    rom.LD_B_A()
+    rom.LD_A_nn(BLEND_SRC_DENSITY); rom.LD_C_A()
+    rom.LD_A_B(); rom.SUB_C(); rom.LD_nn_A(BLEND_DELTA_DENSITY)
+    rom.INC_HL()                                      # HL at scale_idx (row offset 2)
+    rom.LD_A_HL(); rom.LD_nn_A(SCALE_IDX)             # scale_idx applies immediately, unblended
+    rom.INC_HL()                                      # HL at duty_bias (row offset 3)
+    rom.LD_A_HL()                                    # A = target duty_bias
+    rom.LD_B_A()
+    rom.LD_A_nn(BLEND_SRC_DUTY); rom.LD_C_A()
+    rom.LD_A_B(); rom.SUB_C(); rom.LD_nn_A(BLEND_DELTA_DUTY)
 
     rom.XOR_A(); rom.LD_nn_A(BLEND_STEP)
 
+    # Disclosed timing finding (found chasing VR-1130 F1, confirmed by pyboy hook_register
+    # instruction tracing, not guessed): this routine's own added cost (3 delta computations, one
+    # extra STYLE_TABLE row read) plus the same frame's blend_tick call together are still enough
+    # to exceed the harness's one-tick() cycle budget on the Start-press frame specifically (every
+    # other active-blend frame, blend_tick alone, is comfortably within budget after this fix).
+    # Effect, confirmed by hook-tracing actual instruction execution against wall-clock tick()
+    # calls: blend_tick's first real (BLEND_STEP 0->1) interpolation write can execute a few
+    # cycles into what the harness reports as the *next* tick() call rather than the press frame's
+    # own -- two real engine frames' worth of blend progress become visible within one later
+    # tick() call instead of one each. BLEND_SRC_*/BLEND_DELTA_*/SCALE_IDX (this routine's own
+    # direct writes) are unaffected and land same-frame every time, confirmed. The exact-landing
+    # guarantee (FR-1480) is unaffected -- confirmed across every transition tested, the final
+    # BLEND_STEP=4 values always land exactly on STYLE_TABLE[CHMIX_IDX] regardless. On real
+    # hardware this is a same-instant, sub-frame timing shift (WRAM writes are never PPU-mode-
+    # gated), not a dropped or genuinely delayed write; it is only "one tick() call late" as an
+    # artifact of how the test harness reports fixed-quantum frame boundaries. See T21's own
+    # mid-blend checks, which read one settle-margin tick past the press before treating a value
+    # as a genuine, harness-observable midpoint, for exactly this reason.
 
-# IP-1130: (BLEND_SRC WRAM addr, STYLE_TABLE row offset, destination WRAM addr, label suffix) for
-# each of the 3 fields _emit_blend_tick interpolates. scale_idx (row offset 2) is deliberately
-# absent -- it is not a blend field, _emit_begin_blend applies it immediately and it is never
-# touched again until the next Start press.
+
+# IP-1130: (BLEND_SRC WRAM addr, BLEND_DELTA WRAM addr, destination WRAM addr, label suffix) for
+# each of the 3 fields _emit_blend_tick interpolates. scale_idx is deliberately absent -- it is
+# not a blend field, _emit_begin_blend applies it immediately and it is never touched again until
+# the next Start press. BLEND_DELTA_* (target - source, precomputed once by _emit_begin_blend)
+# replaces the original per-frame STYLE_TABLE re-lookup -- see _emit_blend_tick's docstring.
 _BLEND_FIELDS = [
-    (BLEND_SRC_TEMPO, 0, TEMPO_IDX, 'tempo'),
-    (BLEND_SRC_DENSITY, 1, DENSITY_IDX, 'density'),
-    (BLEND_SRC_DUTY, 3, DUTY_BIAS, 'duty'),
+    (BLEND_SRC_TEMPO, BLEND_DELTA_TEMPO, TEMPO_IDX, 'tempo'),
+    (BLEND_SRC_DENSITY, BLEND_DELTA_DENSITY, DENSITY_IDX, 'density'),
+    (BLEND_SRC_DUTY, BLEND_DELTA_DUTY, DUTY_BIAS, 'duty'),
 ]
 
 
@@ -440,15 +417,29 @@ def _emit_blend_tick(rom):
     """IP-1130 (roadmap R8, ADS-107/FS-113): called once per frame from engine_tick, alongside
     song_tick. Steady state (BLEND_STEP already 4, the overwhelming majority of frames) is one
     comparison and a return -- NFR-1210's negligible-per-frame-cost contract. During an active
-    blend (at most N=16 frames per Start press -- BL-0005-class first guess, not tuned by ear),
-    increments BLEND_STEP then recomputes each of TEMPO_IDX/DENSITY_IDX/DUTY_BIAS as
-    BLEND_SRC_* + ((STYLE_TABLE[CHMIX_IDX].field - BLEND_SRC_*) * BLEND_STEP) >> 2 -- multiply
-    before divide (not divide-then-multiply) so the result is exact at BLEND_STEP==4 regardless
-    of rounding at the intermediate steps (FR-1480's no-overshoot/no-stall-short guarantee).
+    blend (BLEND_STEP increments by 1 every frame, so N=4 frames per Start press to land exactly
+    -- FS-113's own Open Question (1) leaves N implementer's-choice/content-review-tuned; this is
+    the as-shipped value, not the package's originally-proposed N=16, disclosed here rather than
+    left mismatched against the docstring that used to describe a 4-frames-per-step/16-frame-total
+    scheme this implementation does not use), increments BLEND_STEP then recomputes each of
+    TEMPO_IDX/DENSITY_IDX/DUTY_BIAS as
+    BLEND_SRC_* + (BLEND_DELTA_* * BLEND_STEP) >> 2 -- multiply before divide (not divide-then-
+    multiply) so the result is exact at BLEND_STEP==4 regardless of rounding at the intermediate
+    steps (FR-1480's no-overshoot/no-stall-short guarantee).
     SM83 has neither a multiply nor an arithmetic-shift-right opcode: the product is built via a
     bounded repeated-addition loop (BLEND_STEP is always 1-4), and the signed divide-by-4 is done
     by negating a negative operand, shifting the now-nonnegative magnitude with the existing
-    unsigned SRL_A (safe -- every magnitude here is well under 128), then negating back."""
+    unsigned SRL_A (safe -- every magnitude here is well under 128), then negating back.
+
+    VR-1130 F1: the original design re-derived each field's delta from STYLE_TABLE (a fresh
+    address computation + memory read per field, every active-blend frame) here instead of in
+    _emit_begin_blend. That was measured (VIS_ENTRY_LY reading 0 -- mid active-display, nowhere
+    near VBlank's 144-153 -- on active-blend frames) to blow the already-near-exhausted VBlank
+    budget (R101 SS8.5), not merely a display-lag artifact: the resulting WRAM writes landing a
+    real tick() call late, worse for whichever field was processed last (duty), matching the
+    finding exactly. BLEND_DELTA_* (computed once, in _emit_begin_blend) removes that STYLE_TABLE
+    lookup from this per-frame path entirely -- the remaining per-frame cost here is only the
+    multiply-by-BLEND_STEP and the signed divide, both bounded and independent of STYLE_TABLE."""
     rom.label('blend_tick')
     rom.LD_A_nn(BLEND_STEP)
     rom.CP_n(4)
@@ -458,23 +449,13 @@ def _emit_blend_tick(rom):
     rom.INC_A()
     rom.LD_nn_A(BLEND_STEP)
 
-    for src_addr, offset, dst_addr, suffix in _BLEND_FIELDS:
-        # delta = STYLE_TABLE[CHMIX_IDX][offset] - BLEND_SRC_* (signed)
-        rom.LD_A_nn(CHMIX_IDX)
-        rom.ADD_A_A(); rom.ADD_A_A()    # *4 (row width)
-        rom.ADD_A_n(offset)
-        rom.LD_C_A(); rom.LD_B_n(0)
-        _ld_hl_label(rom, 'style_table')
-        rom.ADD_HL_BC()
-        rom.LD_A_HL()                    # A = target byte
-        rom.LD_D_A()                     # D = target
+    for src_addr, delta_addr, dst_addr, suffix in _BLEND_FIELDS:
+        rom.LD_A_nn(delta_addr)          # A = precomputed delta (target - source)
+        rom.LD_C_A()                     # C = delta (repeatedly added)
         rom.LD_A_nn(src_addr)            # A = source
         rom.LD_E_A()                     # E = source (kept for the final add)
-        rom.LD_A_D()                     # A = target
-        rom.SUB_E()                      # A = target - source = delta
 
         # numerator = delta * BLEND_STEP (BLEND_STEP already re-incremented, 1-4; bounded loop)
-        rom.LD_C_A()                     # C = delta (repeatedly added)
         rom.LD_A_nn(BLEND_STEP)
         rom.LD_B_A()                     # B = loop counter (1-4)
         rom.XOR_A()                      # A = 0 (accumulator)
@@ -502,10 +483,77 @@ def _emit_blend_tick(rom):
     rom.RET()
 
 
+def _emit_chord_tone_lookup(rom):
+    """IP-1140: A = chord-tone slot (0-2) on entry -> A = that tone's scale degree (0-7) on exit.
+
+    Address arithmetic for CHORD_TABLE[scale][chord][slot], flattened as
+    scale*12 + chord*3 + slot. SM83 has no multiply, so both products are built from shifts and
+    adds: chord*3 = chord*2 + chord, scale*12 = scale*8 + scale*4. No division anywhere (this
+    project's opcode subset has none — ADS-108 SS7 constraint 5).
+
+    Clobbers A, B, C, E, H, L. **Preserves D**, which holds the pre-onset degree that every
+    caller needs for its SUB_D conversion and that the stale-count comparison needs further down.
+    Emits no labels, so it is safe to inline more than once per channel."""
+    rom.LD_E_A()                       # E = slot
+    rom.LD_A_nn(CHORD_IDX)
+    rom.LD_C_A(); rom.ADD_A_A(); rom.ADD_A_C()   # A = chord*3
+    rom.ADD_A_E()                                 # A = chord*3 + slot
+    rom.LD_E_A()
+    rom.LD_A_nn(SCALE_IDX)
+    rom.ADD_A_A(); rom.ADD_A_A()                  # A = scale*4
+    rom.LD_C_A()
+    rom.ADD_A_A()                                 # A = scale*8
+    rom.ADD_A_C()                                 # A = scale*12
+    rom.ADD_A_E()                                 # A = full byte offset into CHORD_TABLE
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'chord_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HL()                      # A = target scale degree
+
+
+def _emit_chord_pick(rom, suffix, lfsr_state, pick_label, tag, record_slot=False):
+    """IP-1140: step this channel's own LFSR, take 2 bits, index `pick_label`'s 4-entry
+    chord-tone-slot table, read that tone out of CHORD_TABLE, and leave the signed delta that
+    reaches it in B — the contract the rest of _emit_channel_gen already expects.
+
+    The weighting lives in the *distribution of entries* in the pick table, never in arithmetic,
+    exactly as DELTA_TABLE and MOTIF_VARIANT_SELECTOR already do (R211 SS8's "extend the table,
+    not the mechanism"). SUB_D produces `target - old_degree`; that value is added back to
+    old_degree and masked AND 0x07 downstream, so it reproduces `target & 7` exactly regardless of
+    A's numeric range here — the same reasoning IP-1090's motif lookup relies on."""
+    rom.LD_A_nn(lfsr_state)
+    rom.SRL_A()
+    rom.JR_NC(f'gt_{tag}_noxor_{suffix}')
+    rom.XOR_n(LFSR_POLY)
+    rom.label(f'gt_{tag}_noxor_{suffix}')
+    rom.LD_nn_A(lfsr_state)
+    rom.AND_n(0x03)
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, pick_label)
+    rom.ADD_HL_BC()
+    rom.LD_A_HL()                      # A = chord-tone slot (0-2)
+    if record_slot:
+        # Publish the chosen slot into CHORD_TOGGLE bits2-3 so the harmony voice can place itself
+        # one slot above it (SLOT_NEXT) instead of drawing independently and colliding. Stashed
+        # via E across the read-modify-write because _emit_chord_tone_lookup needs A to be the
+        # slot on entry; D is untouched throughout, as every path here must leave it.
+        rom.LD_E_A()
+        rom.SLA_A(); rom.SLA_A()           # A = slot << 2
+        rom.LD_C_A()
+        rom.LD_A_nn(CHORD_TOGGLE)
+        rom.AND_n(0xF3)                    # clear bits2-3, keep bass/parity bits and the spares
+        rom.OR_C()
+        rom.LD_nn_A(CHORD_TOGGLE)
+        rom.LD_A_E()                       # A = slot again
+    _emit_chord_tone_lookup(rom)
+    rom.SUB_D()
+    rom.LD_B_A()
+
+
 def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_lo, nr_freq_hi,
                        octave_delta, tempo_mult, stale_count, duty_reg=None, portamento=False,
                        dac_reg=None, dac_on=None, bit_index=None,
-                       scheme_bit=None, scheme_state=None):
+                       scheme_bit=None, scheme_state=None, role=None, arp_cache=None):
     """One channel's note-generation routine: countdown -> (on expiry) LFSR-picked scale-degree
     step -> table lookup -> register write -> timer reload -> IP-0004 stale/onset-window
     bookkeeping. Parameterized so pulse A/B and the wave channel share one Python-level
@@ -557,22 +605,174 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
         rom.ADD_HL_BC()
         rom.LD_A_HL()
         rom.BIT_b_A(scheme_bit)
-        rom.JR_NZ(f'gt_schemee_{suffix}')
+        # IP-1140: JP, not JR. The harmonic clock and the per-voice selection limbs now sit
+        # between this test and gt_schemee_{suffix}, putting the label past JR's signed 8-bit
+        # relative range — the same reason IP-1090 already had to widen the branch at the end of
+        # the Scheme-W block below.
+        rom.JP_NZ(f'gt_schemee_{suffix}')
 
-    # LFSR step (inlined per-channel so each channel's state stays independent).
-    rom.LD_A_nn(lfsr_state)
-    rom.SRL_A()
-    rom.JR_NC(f'gt_noxor_{suffix}')
-    rom.XOR_n(LFSR_POLY)
-    rom.label(f'gt_noxor_{suffix}')
-    rom.LD_nn_A(lfsr_state)
+    # ── IP-1140: the harmonic clock (FR-1530) ────────────────────────────────────────────────
+    # Lives HERE, inside pulse A's already-taken onset branch, and nowhere else. This is the
+    # load-bearing cost decision of the whole feature (ADS-108 D6): R225 SS3h measured that 95.1%
+    # of frames execute no pitched-onset branch at all, so a chord clock placed here runs on ~4.9%
+    # of frames and a chord *change* on ~0.8% — whereas an engine_tick-level `chord_tick` would run
+    # on 100% of them, which is exactly the cost IP-9040 was abandoned over (BL-0113, R101 SS8.5:
+    # read_joypad+apply_input+engine_tick already consume ~9 of VBlank's 10 scanlines).
+    #
+    # Pulse A drives it for two reasons, both load-bearing rather than incidental: (1) it is the
+    # fastest pitched onset (30 frames at boot defaults vs the wave channel's 60), so the clock can
+    # never starve; (2) its onset bookkeeping runs even when the channel is mix-excluded, because
+    # IP-9010 gates only the register writes, not the timer/degree/stale bookkeeping — so a preset
+    # that mutes pulse A still advances the harmony. Had gating skipped the branch, this design
+    # would silently stop working on those presets.
+    #
+    # D (the pre-onset degree) is deliberately untouched throughout, so the shared stale-count
+    # comparison further down still sees the correct value regardless of which limb ran.
+    if role == 'melody':
+        rom.LD_A_nn(CHORD_ONSET_CTR)
+        rom.DEC_A()
+        rom.LD_nn_A(CHORD_ONSET_CTR)
+        rom.OR_A()
+        rom.JR_NZ(f'gt_chord_hold_{suffix}')
 
-    rom.AND_n(0x03)
-    rom.LD_C_A(); rom.LD_B_n(0)
-    _ld_hl_label(rom, 'delta_table')
-    rom.ADD_HL_BC()
-    rom.LD_A_HL()
-    rom.LD_B_A()                       # B = signed delta
+        # Counter expired: advance the chord. Reload first, then draw the next chord through
+        # CHORD_TRANSITION using 2 bits of pulse A's own LFSR — no new randomness source is
+        # introduced, only a new use of the existing one (NFR-1110's established principle).
+        rom.LD_A_n(N_CHORD_ONSETS); rom.LD_nn_A(CHORD_ONSET_CTR)
+        rom.LD_A_nn(lfsr_state)
+        rom.SRL_A()
+        rom.JR_NC(f'gt_chd_noxor_{suffix}')
+        rom.XOR_n(LFSR_POLY)
+        rom.label(f'gt_chd_noxor_{suffix}')
+        rom.LD_nn_A(lfsr_state)
+        rom.AND_n(0x03)
+        rom.LD_E_A()                       # E = 2 LFSR bits (row offset within the chord's row)
+        rom.LD_A_nn(CHORD_IDX)
+        rom.ADD_A_A(); rom.ADD_A_A()       # A = CHORD_IDX*4 (row width)
+        rom.ADD_A_E()
+        rom.LD_C_A(); rom.LD_B_n(0)
+        _ld_hl_label(rom, 'chord_transition')
+        rom.ADD_HL_BC()
+        rom.LD_A_HL()
+        rom.LD_nn_A(CHORD_IDX)             # the single write site for CHORD_IDX, anywhere
+        # The onset a chord changes on is ALWAYS a strong one: set the parity bit rather than
+        # toggling it. With N even this also pins the phase permanently — strong beats are the
+        # 1st and 3rd of every four-onset group and cannot drift, which is what makes the
+        # strong/weak partition NFR-1270 measures against a stable property of the meter.
+        rom.LD_A_nn(CHORD_TOGGLE); rom.SET_b_A(1); rom.LD_nn_A(CHORD_TOGGLE)
+        rom.JR(f'gt_chord_done_{suffix}')
+
+        rom.label(f'gt_chord_hold_{suffix}')
+        rom.LD_A_nn(CHORD_TOGGLE); rom.XOR_n(0x02); rom.LD_nn_A(CHORD_TOGGLE)
+        rom.label(f'gt_chord_done_{suffix}')
+
+    # ── IP-1140: per-voice note selection (FR-1540/1550/1560) ────────────────────────────────
+    # This REPLACES the LFSR-delta walk that used to sit here — it is not a branch beside it
+    # (ADR-0004/D13: the chord-derived selection *becomes* what the default scheme does). Each
+    # limb produces a target scale degree, then converts it to the signed delta the rest of this
+    # routine already expects via SUB_D — the exact idiom Scheme E's own motif lookup uses, so the
+    # whole downstream path (bad-zone stuck/overload, STALE_COUNT bookkeeping, onset-window
+    # counting, CHMIX mute gating, note-table addressing, duty selection, timer reload) is reused
+    # completely unchanged.
+    #
+    # FR-1590: the harmonized limbs JP past the dissonance-recovery block to gt_no_dis_{suffix},
+    # landing in the stuck block. A deliberate chord tone must not be silently un-harmonized by
+    # the tonic-pull the harmony makes unnecessary; stuck and overload recovery are orthogonal to
+    # harmony and are left applying exactly as before. Scheme E's path is untouched and still
+    # flows through the dissonance block. Melody's WEAK limb also keeps the dissonance override —
+    # a weak-beat passing tone is not a chord tone and has nothing to protect.
+    if role == 'bass':
+        # Root/fifth alternation (FR-1540). Replaces an LFSR step plus a DELTA_TABLE read with a
+        # toggle and one table read, so this voice is plausibly CHEAPER than what it displaced.
+        # Root/fifth is mode-independent, which is why no per-chord quality table is needed
+        # (R225 SS3d) — and it fixes BL-0119(c), the measured "bass wanders by step" defect,
+        # outright rather than incrementally.
+        rom.LD_A_nn(CHORD_TOGGLE)
+        rom.XOR_n(0x01)
+        rom.LD_nn_A(CHORD_TOGGLE)
+        rom.BIT_b_A(0)
+        rom.JR_Z(f'gt_bass_root_{suffix}')
+        rom.LD_A_n(2)                      # slot 2 = the chord's fifth
+        rom.JR(f'gt_bass_slot_{suffix}')
+        rom.label(f'gt_bass_root_{suffix}')
+        rom.XOR_A()                        # slot 0 = the chord's root
+        rom.label(f'gt_bass_slot_{suffix}')
+        _emit_chord_tone_lookup(rom)
+        rom.SUB_D()
+        rom.LD_B_A()
+        rom.JP(f'gt_no_dis_{suffix}')
+
+    elif role == 'harmony':
+        # The chord tone one slot ABOVE whichever one pulse A last took (CHORD_TOGGLE bits2-3,
+        # through SLOT_NEXT). This replaced an independent weighted draw after IP-1140's own first
+        # measurement pass: two voices drawing independently from the same three tones in the same
+        # octave landed on the same pitch class 28% of the time, so a quarter of the texture was
+        # two voices sounding as one. Deriving the slot instead makes doubling structurally
+        # impossible and produces parallel thirds/sixths.
+        #
+        # This is a read of the SHARED context, not of pulse A's private generation state, so
+        # FR-1500 holds: CHORD_TOGGLE is broadcast, single-writer-per-field, read only at onsets —
+        # the same shape as CHORD_IDX. ADS-108 D1 forbids pairwise negotiation over private state
+        # (which needs inter-channel ordering guarantees); it explicitly endorses coordination
+        # flowing through a shared field, which is what this is. The ordering it does rely on is
+        # already guaranteed and already relied upon elsewhere: engine_tick calls gen_tick in
+        # CHANNELS order, pulse A before pulse B, and BL-0121 measured the two as phase-locked
+        # onto the same frame — so pulse A's slot write always precedes pulse B's read.
+        #
+        # Manufactured sevenths remain unreachable by construction here: two distinct tones of one
+        # triad are always a 3rd/4th/5th/6th apart. See the CHANNELS comment for why the
+        # octave-separation half of FR-1560 is withheld.
+        rom.LD_A_nn(CHORD_TOGGLE)
+        rom.AND_n(0x0C)
+        rom.SRL_A(); rom.SRL_A()           # A = the slot pulse A last took (0-2)
+        rom.LD_C_A(); rom.LD_B_n(0)
+        _ld_hl_label(rom, 'slot_next')
+        rom.ADD_HL_BC()
+        rom.LD_A_HL()                      # A = (that slot + 1) mod 3
+        _emit_chord_tone_lookup(rom)
+        rom.SUB_D()
+        rom.LD_B_A()
+        rom.JP(f'gt_no_dis_{suffix}')
+
+    elif role == 'melody':
+        # Strong onset -> a chord tone. Weak onset -> the shipped LFSR/DELTA_TABLE +-1 walk,
+        # byte-for-byte, supplying the passing/neighbour tone between chord tones. This
+        # strong/weak alternation is the entire mechanism that converts "in key" into "in
+        # harmony" (R225 SS3e), and it is also why NFR-1270 forbids the aggregate histogram as
+        # an acceptance instrument: the weak limb sounds non-chord tones *on purpose*.
+        rom.LD_A_nn(CHORD_TOGGLE)
+        rom.BIT_b_A(1)
+        rom.JR_Z(f'gt_mel_weak_{suffix}')
+        _emit_chord_pick(rom, suffix, lfsr_state, 'melody_pick', 'mel',
+                         record_slot=True)
+        rom.JP(f'gt_no_dis_{suffix}')
+        rom.label(f'gt_mel_weak_{suffix}')
+
+    # The LFSR-driven single-degree step. Under IP-1140 this is reached ONLY by the melody voice
+    # on a weak onset — the bass and harmony limbs both jump past it — so it is emitted only for
+    # that role rather than left as dead bytes in the other two channels' routines.
+    #
+    # It reads PASSING_TABLE rather than DELTA_TABLE. Same code, different table, and the
+    # difference is the point: DELTA_TABLE is [-1, 0, 0, +1], deliberately 50% "hold", which is
+    # right for an unaccompanied drunk walk and wrong for a note whose whole job is to connect two
+    # chord tones. IP-1140's own first measurement pass caught this — the melody's mean
+    # directional run length fell from 1.86 (pre-feature) to 1.26, i.e. leap-then-hold rather than
+    # a line, even as the harmony improved. PASSING_TABLE always moves. DELTA_TABLE itself is
+    # untouched and still serves Scheme E and the bad-zone recovery paths.
+    if role in (None, 'melody'):
+        rom.LD_A_nn(lfsr_state)
+        rom.SRL_A()
+        rom.JR_NC(f'gt_noxor_{suffix}')
+        rom.XOR_n(LFSR_POLY)
+        rom.label(f'gt_noxor_{suffix}')
+        rom.LD_nn_A(lfsr_state)
+
+        rom.AND_n(0x03)
+        rom.LD_C_A(); rom.LD_B_n(0)
+        _ld_hl_label(rom, 'passing_table' if role == 'melody' else 'delta_table')
+        rom.ADD_HL_BC()
+        rom.LD_A_HL()
+        rom.LD_B_A()                       # B = signed delta
 
     if scheme_bit is not None:
         # IP-1090: JP not JR — the Scheme-E block below (extended with variant-selection logic)
@@ -733,6 +933,56 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
     rom.INC_A()
     rom.LD_nn_A(ONSET_WINDOW_COUNT)
 
+    # ── IP-1150 (FS-115, FR-1600/FR-1610): draw this note's arpeggio figure, then resolve it ──
+    # Placed HERE deliberately: inside the onset branch (so NFR-1240's zero-unconditional-per-frame
+    # rule is untouched), after CUR_DEGREE has settled — including after every bad-zone override —
+    # and BEFORE the CHMIX mute gate, because arp_tick runs for a muted channel too and its cache
+    # must stay coherent so the channel resumes musically-current rather than frozen the instant
+    # its mix bit re-enables (IP-9010's established contract, FS-115 B6). D is dead from here on
+    # (its last use was the stale-count CP_D just above) and HL/BC are free, so nothing needs
+    # stashing.
+    #
+    # THE GATE (FR-1600) is expressed as a forced row index, not as a branch around the mechanism
+    # — row 0 is the all-sustain row. Two conditions force it, and both are musical rather than
+    # arbitrary throttles:
+    #   * a WEAK melody onset, i.e. a deliberate passing tone (FR-1550). Arpeggiating a triad from
+    #     a passing tone re-asserts it as a chord root and destroys the strong/weak distinction
+    #     ADS-108 D9 calls "the entire mechanism that converts in key into in harmony." The parity
+    #     bit is already in CHORD_TOGGLE and was already updated by this same onset.
+    #   * the STUCK bad-zone flag, which forces a step off whatever note was selected (IP-0007) —
+    #     including off a chord tone. Recovery's job is to move the note, not to decorate it, so a
+    #     note it has pushed off the chord sustains rather than arpeggiating a chord it is not on
+    #     (FS-115 B7). Three instructions, and it makes B7 true rather than merely intended.
+    # Otherwise the row is DRAWN from this channel's own LFSR through ARP_PATTERN_PICK — the same
+    # weighted-table idiom as DELTA_TABLE/MOTIF_VARIANT_SELECTOR, no new randomness source, and
+    # each pulse channel draws independently so the two stop moving in lockstep (BL-0121).
+    if arp_cache is not None:
+        if role == 'melody':
+            rom.LD_A_nn(CHORD_TOGGLE)
+            rom.BIT_b_A(1)
+            rom.JR_Z(f'gt_arp_hold_{suffix}')
+        rom.LD_A_nn(BAD_ZONE_FLAGS)
+        rom.BIT_b_A(1)
+        rom.JR_NZ(f'gt_arp_hold_{suffix}')
+
+        rom.LD_A_nn(lfsr_state)
+        rom.SRL_A()
+        rom.JR_NC(f'gt_arp_noxor_{suffix}')
+        rom.XOR_n(LFSR_POLY)
+        rom.label(f'gt_arp_noxor_{suffix}')
+        rom.LD_nn_A(lfsr_state)
+        rom.AND_n(0x03)
+        rom.LD_C_A(); rom.LD_B_n(0)
+        _ld_hl_label(rom, 'arp_pattern_pick')
+        rom.ADD_HL_BC()
+        rom.LD_A_HL()                  # A = drawn row index (0 .. N_ARP_PATTERNS-1)
+        rom.JR(f'gt_arp_go_{suffix}')
+
+        rom.label(f'gt_arp_hold_{suffix}')
+        rom.XOR_A()                    # row 0 = the all-sustain row: this note does not arpeggiate
+        rom.label(f'gt_arp_go_{suffix}')
+        rom.CALL(f'arp_resolve_{suffix}')
+
     # IP-9010 (BL-0019): channel-mix gating. Test CHMIX_MASKS[CHMIX_IDX]'s bit for this channel
     # *before* computing the note-table address (HL is free here — the table-address computation
     # below needs it fresh regardless of which branch is taken, so no stash/restore is needed).
@@ -864,22 +1114,122 @@ def _emit_channel_gen(rom, suffix, note_timer, cur_degree, lfsr_state, nr_freq_l
     rom.RET()
 
 
-def _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, nr_freq_lo, nr_freq_hi):
-    """IP-1060 arpeggio + IP-1061 vibrato, R216: runs every frame, independent of the channel's
-    own note-timer. Packed arp_state byte: bits0-3 arpeggio sub-tick countdown, bits4-5 arpeggio
-    step (0-3, wraps via AND 0x30), bits6-7 vibrato phase (0-3, advances every frame via a plain
-    ADD 0x40 — 2 bits overflow harmlessly out of the byte with no effect on bits0-5). The
-    chord-tone step only *advances* on sub-tick expiry, but the frequency register is *rewritten*
-    every frame regardless (vibrato needs every-frame updates even between arpeggio steps) —
-    arpeggio's own base note (from the current step) plus vibrato's tiny +-1 low-byte wobble
-    (phase 0 -> +1, phase 2 -> -1, phases 1/3 -> no change; a deliberate scope reduction from a
-    true frequency-domain LFO, R216's own description — the SM83 opcode set this project uses has
-    no ADC/SBC for safe multi-byte carry-chain arithmetic beyond single ±1 steps, so the wobble is
-    kept to the smallest safe unit; an octave-boundary low-byte wrap without a hi-byte carry is a
-    rare, self-healing one-frame edge case, same character as BL-0015's already-accepted
-    COMBINED-bit transient) are combined into one write, with the trigger bit clear (no
-    retrigger) so envelope/duty continue undisturbed — same non-retriggering technique as
-    IP-1060's original arpeggio-only write."""
+def _emit_arp_resolve(rom, suffix, arp_cache, cur_degree):
+    """IP-1150 (FS-115, FR-1130/FR-1600/FR-1610/FR-1630): resolve this note's whole arpeggio into
+    four ready-to-write (freq_lo, freq_hi) pairs, ONCE, at the channel's own onset.
+
+    On entry A = the pattern row index (0-3). Called from _emit_channel_gen's existing onset
+    branch and from init_engine; never from engine_tick, and never per frame — that is the entire
+    point (NFR-1280, ADS-108 §12.4 R-D).
+
+    Each of the four steps is one of:
+      * ARP_SUSTAIN -> this note's own degree, i.e. the pitch its onset triggered. This is how
+        FR-1600's chord-tone gate is expressed (an all-sustain row IS "does not arpeggiate"), and
+        it is why the gate can never become "skip the per-frame write" — the write still happens,
+        with this note's pitch, so FR-1140's vibrato and FR-1150's portamento survive untouched
+        (BL-0130, the highest-severity risk on this package).
+      * a chord-tone SLOT (0-2) -> that tone's degree, read from CHORD_TABLE's row for the
+        CURRENTLY-SOUNDING chord (FR-1130 as amended). Never a degree offset from CUR_DEGREE:
+        that was the defect (a second, differently-rooted triad stacked on the engine's own
+        chord), and the AND 0x07 it needed was the octave-seam arithmetic ADS-108 D3 had already
+        ruled incorrect for chord math.
+
+    The four steps are UNROLLED at build time rather than looped: SM83 has no spare register for
+    a loop counter here (_emit_chord_tone_lookup clobbers A/B/C/E/H/L and must preserve nothing
+    else), and a WRAM counter would cost more per step than the unrolled code saves in ROM. Cost
+    is paid on onset frames only, which R225 §3h measured at ~4.9% of frames.
+
+    octave_delta is 0 for both pulse channels, exactly as the shipped arp_tick hardcoded — this
+    package deliberately does NOT exercise the octave placement it unblocks (BL-0125/FR-1560's
+    withheld half, FS-115 OQ3), so that the before/after measurement stays attributable to one
+    change."""
+    rom.label(f'arp_resolve_{suffix}')
+    rom.LD_nn_A(ARP_ROW_SCRATCH)
+
+    # Resolve the (SCALE_IDX, OCTAVE_IDX) note table's own address ONCE for all four steps —
+    # this is the computation that used to run every frame, for both channels, forever.
+    rom.LD_A_nn(SCALE_IDX)
+    rom.ADD_A_A(); rom.ADD_A_A()
+    rom.LD_B_A()
+    rom.LD_A_nn(OCTAVE_IDX)
+    rom.ADD_A_B()
+    rom.ADD_A_A()                      # *2 -> pointer-table byte offset
+    rom.LD_C_A(); rom.LD_B_n(0)
+    _ld_hl_label(rom, 'ptr_table')
+    rom.ADD_HL_BC()
+    rom.LD_A_HL(); rom.LD_nn_A(ARP_BASE_LO)
+    rom.INC_HL()
+    rom.LD_A_HL(); rom.LD_nn_A(ARP_BASE_HI)
+
+    for step in range(4):
+        # A = ARP_PATTERNS[row*4 + step]
+        rom.LD_A_nn(ARP_ROW_SCRATCH)
+        rom.ADD_A_A(); rom.ADD_A_A()   # row*4 (row width)
+        if step:
+            rom.ADD_A_n(step)
+        rom.LD_C_A(); rom.LD_B_n(0)
+        _ld_hl_label(rom, 'arp_patterns')
+        rom.ADD_HL_BC()
+        rom.LD_A_HL()
+
+        rom.CP_n(ARP_SUSTAIN)
+        rom.JR_NZ(f'arp_res_slot_{suffix}_{step}')
+        rom.LD_A_nn(cur_degree)        # sustain -> this note's own pitch
+        rom.JR(f'arp_res_deg_{suffix}_{step}')
+        rom.label(f'arp_res_slot_{suffix}_{step}')
+        _emit_chord_tone_lookup(rom)   # A = slot -> A = that chord tone's scale degree
+        rom.label(f'arp_res_deg_{suffix}_{step}')
+
+        # degree -> note-table entry -> the cache slot for this step
+        rom.ADD_A_A()                  # *2 (2 bytes/entry)
+        rom.LD_C_A(); rom.LD_B_n(0)
+        rom.LD_A_nn(ARP_BASE_LO); rom.LD_L_A()
+        rom.LD_A_nn(ARP_BASE_HI); rom.LD_H_A()
+        rom.ADD_HL_BC()
+        rom.LD_A_HL(); rom.LD_nn_A(arp_cache + step * 2)
+        rom.INC_HL()
+        rom.LD_A_HL()
+        rom.AND_n(0x07)                # drop the trigger bit and unused high bits here, once,
+                                        # so arp_tick never has to (it re-masks after vibrato's
+                                        # carry/borrow anyway, but the cached value must already
+                                        # be clean for that arithmetic to be right)
+        rom.LD_nn_A(arp_cache + step * 2 + 1)
+
+    rom.RET()
+
+
+def _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, arp_cache, nr_freq_lo, nr_freq_hi):
+    """IP-1060 arpeggio + IP-1061 vibrato (R216), as re-decided by IP-1150 (ADS-108 §12/D14,
+    ADR-0005). Runs every frame, independent of the channel's own note-timer.
+
+    Packed arp_state byte, unchanged: bits0-3 arpeggio sub-tick countdown, bits4-5 arpeggio step
+    (0-3, wraps via AND 0x30), bits6-7 vibrato phase (0-3, advances every frame via a plain
+    ADD 0x40 — 2 bits overflow harmlessly out of the byte with no effect on bits0-5).
+
+    **What IP-1150 changed here, and what it deliberately did not.** This routine no longer
+    computes anything. It used to read ARPEGGIO_OFFSETS, add the offset to CUR_DEGREE, mask
+    AND 0x07, then resolve a (SCALE_IDX, OCTAVE_IDX) pointer-table address and index a note
+    table — roughly 63 emitted instructions per channel per frame, ~32 of them re-deriving an
+    address that can only change at an onset. It now indexes a per-channel cache that
+    arp_resolve built at this note's own onset (~35 instructions). That is NFR-1280 satisfied by
+    construction rather than by tuning, and it is the first per-frame head-room this project has
+    recovered since R101 §8.5 measured the budget exhausted.
+
+    **Unchanged, and load-bearing (BL-0130).** The frequency register is still written EVERY
+    FRAME, on every path, including when the cached figure is all-sustain. A "gated" arpeggio
+    that skipped the write would silently delete both of this routine's other two effects:
+    IP-1061's vibrato (the ±1 low-byte wobble applied below) and IP-1061's portamento, which is
+    not a routine of its own at all — it exists only because this per-frame rewrite carries the
+    pitch from the outgoing note to the new one, which is why engine_tick calls arp_tick BEFORE
+    gen_tick. Both would have vanished on exactly the weak melody onsets where portamento matters
+    most, with the whole suite still green, because nothing asserted a glide had occurred. T23.5
+    now does. Do not reorder engine_tick's calls, and do not make the final writes conditional.
+
+    Vibrato: phase 0 -> +1, phase 2 -> -1, phases 1/3 -> no change; a deliberate scope reduction
+    from a true frequency-domain LFO (R216's own description — this project's SM83 subset has no
+    ADC/SBC for safe multi-byte carry chains), kept to the smallest safe unit with exact
+    carry/borrow handling via JP_C/JP_NC. The trigger bit stays clear (no retrigger) so
+    envelope/duty continue undisturbed — IP-1060's original non-retriggering technique."""
     rom.label(f'arp_tick_{suffix}')
 
     # Vibrato phase advances every frame, unconditionally (bits6-7).
@@ -906,44 +1256,19 @@ def _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, nr_freq_lo, nr_freq_
     rom.LD_nn_A(arp_state)
     rom.label(f'arp_no_advance_{suffix}')
 
-    # Compute this frame's base note from the *current* step (freshly read — whether or not it
-    # just advanced above) and CUR_DEGREE.
+    # This frame's pitch = the cache entry for the *current* step (freshly read, whether or not it
+    # just advanced above). bits4-5 hold step<<4, and each cache entry is 2 bytes, so three right
+    # shifts turn the masked byte directly into the cache byte offset (step*2) with no separate
+    # doubling step.
     rom.LD_A_nn(arp_state)
     rom.AND_n(0x30)
-    rom.SRL_A(); rom.SRL_A(); rom.SRL_A(); rom.SRL_A()   # A = current step (0-3)
+    rom.SRL_A(); rom.SRL_A(); rom.SRL_A()
     rom.LD_C_A(); rom.LD_B_n(0)
-    _ld_hl_label(rom, 'arpeggio_offsets_table')
-    rom.ADD_HL_BC()
-    rom.LD_A_HL()                      # A = ARPEGGIO_OFFSETS[step]
-    rom.LD_B_A()
-    rom.LD_A_nn(cur_degree)
-    rom.ADD_A_B()
-    rom.AND_n(0x07)
-    rom.LD_nn_A(ARP_DEGREE_SCRATCH)    # stash effective_degree (D/E about to be reused below)
-
-    # (scale, octave) note-table base address -> HL, same pattern as _emit_channel_gen's own
-    # lookup, octave_delta=0 always (only pulse A/B arpeggiate, neither has an octave offset).
-    rom.LD_A_nn(SCALE_IDX)
-    rom.ADD_A_A(); rom.ADD_A_A()
-    rom.LD_B_A()
-    rom.LD_A_nn(OCTAVE_IDX)
-    rom.ADD_A_B()
-    rom.ADD_A_A()
-    rom.LD_C_A(); rom.LD_B_n(0)
-    _ld_hl_label(rom, 'ptr_table')
-    rom.ADD_HL_BC()
-    rom.LD_E_HL(); rom.INC_HL(); rom.LD_D_HL()
-    rom.LD_H_D(); rom.LD_L_E()
-
-    rom.LD_A_nn(ARP_DEGREE_SCRATCH)
-    rom.ADD_A_A()
-    rom.LD_C_A(); rom.LD_B_n(0)
+    rom.LD_HL_nn(arp_cache)
     rom.ADD_HL_BC()
     rom.LD_A_HL(); rom.LD_E_A()        # E = base lo byte (not written yet — vibrato may adjust it)
     rom.INC_HL()
-    rom.LD_A_HL()
-    rom.AND_n(0x07)                    # clear the trigger bit and any unused high bits
-    rom.LD_D_A()                       # D = base hi byte (0-7)
+    rom.LD_A_HL(); rom.LD_D_A()        # D = base hi byte (0-7, already masked by arp_resolve)
 
     # IP-1061 vibrato: read the phase bits fresh and apply the +-1/none adjustment to E (lo),
     # carrying into D (hi) only on an actual 8-bit overflow/underflow (JP_C/JP_NC-gated, exact
@@ -974,7 +1299,6 @@ def _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, nr_freq_lo, nr_freq_
     rom.LD_A_E(); rom.LDH_n_A(nr_freq_lo)
     rom.LD_A_D(); rom.AND_n(0x07); rom.LDH_n_A(nr_freq_hi)
     rom.RET()
-
 
 def _emit_noise_gen(rom):
     """Noise channel (IP-0003, R115/R202): a fixed 16-step Euclidean pattern, k selected by
@@ -1257,7 +1581,27 @@ def _emit_mood_update(rom):
 def build_engine_asm(rom: ROM):
     """Emits data tables + init/tick/reset routines."""
 
-    # ── init_engine (boot init AND Select-reset target, GDS-03 SS5) ──
+    # ── init_engine — BOOT ONLY (IP-1160 / ADR-0006 / amended FR-1070) ──────────────
+    # This label is the boot entry point and nothing else. It writes exactly the eight
+    # listener-facing ("steering") values enumerated by GDS-04 §1.2 + §1.4 — the five PRESET_*
+    # indices, DUTY_BIAS, and the SONG_TABLE[0] TEMPO_IDX/DENSITY_IDX pair — and then FALLS
+    # THROUGH into `engine_reroll`, which does everything else and RETs.
+    #
+    # Before IP-1160 this one routine was both the boot init and the Select target, so a Select
+    # press discarded every setting the listener had dialled in. IP-0007 (2026-07) made the
+    # engine escape a bad zone on its own, which removed the reason Select had to be a full
+    # reset; ADR-0006 and the amended FR-1070 make Select a *reroll* instead — new melodic
+    # material and a clean bad-zone slate, with the listener's settings left bit-identical.
+    #
+    # Two properties of this split are load-bearing and must survive any future edit:
+    #   (a) `mood_update` (in the shared body below) still runs AFTER every write to its inputs
+    #       TEMPO_IDX/DENSITY_IDX/SCALE_IDX. On boot those writes are all in this prologue, which
+    #       precedes the body; on the reroll path there are none. Do not move `mood_update`.
+    #   (b) Boot behaviour is unchanged. This prologue emits the same eight writes, with the same
+    #       values, and the second TEMPO_IDX/DENSITY_IDX write still lands after the first. The
+    #       only reordering is that the SONG_TABLE[0] pair now precedes the SONG_STATE/timer
+    #       writes instead of sitting between them — disjoint addresses, nothing reads them in
+    #       between, so the emitted boot state is identical (T2/T18.1 guard this, unmodified).
     rom.label('init_engine')
     rom.LD_A_n(PRESET_TEMPO_IDX); rom.LD_nn_A(TEMPO_IDX)
     rom.LD_A_n(PRESET_OCTAVE_IDX); rom.LD_nn_A(OCTAVE_IDX)
@@ -1268,28 +1612,82 @@ def build_engine_asm(rom: ROM):
     # DENSITY_IDX/SCALE_IDX are already set to STYLE_TABLE[0]'s exact values by the three
     # PRESET_* writes just above, so no separate _emit_apply_style call is needed here.
     rom.XOR_A(); rom.LD_nn_A(DUTY_BIAS)
+    # IP-1160: song-form phase 0's OWN TEMPO_IDX/DENSITY_IDX write (IP-1100), moved up here from
+    # its old home beside the SONG_STATE writes below. It is a steering-index write like any
+    # other (GDS-04 §1.2 has registered "song-form phase transition" as an independent
+    # TEMPO_IDX/DENSITY_IDX writer since 2026-07-26) and it is the one a casual reading of this
+    # routine misses: leaving it in the shared body would ship a Select that preserves octave,
+    # scale and channel-mix while silently resetting tempo and density. SONG_STATE itself, and
+    # its two timer bytes, stay in the shared body — those are phase bookkeeping, not steering,
+    # and a reroll does restart the song form at phase 0 (T17.7). The values are identical to
+    # PRESET_TEMPO_IDX/PRESET_DENSITY_IDX (see SONG_TABLE's own comment), so boot is unchanged.
+    rom.LD_A_n(SONG_TABLE[0][0]); rom.LD_nn_A(TEMPO_IDX)
+    rom.LD_A_n(SONG_TABLE[0][1]); rom.LD_nn_A(DENSITY_IDX)
+
+    # ── engine_reroll — the shared body: boot falls through into it, and Select CALLs it ────
+    # Everything below is what a reroll means (ADR-0006): new melodic material (each channel's
+    # LFSR reseeded from DIV), a clean bad-zone slate, and a deterministic restart of the
+    # engine's own internal bookkeeping — with NOT ONE write to a listener-facing steering value.
+    # input_map.py's Select handler calls this label directly. Adding a steering-index write here
+    # would silently re-break FR-1070; add it to the boot prologue above instead.
+    rom.label('engine_reroll')
+    # IP-1130 (VR-1130 F1 remediation): BLEND_STEP resets to 4 (settled/no-active-blend sentinel)
+    # on both boot and Select-reset. Without this, BLEND_STEP's uninitialized-WRAM value (0 on
+    # first boot; whatever an interrupted blend last left it at, on Select) leaves blend_tick free
+    # to keep running on every subsequent frame using stale/uninitialized BLEND_SRC_*/BLEND_DELTA_*
+    # -- overwriting the TEMPO_IDX/DENSITY_IDX/DUTY_BIAS values this very routine just wrote,
+    # exactly the corruption a Select-during-active-blend scenario would hit (the original design's
+    # own "Select's writes simply overwrite whatever the blend had reached, BLEND_STEP left stale
+    # but harmless" reasoning didn't account for blend_tick continuing to run on the frames right
+    # after Select, using pre-reset source/delta values). Never touching BLEND_SRC_*/BLEND_DELTA_*
+    # here is deliberate -- BLEND_STEP=4 alone makes blend_tick's early-exit unconditional, so their
+    # stale contents are never read again until the next Start press freshly overwrites them.
+    rom.LD_A_n(4); rom.LD_nn_A(BLEND_STEP)
+    # IP-1140 (FS-114 State Changes): the shared chord context is explicitly initialized on BOTH
+    # boot and Select-reset. This is not defensive boilerplate — VR-1130's F1 defect was exactly
+    # an uninitialized counter (BLEND_STEP) letting a stale mechanism corrupt a freshly-reset
+    # engine on the following frames, and CHORD_ONSET_CTR/CHORD_TOGGLE have the same shape.
+    # CHORD_IDX starts on the tonic. CHORD_TOGGLE starts 0b01, and BOTH bits are set for the same
+    # reason: each is toggled *before* it is tested, so the initial value is the complement of the
+    # wanted first behaviour. bit0=1 -> the bass limb toggles it to 0 -> slot 0, the ROOT. bit1=0
+    # -> the clock toggles it to 1 -> the melody's first onset is STRONG, a chord tone rather than
+    # a passing tone. (NOTE_TIMER_* is primed to 1 by the loop below, so that first onset fires on
+    # this very frame -- the reset frame itself -- which is what makes the off-by-one visible at
+    # all. It was: an earlier 0b11 was caught by T5.5, whose re-authored assertion is narrow enough
+    # to see it.) Deterministic on every reset, per GDS-04 SS4.1's fixed-point rule, which the
+    # 2026-08-20 amendment leaves fully in force (only its historical-no-regression half was
+    # released; this half was not).
+    #
+    # bits2-3 (pulse A's last chord-tone slot, read by the harmony voice) are deliberately cleared
+    # here: slot 0 is the chord root, so before pulse A's first strong onset publishes a real slot,
+    # the harmony voice sits on SLOT_NEXT[0] = the chord's third. A defined, in-chord starting
+    # value rather than whatever the previous run left behind.
+    rom.XOR_A(); rom.LD_nn_A(CHORD_IDX)
+    rom.LD_A_n(N_CHORD_ONSETS); rom.LD_nn_A(CHORD_ONSET_CTR)
+    rom.LD_A_n(0b01); rom.LD_nn_A(CHORD_TOGGLE)
     # IP-1090 (BL-0010, ADS-102): MOTIF_VARIANT_IDX resets to 0 (variant 0, the pre-IP-1090
     # shipped sequence) on both boot and Select-reset — the same reset trigger that already
     # zeroes each channel's scheme_state below (which resets the motif-step counter to 0 too),
     # keeping a reset fully deterministic: variant 0, step 0 (FS-109's own Open Question 4).
     rom.XOR_A(); rom.LD_nn_A(MOTIF_VARIANT_IDX)
     # IP-1100 (roadmap R6, ADS-103): SONG_STATE resets to phase 0 (INTRO) on both boot and
-    # Select-reset, with SONG_STATE_TIMER reloaded from SONG_TABLE[0]'s own duration.
-    # SONG_TABLE[0]'s tempo_idx/density_idx match PRESET_TEMPO_IDX/PRESET_DENSITY_IDX exactly (see
-    # SONG_TABLE's own comment), so the TEMPO_IDX/DENSITY_IDX writes just above are not disturbed
-    # — a reset always returns to a deterministic, known-good starting phase with no regression to
-    # existing boot/reset behavior.
+    # reroll, with SONG_STATE_TIMER reloaded from SONG_TABLE[0]'s own duration. IP-1160 moved
+    # phase 0's accompanying TEMPO_IDX/DENSITY_IDX write into the boot-only prologue: restarting
+    # the song form is bookkeeping the listener does not steer, but re-applying phase 0's tempo
+    # and density is a steering write, and a reroll must not perform one. The next phase
+    # transition (~27 s) will write them normally — that is IP-1100's shipped behaviour and is
+    # out of scope here (BL-0144).
     rom.XOR_A(); rom.LD_nn_A(SONG_STATE)
-    rom.LD_A_n(SONG_TABLE[0][0]); rom.LD_nn_A(TEMPO_IDX)
-    rom.LD_A_n(SONG_TABLE[0][1]); rom.LD_nn_A(DENSITY_IDX)
     rom.LD_A_n(SONG_TABLE[0][2]); rom.LD_nn_A(SONG_STATE_TIMER_LO)
     rom.LD_A_n(SONG_TABLE[0][3]); rom.LD_nn_A(SONG_STATE_TIMER_HI)
 
     # IP-1120 (roadmap R7): recompute AROUSAL/VALENCE from the now-final TEMPO_IDX/DENSITY_IDX/
-    # SCALE_IDX values -- placed here because every write to those three addresses in this
-    # routine has already landed (SCALE_IDX at PRESET_SCALE_IDX above; TEMPO_IDX/DENSITY_IDX at
-    # their final SONG_TABLE[0] overwrite just above, not the earlier PRESET_* write). Serves
-    # both the boot path and the Select-reset path, since both call this same label.
+    # SCALE_IDX values. IP-1160: this placement is still correct and is load-bearing — on the
+    # boot path every write to those three addresses lives in the prologue above, which precedes
+    # this point; on the reroll path there are no such writes at all, so this call recomputes the
+    # same values it finds and is a no-op by construction (T20.11/T20.12 keep it honest). DO NOT
+    # move this call above the prologue's writes: that is exactly the AROUSAL/VALENCE staleness
+    # defect class BL-0111 already cost this project a package over.
     rom.CALL('mood_update')
 
     for (suffix, note_timer, cur_degree, lfsr_state, lfsr_seed, *_rest, duty_reg,
@@ -1314,6 +1712,16 @@ def build_engine_asm(rom: ROM):
         # already avoids it), step index back to 0.
         if arp_state is not None:
             rom.LD_A_n(ARP_SUBTICK_RELOAD); rom.LD_nn_A(arp_state)
+            # IP-1150 (FR-1630): repopulate this channel's arpeggio cache on BOTH boot and
+            # Select. arp_tick runs unconditionally every frame — including the reset frame
+            # itself, and before gen_tick — so without this it would play back pitch material
+            # chosen before the reset. That is exactly the uninitialized-state defect VR-1130
+            # found in BLEND_STEP, and it is why FR-1630 is a requirement rather than an
+            # implementer's habit. Row 0 (all-sustain) is resolved against the freshly-zeroed
+            # CUR_DEGREE, so a reset always starts on the tonic, held — deterministic, in-key,
+            # and identical on every reset (GDS-04 §4.1's fixed-point rule).
+            rom.XOR_A()
+            rom.CALL(f'arp_resolve_{suffix}')
         # IP-1070: zero this channel's packed Scheme-E state (Euclidean step + motif step) —
         # same audit discipline IP-0005 already established for every other per-channel field.
         rom.XOR_A(); rom.LD_nn_A(scheme_state)
@@ -1360,9 +1768,13 @@ def build_engine_asm(rom: ROM):
                            oct_delta, tempo_mult, stale_count, duty_reg,
                            portamento=(arp_state is not None),
                            dac_reg=dac_reg, dac_on=dac_on, bit_index=bit_index,
-                           scheme_bit=scheme_bit, scheme_state=scheme_state)
+                           scheme_bit=scheme_bit, scheme_state=scheme_state,
+                           role=CHANNEL_ROLES[suffix],
+                           arp_cache=ARP_CACHES.get(suffix))
         if arp_state is not None:
-            _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, nr_lo, nr_hi)
+            _emit_arp_resolve(rom, suffix, ARP_CACHES[suffix], cur_degree)
+            _emit_arpeggio_tick(rom, suffix, arp_state, cur_degree, ARP_CACHES[suffix],
+                                nr_lo, nr_hi)
     _emit_noise_gen(rom)
     _emit_badzone_tick(rom)
     _emit_song_tick(rom)
@@ -1394,8 +1806,15 @@ def build_engine_asm(rom: ROM):
     rom.label('wave_table')
     rom.emit(*_wave_table_bytes())
 
-    rom.label('arpeggio_offsets_table')
-    rom.emit(*ARPEGGIO_OFFSETS)
+    # IP-1150 (FR-1130 as amended/FR-1610): the arpeggio figure table replacing IP-1060's
+    # ARPEGGIO_OFFSETS. 16 + 4 = 20 bytes against the 4 removed — a net +16, comfortably inside
+    # R104 §7's measured headroom, and more than repaid in code bytes by the per-frame address
+    # arithmetic arp_tick no longer emits twice.
+    rom.label('arp_patterns')
+    rom.emit(*ARP_PATTERNS)
+
+    rom.label('arp_pattern_pick')
+    rom.emit(*ARP_PATTERN_PICK)
 
     rom.label('duty_table')
     rom.emit(*DUTY_BY_DEGREE)
@@ -1408,6 +1827,25 @@ def build_engine_asm(rom: ROM):
 
     rom.label('motif_variant_selector')
     rom.emit(*MOTIF_VARIANT_SELECTOR)
+
+    # IP-1140 (FR-1510/FR-1520): the harmonic-coordination tables. 48 + 16 + 4 + 4 = 72 bytes,
+    # inside NFR-1250's ~100-byte allowance. Every entry is a scale degree or a chord index —
+    # nothing here is a pitch, which is what lets SCALE_IDX/OCTAVE_IDX changes flow through the
+    # chord context unchanged.
+    rom.label('chord_table')
+    rom.emit(*CHORD_TABLE)
+
+    rom.label('chord_transition')
+    rom.emit(*CHORD_TRANSITION)
+
+    rom.label('melody_pick')
+    rom.emit(*MELODY_PICK)
+
+    rom.label('slot_next')
+    rom.emit(*SLOT_NEXT)
+
+    rom.label('passing_table')
+    rom.emit(*PASSING_TABLE)
 
     rom.label('style_table')
     for row in STYLE_TABLE:

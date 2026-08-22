@@ -19,14 +19,19 @@ gbc_lib.py       — ROM class (assembler opcodes) + color math + header writing
 wram_constants.py — shared WRAM constants (5 param indices, 5 PRESET_* values, BAD_ZONE_FLAGS),
                     dependency-free by design (IP-8020, BL-0065) so music_engine.py and
                     visuals.py can both import it without an import cycle
+tiles.py         — visualizer tile pixel art + BG palette data (IP-8030, BL-0089), dependency-free
+patterns.py      — Euclidean rhythm-pattern generation + density/step-timing data (IP-8030,
+                    BL-0089), imports only music_data.py's TEMPO_TABLE
+music_data.py    — curated scale/tempo/style/song/motif/valence tables (IP-8030, BL-0089),
+                    dependency-free
 music_engine.py  — all sound-channel generation logic (4 channels), bad-zone detection,
-                    preset/table data, PSG register writes
+                    PSG register writes (preset/table data now lives in music_data.py/patterns.py)
 input_map.py     — joypad edge detection + the input->parameter mapping (never writes PSG regs)
 visuals.py       — tile/palette visualizer, read-only consumer of engine state (never writes
-                    engine state or PSG registers)
+                    engine state or PSG registers); tile/palette data now lives in tiles.py
 build_rom.py     — master build: imports all modules, lays out ROM sections, patches pointers
 test_rom.py      — headless PyBoy verification harness (drives button sequences, asserts on
-                    sound registers + WRAM engine state) — 142 checks across T1-T20
+                    sound registers + WRAM engine state) — 191 checks across T1-T23
 ```
 
 ### Data layout, WRAM map
@@ -46,6 +51,20 @@ per-frame VBlank budget stays within `144`-`153` (`T19`; see the Known Good Beha
 (`TEMPO_IDX+DENSITY_IDX`, `VALENCE_TABLE[SCALE_IDX]`), recomputed only at the 6 write sites that
 can change their inputs, never per-frame; no visualizer/input consumer yet (groundwork for
 roadmap R9, separately blocked); see `T20`.
+**`BLEND_SRC_TEMPO`/`DENSITY`/`DUTY`/`BLEND_STEP` at `0xC070`-`0xC073` (`IP-1130`, roadmap R8)** —
+genre-blending state: `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` now glide toward a newly-selected
+`STYLE_TABLE` row over `BLEND_STEP`'s 0-4 progress instead of landing instantly; `SCALE_IDX` still
+hard-switches the same frame as the Start press. See `T21` and the Known Good Behavior note below.
+**`ARP_CACHE_PA`/`ARP_CACHE_PB` at `0xC07A`-`0xC089` (`IP-1150`, `BL-0127`)** — 4
+(freq_lo, freq_hi) pairs per pulse channel, the whole of the note's arpeggio figure resolved at
+that channel's own onset and merely played back by `arp_tick`. `0xC08A`-`0xC08C`
+(`ARP_ROW_SCRATCH`/`ARP_BASE_LO`/`ARP_BASE_HI`) are working storage used only *within* one
+`arp_resolve` call. This is what returned a scanline of VBlank head-room (see below).
+**`CHORD_IDX`/`CHORD_ONSET_CTR`/`CHORD_TOGGLE` at `0xC077`-`0xC079` (`IP-1140`, `BL-0119`)** —
+the **shared harmonic context**: which chord is sounding, how many pulse-A onsets until it
+advances, and packed bass-alternation / strong-weak-parity / published-melody-slot bits. One
+writer, three readers, all reads at onsets. This is what makes the three pitched channels play the
+same music; see the Known Good Behavior entry below.
 **No SRAM** — this project makes no save/battery commitment (MSTR-001 C2).
 
 ### Input mapping (GDS-03 SS3)
@@ -57,15 +76,17 @@ roadmap R9, separately blocked); see `T20`.
 | A | Next scale/mode |
 | B | Next density preset (noise-channel Euclidean pattern) |
 | Start | Next channel-mix preset (`CHMIX_MASKS`-gated — only the preset's included channels sound, `IP-9010`) |
-| Select | Reset all channels + bad-zone state to the known-good preset **and randomize each channel's melodic seed** (unconditional, manual override — not the only recovery path, see below) |
+| Select | **Reroll** — reseed every channel's melodic LFSR from `DIV` (genuinely new material) and clear all bad-zone state, **leaving every one of the listener's own settings untouched** (`IP-1160`/`ADR-0006`/amended `FR-1070`, 2026-08-21). Unconditional manual override — not the only recovery path, see below. **This control's meaning changed**: it used to also reset `TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX`/`DUTY_BIAS` to the boot preset, which discarded everything the listener had dialled in. There is deliberately no longer any single "return everything to default" control — every value is reachable in at most 7 presses of its own control (`ADR-0006`, an accepted cost) |
 
 All edge-triggered (rising edge only — holding does not repeat).
 
 ### Autonomous bad-zone avoidance/recovery (IP-0007)
 
 The engine detects **and acts on** a bad zone every frame, without requiring Select (MSTR-001 C5
-amended v1.1). Select remains available as a manual "reset and randomize" override, but is no
-longer the only way out:
+amended v1.1). Select remains available as a manual **reroll** override — new melodic material
+plus a cleared bad-zone slate, with the listener's settings preserved (`IP-1160`) — but it has not
+been the only way out since `IP-0007` (2026-07), and that is exactly why it no longer needs to
+reset anything the listener chose:
 
 - **Dissonant** → each pitched channel's next scale-degree step is overridden to pull toward the
   tonic (degree 0) instead of the normal LFSR-picked delta, converging the channels toward the
@@ -99,9 +120,17 @@ Pulse A/B (not wave — it keeps its plain sustained bass role) get four layered
 all always-on, no new input control:
 
 - **Arpeggio** → every few frames (`ARP_SUBTICK_RELOAD`), the channel's frequency register is
-  rewritten (no retrigger — envelope keeps decaying naturally) to cycle through
-  `ARPEGGIO_OFFSETS`, a period-4 up/down pattern of scale-degree deltas from the currently-held
-  root note, implying a chord on a single channel.
+  rewritten (no retrigger — envelope keeps decaying naturally) to cycle through four cached
+  pitches. **Rewritten by `IP-1150` (2026-08-21) — see the Known Good Behavior entry; the old
+  description said "`ARPEGGIO_OFFSETS`, a period-4 pattern of scale-degree deltas from the
+  currently-held root note, implying a chord on a single channel," and every part of that is
+  now wrong.** The pitches are tones of the **currently-sounding shared chord** (`CHORD_TABLE`),
+  the figure is **drawn per onset** from `ARP_PATTERNS`, and a note whose pitch is not a chord
+  tone (notably the melody's weak-onset passing tone) **does not arpeggiate at all**. The
+  per-frame routine no longer computes anything — `arp_resolve`, called from each channel's own
+  onset branch, resolves the whole figure into `ARP_CACHE_PA`/`PB` and `arp_tick` just indexes it.
+  **Sustaining never means skipping the frame's frequency write** — see the portamento bullet
+  below for why that would silently delete two other shipped effects.
 - **Duty cycle** → `NR11`/`NR21`'s duty bits vary per onset (`DUTY_BY_DEGREE`, indexed by
   `CUR_DEGREE mod 4`) instead of staying fixed at 50%.
 - **Vibrato** → every frame, a tiny +-1 low-byte wobble is added to the held frequency
@@ -119,13 +148,15 @@ all always-on, no new input control:
 ## How to Change Things
 
 ### Tune a preset table or threshold
-Edit the relevant table in `music_engine.py` (`TEMPO_BPM`, `OCTAVE_ROOT_HZ`, `SCALE_SEMITONES`,
-`DELTA_TABLE`, `DENSITY_K`, `DISSONANCE_WEIGHT_BY_IC`, the `*_THRESHOLD` constants, the `PRESET_*`
-constants) — no other file needs to change; `build_rom.py` regenerates everything from these
-tables at build time. **These are still first-guess placeholders** (`BL-0005`), not tuned by ear.
+Edit the relevant table: `TEMPO_BPM`, `OCTAVE_ROOT_HZ`, `SCALE_SEMITONES`, `DELTA_TABLE`,
+`DISSONANCE_WEIGHT_BY_IC` in `music_data.py`; `DENSITY_K` in `patterns.py`; the `*_THRESHOLD`
+constants and the `PRESET_*` constants stay in `music_engine.py`/`wram_constants.py` respectively
+(IP-8030, BL-0089) — no other file needs to change; `build_rom.py` regenerates everything from
+these tables at build time. **These are still first-guess placeholders** (`BL-0005`), not tuned
+by ear.
 
 ### Add a new scale/mode
-Add an entry to `SCALE_SEMITONES` and `SCALES` in `music_engine.py` (exactly 8 semitone-offset
+Add an entry to `SCALE_SEMITONES` and `SCALES` in `music_data.py` (exactly 8 semitone-offset
 entries, extending into the next octave past each scale's own unique pitch count) —
 `SCALE_IDX`'s wrap mask (`0x03` today, 4 scales) must be widened if the list grows past a
 power-of-two boundary; check `input_map.py`'s `_step_on_bit` call for `SCALE_IDX`.
@@ -141,11 +172,13 @@ per-channel `STALE_COUNT_*`, overload via the rolling onset window) — see
 `docs/research/encyclopedia/R204-bad-zone-detection-heuristics.md` for the grounding.
 
 ### Change the visualizer
-`visuals.py` — tile data (`_tile_off_bytes`/`_tile_on_bytes`), the 4 channel-indicator cells
-(`CHANNEL_CELLS`), or the calm/bad-zone palettes (`CALM_PALETTE`/`BAD_PALETTE`).
+`tiles.py` — tile data (`_tile_off_bytes`/`_tile_on_bytes`) or the calm/bad-zone palettes
+(`CALM_PALETTE`/`BAD_PALETTE`); `visuals.py` — the 4 channel-indicator cells (`CHANNEL_CELLS`)
+and every routine that reads engine state to render (IP-8030, BL-0089: tile/palette *data* moved
+to `tiles.py`, `visuals.py` keeps the rendering logic and imports from it).
 
 ### Change channel-mix presets
-`CHMIX_MASKS` in `music_engine.py` (8 entries, bit0=pulse A/bit1=pulse B/bit2=wave/bit3=noise,
+`CHMIX_MASKS` in `music_data.py` (8 entries, bit0=pulse A/bit1=pulse B/bit2=wave/bit3=noise,
 matching `NR52`'s own bit order) — preset 0 must stay `0b1111` (every pre-existing test assumes
 all channels active at boot/reset) and every entry must stay nonzero (an all-silent preset has no
 recovery path short of Select). Gating itself lives in `_emit_channel_gen`'s and
@@ -154,7 +187,7 @@ adding that channel's `dac_reg`/`dac_on`/`bit_index` to its `CHANNELS` entry (or
 non-`CHANNELS` channel like noise, following `_emit_noise_gen`'s own inline pattern).
 
 ### Change Scheme E's motif table or scheme assignment
-`MOTIF_TABLE` in `music_engine.py` (8 absolute scale-degree targets, 0-7, shared by every
+`MOTIF_TABLE` in `music_data.py` (8 absolute scale-degree targets, 0-7, shared by every
 Scheme-E channel) — a first-guess placeholder shape, not tuned by ear (`BL-0005`). Which
 `CHMIX_IDX` presets assign Scheme E to which channel is `CHMIX_MASKS`'s bits4-6 (pa=4, pb=5,
 wv=6, 0=Scheme W/1=Scheme E) — preset 0 must stay all-Scheme-W (no regression to the shipped
@@ -162,8 +195,42 @@ default). Scheme E's onset-timing/pitch-selection logic itself lives in `_emit_c
 note-selection step (`IP-1070`/`BL-0020`) — extending it to a new scheme means adding another
 branch there, keyed off a new bit in the same spare-bit range (`ADR-0001`).
 
+### Change the arpeggio's figures
+`ARP_PATTERNS` in `music_data.py` — 4 rows x 4 steps; entries are **chord-tone slots (0-2)** into
+the current chord's own `CHORD_TABLE` row, plus the reserved `ARP_SUSTAIN` (=3) meaning "hold this
+note's own pitch for that step." Two structural constraints, both `FR-1610` and both load-bearing
+rather than stylistic: **row 0 must stay all-sustain** (it is how the chord-tone gate is
+expressed — `_emit_channel_gen` forces index 0 on a weak melody onset or a stuck bad-zone frame),
+and **step 0 of every row must stay `ARP_SUSTAIN`** (so a note begins on the pitch its own onset
+triggered, which is what leaves `IP-1061`'s portamento glide intact). The rows must also differ in
+*how many* steps move, not merely in the order of slots — four permutations of one sweep would
+still present a single figure to a listener, which is the complaint this replaced.
+`ARP_PATTERN_PICK` (4 entries, LFSR-indexed, shaped like `DELTA_TABLE`) is the weighting; making
+every entry `0` retires the arpeggio outright, which is `ADR-0005`'s named fallback and is
+deliberately a one-line data edit. First-guess values throughout (`BL-0005` class).
+**Do not** reintroduce degree offsets here: that was the defect (`BL-0127`), and the `AND 0x07`
+it needed is the octave-seam arithmetic `ADS-108` D3 already ruled incorrect for chord math.
+
+### Change the harmony (chords, progression, voice roles)
+`CHORD_TABLE` in `music_data.py` — 4 scales x 4 chords x 3 tones, flattened, entries are scale
+degrees 0-7, addressed `scale*12 + chord*3 + slot`. **Hand-authored on purpose, and re-deriving it
+at runtime by stacking thirds would be a bug, not an optimization**: `SCALE_SEMITONES` rows are 8
+entries whose 8th duplicates the 1st and every degree is masked `AND 0x07`, so third-stacking
+across the octave seam puts the V chord's fifth a scale step wrong (degree 4+4=8 masks to 0/C where
+the correct pitch is D). Pentatonic has its own rows — stacked thirds yield no triads in a 5-note
+scale, so those four are idiomatic sonorities rather than derived.
+`CHORD_TRANSITION` (4 rows x 4 entries, indexed by 2 LFSR bits — the weighting lives in the
+*distribution of entries*, exactly like `DELTA_TABLE`); `MELODY_PICK`/`SLOT_NEXT` (which chord tone
+each pulse voice takes); `PASSING_TABLE` (the melody's weak-onset step — **not** `DELTA_TABLE`,
+which is 50% "hold" and produced a leap-then-hold melody when it was tried here);
+`N_CHORD_ONSETS` (chord length, must stay a power of two — the counter wraps with a plain `AND`).
+Per-voice roles are `CHANNEL_ROLES` in `music_engine.py`; the rules themselves are the three limbs
+in `_emit_channel_gen`'s note-selection block. First-guess values throughout (`BL-0005` class).
+**Anything added here must stay inside an existing onset branch** — see `NFR-1240` and the VBlank
+note below.
+
 ### Change style-preset values
-`STYLE_TABLE` in `music_engine.py` (8 rows, one per `CHMIX_IDX` preset — independent of
+`STYLE_TABLE` in `music_data.py` (8 rows, one per `CHMIX_IDX` preset — independent of
 `CHMIX_MASKS`, `ADS-101` SS2 — each `(tempo_idx, density_idx, scale_idx, duty_bias)`) — first-guess
 placeholder values, not tuned by ear (`BL-0005`). Index 0 must stay identical to
 `PRESET_TEMPO_IDX`/`PRESET_DENSITY_IDX`/`PRESET_SCALE_IDX`/`duty_bias=0` (no regression to the
@@ -172,7 +239,7 @@ from `input_map.py`'s Start-press handler immediately after `CHMIX_IDX` steps �
 `CHMIX_MASKS`'s channel-mix/scheme half, style values apply the same frame, not at next onset.
 
 ### Change motif variants
-`MOTIF_TABLE` in `music_engine.py` (now `N_VARIANTS=4` rows of 8 bytes each — variant 0 must stay
+`MOTIF_TABLE` in `music_data.py` (now `N_VARIANTS=4` rows of 8 bytes each — variant 0 must stay
 byte-identical to the original shipped sequence, `FR-1300`) and `MOTIF_VARIANT_SELECTOR` (4
 signed-delta entries, LFSR-indexed, shaped like `DELTA_TABLE`, first-guess retention-biased
 weighting, not tuned by ear — `BL-0042`). Variant selection happens only at a motif-cycle
@@ -181,7 +248,7 @@ boundary (motif step wraps 7→0) inside `_emit_channel_gen`'s Scheme-E branch (
 channel's own LFSR (otherwise idle while running Scheme E), introducing no new randomness source.
 
 ### Change song-form phases
-`SONG_TABLE` in `music_engine.py` (4 rows of 4 bytes — `tempo_idx`, `density_idx`, `duration_lo`,
+`SONG_TABLE` in `music_data.py` (4 rows of 4 bytes — `tempo_idx`, `density_idx`, `duration_lo`,
 `duration_hi`, duration in frames — first-guess placeholder values/durations, not tuned by ear,
 `BL-0005`). Phase 0 (INTRO) must stay identical to `PRESET_TEMPO_IDX`/`PRESET_DENSITY_IDX` (no
 regression to boot/Select-reset behavior — this was a real regression caught and fixed during
@@ -192,7 +259,7 @@ regression to boot/Select-reset behavior — this was a real regression caught a
 selection (disjoint WRAM fields). No new input control.
 
 ### Change settings-indicator tile patterns
-`_bar_tile_bytes(n)` in `visuals.py` (8 fill levels, 0-7, one bar-height glyph each — first-guess
+`_bar_tile_bytes(n)` in `tiles.py` (8 fill levels, 0-7, one bar-height glyph each — first-guess
 pixel design, not tuned by eye, same `BL-0005`-class deferral as every other visual/preset-value
 decision). `SETTINGS_CELLS` (5 tilemap cells, immediately after `CHANNEL_CELLS`) each display one
 base control's current index (`TEMPO_IDX`/`OCTAVE_IDX`/`SCALE_IDX`/`DENSITY_IDX`/`CHMIX_IDX`) as a
@@ -243,10 +310,18 @@ exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
 - The engine autonomously biases its own generation out of dissonant/stuck/overloaded states,
   every frame, with no input required (confirmed: a long headless run enters a bad zone and
   recovers from it on its own — `test_rom.py` T10)
-- Select unconditionally resets every channel's generation state and all bad-zone counters to the
-  known-good preset (major scale, mid tempo/octave, sparse density) **and randomizes each
-  channel's melodic seed from the `DIV` register** — engine resumes playing immediately on the
-  same frame, with a genuinely different starting point each press
+- **Select is a reroll, not a reset (`IP-1160`, 2026-08-21 — the control's meaning changed).** It
+  resets every channel's generation state and all bad-zone counters and **randomizes each
+  channel's melodic seed from the `DIV` register**, so the engine resumes immediately on the same
+  frame from a genuinely different starting point. What it no longer does is touch the listener's
+  own settings: `TEMPO_IDX`, `OCTAVE_IDX`, `SCALE_IDX`, `DENSITY_IDX`, `CHMIX_IDX` and `DUTY_BIAS`
+  are **bit-identical across the press**. Confirmed at the output boundary on captured audio: at
+  non-default settings the sounded pitch track changes across 28/40 250 ms windows while all six
+  values read unchanged on the press frame itself. Mechanically, `init_engine` is now a boot-only
+  prologue holding all eight steering writes (the five `PRESET_*`, `DUTY_BIAS`, and phase 0's own
+  `SONG_TABLE[0]` tempo/density pair) that falls through into `engine_reroll`, the shared body the
+  Select handler calls directly. **Boot is unchanged**, verified byte-for-byte: WRAM `0xC000`-
+  `0xC09F` and the 10 s sounded pitch track are identical to the pre-change build
 - Visualizer: LCD on, 4 tile indicators reflect `NR52`'s per-channel active bits every frame; BG
   palette swaps from calm (blue/green) to bad-zone (red) tones based on `BAD_ZONE_FLAGS` bit3
 - Pulse A/B arpeggiate (frequency cycles through a 4-step chord-tone pattern every few frames,
@@ -306,13 +381,134 @@ exceed half-full, a first-guess placeholder decision (`FS-111` Open Question 1).
   change, `visuals.py` untouched; groundwork for roadmap R9's future mood-reactive visualizer
   work, which remains separately blocked. `VALENCE_TABLE`'s 4 entries are illustrative
   first-guess values, not tuned by ear (`BL-0005`-class deferral).
+- Genre Blending (`IP-1130`, roadmap R8/`ADS-107`/`FS-113`, amends `FR-1240`): a Start press's
+  style change is no longer instant for 3 of its 4 fields — `SCALE_IDX` still hard-switches the
+  same frame, but `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` now glide toward the newly-selected
+  `STYLE_TABLE` row over `BLEND_STEP`'s 0-4 progress (as-shipped: **N=4 frames** to land exactly,
+  a first-guess placeholder like every other untuned constant here, not the package's
+  originally-proposed N=16 — `FS-113` Open Question 1, deferred to `09-content-review` tuning). A
+  second Start press mid-blend restarts the blend from the engine's then-current,
+  partially-interpolated values, not the original pre-first-press values. Disclosed finding: this
+  package's own unconditional per-frame `blend_tick` call (cheap steady-state check-and-return)
+  shifted `engine_tick`'s cycle timing enough to newly expose a **pre-existing, latent** one-frame
+  self-healing read-order race between the visualizer's `NR52` sample and the wave channel's own
+  periodic DAC retrigger (not introduced by, or fixable within, this package — `visuals.py` is
+  untouched) — same self-healing-lag class as the settings-indicator display's own note above, now
+  also disclosed for the channel-activity indicator tiles (`T9.3`, tolerating exactly a single-
+  frame skew, never two consecutive).
+  **`VR-1130` F1 remediation (2026-08-08):** the original active-blend design re-derived each
+  field's delta from `STYLE_TABLE` every single active-blend frame; independent verification found
+  this genuinely exceeded the VBlank budget on those frames (measured via `VIS_ENTRY_LY` reading
+  `0` — mid active-display, nowhere near VBlank — not a display artifact). Fixed by precomputing
+  each field's delta once, in `_emit_begin_blend` (`BLEND_DELTA_TEMPO`/`DENSITY`/`DUTY`,
+  `0xC074`-`0xC076`), removing the per-frame `STYLE_TABLE` lookup from `_emit_blend_tick` entirely.
+  Fixing this also surfaced and closed a second, independent latent defect: `BLEND_STEP` was never
+  explicitly initialized, so a boot or Select-reset could leave `blend_tick` free to keep
+  "blending" using stale source/delta values and corrupt the freshly-reset
+  `TEMPO_IDX`/`DENSITY_IDX`/`DUTY_BIAS` on the following frames — `init_engine` now explicitly
+  resets `BLEND_STEP` to `4` (settled/no-active-blend) on both boot and Select. One further
+  disclosed, understood, bounded timing effect remains: the *combined* `begin_blend`+`blend_tick`
+  cost on the Start-press frame itself can still exceed one harness `tick()` call's cycle budget,
+  confirmed via `pyboy` instruction-level hook tracing — the blend's first interpolation write can
+  become externally observable one `tick()` call later than the press, though `_emit_begin_blend`'s
+  own direct writes (`BLEND_SRC_*`/`BLEND_DELTA_*`/`SCALE_IDX`) always land same-frame, and the
+  final landing-exactly-on-target guarantee (`FR-1480`) is unaffected regardless. `T21.3b` now
+  independently hand-derives a genuine mid-blend value against the shipped ROM, closing the
+  coverage gap that let the original defect ship undetected.
 
-**142/142 `test_rom.py` checks pass** (T1-T20). An 8000+ frame stress run with continuous input
+- **Harmonic coordination via a shared chord context (`IP-1140`, `BL-0119`/`FS-114`/`FEAT-1150`,
+  `ADS-108` as amended by its §11/D13 + `ADR-0004`) — THE BOOT SOUND CHANGED, DELIBERATELY.** This
+  is the first change in this project's history that is not additive to the shipped baseline, and
+  it is the answer to the project owner's own "the music doesn't sound good yet." `BL-0119` measured
+  the cause: three pitched channels random-walking with no shared harmonic state, so every note was
+  in key and nothing coordinated what the notes were in key *together*. All three pitched channels
+  now derive their notes from one shared `CHORD_IDX` that advances every 4 pulse-A onsets through a
+  sparse, tonic-biased transition table (V returns to I three times in four; V never retrogresses
+  to IV). The wave channel alternates the chord's root and fifth instead of wandering by step;
+  pulse A takes a chord tone on strong onsets and a passing step on weak ones; pulse B takes the
+  chord tone one slot above whichever pulse A published, so the two can never double into unison.
+  **The unharmonized independent walk is no longer reachable on any preset** — the project owner
+  explicitly released the preset-0 no-regression standard as arbitrary and self-imposed
+  (`GDS-04` §4.1 carries the dated amendment: the invariant's *fixed-point* half stands, its
+  *historical-no-regression* half is released), which is what let harmony *become* the default
+  instead of sitting beside it as a third scheme. Scheme E is untouched and remains unharmonized.
+  **Cost discipline** — the whole mechanism lives inside onset branches that already existed;
+  `engine_tick`'s call list is unchanged and **nothing unconditional was added to the per-frame
+  path** (`NFR-1240`; `IP-9040` was abandoned over exactly that, `BL-0113`). Measured on
+  chord-transition frames, `VIS_ENTRY_LY` stays at 152-153, inside VBlank.
+  **Measured result** (boot defaults, 3600 frames, pitch classes derived from degrees rather than
+  from the engine's own one-frame-lagged `SEMI_*` bytes): harsh vertical intervals on
+  **strong-beat sonorities 23.3% → 12.2%**, weak-beat 36.6% → 30.6%, aggregate 30.0% → 21.5%.
+  **⚠️ Those four figures are OVERSTATED and are corrected below (`BL-0128`, 2026-08-21).** They
+  were computed from `CUR_DEGREE` — what the harmony layer *intends* — while `arp_tick` rewrote
+  the frequency register afterwards on every frame, so the pitch that actually sounded was never
+  measured. On **sounding pitch**, the same build and the same run read strong-beat **25.7%**,
+  weak-beat **36.1%**, aggregate **30.9%**. The improvement was real but roughly half of it was
+  being overwritten by the arpeggio; `IP-1150` fixes the cause, and `NFR-1270` now makes sounding
+  pitch the normative measurement basis.
+  The strong-beat figure is the acceptance instrument (`NFR-1270`/`BL-0122`) — a chord-tone/
+  passing-tone melody sounds non-chord tones on weak beats *on purpose*, so the aggregate would
+  report a working design as a near-failure. `R225` §5f's simulation predicted exactly this shape.
+  Bad-zone activity dropped from 34/121 to 15/121 sampled onsets with no threshold retuning.
+  **Still not built, and still audible as missing**: there are no rests anywhere and no formal
+  phrase boundaries (`CR-0003`); the melody alternates leap and step rather than sustaining long
+  phrases. A human listening pass is what decides whether this is now pleasant — a green suite has
+  never once predicted that, which is the whole point of `BL-0097`/`BL-0120`.
+
+- **The arpeggio re-rooted, gated and varied (`IP-1150`, `BL-0127`/`FS-115`/`FEAT-1160`,
+  `ADS-108` §12/D14 + `ADR-0005`) — THE BOOT SOUND CHANGED AGAIN, DELIBERATELY.** The project
+  owner listened to `IP-1140`'s result and reported **"constant repeated arpeggios."** He was
+  right, and the cause was a mechanism nobody had revisited: `IP-1060` added the arpeggio in
+  2026-07 to *imply a chord on a single channel* (`R216`) — i.e. to **fake harmony in its
+  absence** — and when `IP-1140` supplied real harmony, the arpeggio kept adding
+  `[0, 2, 4, 2]` scale-degree offsets **to the chord tone the harmony had just chosen**, stacking
+  a second, differently-rooted triad on the engine's own chord, every frame, on both pulse
+  channels, forever.
+  **Measured before/after on sounding pitch** (boot defaults, 3600 frames, `3e635ed` → this
+  build): harsh vertical intervals on **strong beats 25.7% → 10.9%**, weak-beat 36.1% → 27.8%,
+  aggregate 30.9% → 19.3%. Sounding pulse-channel frames that are tones of the current chord:
+  **46.4% → 74.9%** (not 100%, and correctly so — a sustained passing tone is a non-chord tone on
+  purpose). Bad-zone activity 15/121 → **7/121** sampled onsets, again with no threshold retuning.
+  **On the complaint itself**, measured at the source rather than by ear-proxy: the shipped build
+  produced **3** distinct articulation shapes across a run and **0%** of notes went un-arpeggiated
+  — and those 3 were one compiled-in shape plus two octave-seam wrap variants, one of which
+  (13.2% of notes) inverted the figure into a downward leap of a sixth, the `R225` §3g defect
+  audibly present. This build produces **21** distinct shapes and **47.1%** of notes do not
+  arpeggiate at all.
+  **It also gave VBlank head-room back.** `arp_tick` no longer computes anything: `arp_resolve`,
+  called from each channel's existing onset branch, resolves the figure into `ARP_CACHE_PA`/`PB`
+  and the per-frame routine just indexes it — deleting the `SCALE_IDX`/`OCTAVE_IDX` → `ptr_table`
+  → note-table address resolution that ran twice per frame forever. Measured over 600 idle frames:
+  `VIS_ENTRY_LY` **152/153 → 151/152**, a clean one-scanline (~456-cycle) recovery on *every*
+  frame. This is the first per-frame head-room recovered since `R101` §8.5 measured the budget
+  exhausted, and `IP-9040` was abandoned over three instructions (`BL-0113`).
+  **The trap this package existed to not fall into** (`BL-0130`): `FR-1150`'s portamento and
+  `FR-1140`'s vibrato are not routines of their own — they are produced **by** `arp_tick`'s
+  per-frame frequency rewrite, which is why `engine_tick` calls it *before* `gen_tick`. So
+  implementing the gate as "skip the write" would have deleted both on every weak melody onset,
+  where portamento matters most, **with the whole suite still green** because nothing asserted a
+  glide had occurred. Sustaining means *write this note's own pitch*, never *stop writing*, and
+  `T23.5` now asserts it.
+  **Two behaviours that changed on purpose and are requirements, not side effects**: a
+  scale/octave change during an already-sounding note now lands at that channel's **next onset**
+  rather than mid-note (`FR-1620` — the onset write itself still uses current values, so nothing
+  is less responsive than one note); and `init_engine` repopulates both caches on boot **and**
+  Select (`FR-1630`), the `BLEND_STEP` defect class `VR-1130` already found once.
+  **Retirement was weighed as the strongest rival and rejected on evidence** (`ADS-108` §12.5):
+  with no rests and no phrase structure yet (`CR-0003`), sub-note motion is currently the only
+  thing happening between onsets, so removing it trades "mechanically busy" for "static and
+  plodding." It survives as a one-line fallback — an all-sustain `ARP_PATTERN_PICK` *is*
+  retirement.
+  **Still not built, and still audible as missing**: rests and phrase boundaries (`CR-0003`) —
+  unchanged by this package, and now the largest remaining structural gap.
+
+**191/191 `test_rom.py` checks pass** (T1-T23). An 8000+ frame stress run with continuous input
 churn completed with no hangs, entering and autonomously recovering from a bad zone along the way.
 See `docs/implementation/packages/` for each package's exact scope.
 
-**Explicitly not built**: chord-progression/
-song-form composition, session-length-adaptive drift, non-default preset tuning by ear, a proper
+**Explicitly not built**: ~~chord-progression~~ (**built 2026-08-20, `IP-1140`** — see the
+harmonic-coordination entry above) /
+song-form composition, phrase structure/rests/cadence (`CR-0003`), session-length-adaptive drift, non-default preset tuning by ear, a proper
 `visuals.py` beyond the 4-tile/2-palette MVP — see `docs/pipeline/backlog.md` (`BL-0005`,
 `BL-0011`) for named, deferred candidates.
 

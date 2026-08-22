@@ -74,7 +74,12 @@ No current `IP-xxxx`; feeds a combined research-gap backlog entry for future sco
 ✅ **TRACED.** Form, tension and macro-musical parameters fed directly into `ADS-103`'s song-form state machine — the four-phase INTRO/BUILD/PEAK/BREAKDOWN cycle with per-phase `TEMPO_IDX`/`DENSITY_IDX` envelopes is this topic's macro-parameter-envelope idea made concrete. Shipped via `FS-110`/`IP-1100` (`VERIFIED`, 2026-07-26). Also cited by `ADS-100` and `ADS-102`. Requirements: `FR-1310`-`FR-1340`. Tests: `T17`.
 
 ## 7. Related Topics
-R201/R211 (note/phrase-level generation — the same gap from a lower altitude), R204 (bad-zone
+R225 (2026-08-19 — **partially reverses this topic's §3 cadence negative result**: `R225` §3f shows
+that half-cadence/perfect-authentic-cadence become one-byte constraints on a chord-progression
+counter *once a shared chord context exists*, so cadence was expensive here only because there was
+nothing to cadence onto. This topic's *key-modulation* and *time-signature* gaps are untouched and
+stand as written, as does the motif-development half), R201/R211 (note/phrase-level generation —
+the same gap from a lower altitude), R204 (bad-zone
 mechanic as Driftune's actual tension/release substitute), R206 (player-attributable-change
 convention, why tempo variation is player-steered rather than autonomous), R220 (2026-07-22 —
 concrete song-form-structure technique for this topic's own §10 "musical structure" gap:

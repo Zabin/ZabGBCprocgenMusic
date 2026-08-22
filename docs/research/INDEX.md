@@ -60,13 +60,15 @@ into R108 SS4).
 | R214 | Rule-based/grammar/L-system/cellular-automata generation survey | [encyclopedia/R214-grammar-and-cellular-generation-survey.md](encyclopedia/R214-grammar-and-cellular-generation-survey.md) | ✅ Authored 2026-07-21 (user-list Phase 4 items 46-49, 51-52) |
 | R215 | Genetic algorithms, constraint solving, state machines & event scheduling (survey) | [encyclopedia/R215-constraint-and-scheduling-survey.md](encyclopedia/R215-constraint-and-scheduling-survey.md) | ✅ Authored 2026-07-21 (user-list Phase 4 items 53-56) |
 | R216 | Sound design techniques: timbre, arpeggio, vibrato, portamento & percussion synthesis | [encyclopedia/R216-sound-design-techniques.md](encyclopedia/R216-sound-design-techniques.md) | ✅ Authored 2026-07-21 (user-list Phase 5 items 57, 60-68) |
-| R217 | UX conventions for generative instruments (seed entry, presets, playback controls) | [encyclopedia/R217-ux-conventions-for-generative-instruments.md](encyclopedia/R217-ux-conventions-for-generative-instruments.md) | ✅ Authored 2026-07-21 (user-list Phase 7 items 81-88 — most already answered by existing decisions, see topic SS3) |
+| R217 | UX conventions for generative instruments (seed entry, presets, playback controls) | [encyclopedia/R217-ux-conventions-for-generative-instruments.md](encyclopedia/R217-ux-conventions-for-generative-instruments.md) | ✅ Authored 2026-07-21 (user-list Phase 7 items 81-88 — most already answered by existing decisions, see topic SS3). **SS3a addendum 2026-08-21 (`BL-0143`) — the "song regeneration" gap closes.** It was filed as unaddressed and routed through `01-vision` because it was grouped with seed entry, menu design and preset management under one premise ("no menu state exists"). That premise holds for those three and **not** for regeneration, which in shipped generative instruments is consistently a **parameterless single control**, not a surface — Playbeat's reroll-one-dimension-hold-the-rest being the closest analogue to what `ADR-0006` decided. Also records that the capability was **two-thirds present since `IP-0007`** (2026-07's `DIV` reseed on Select), so the real gap was never "we cannot regenerate" but "regenerating costs you your settings"; and the general lesson — **route a parked item by the interaction surface it actually needs, not the category it resembles**, since nothing revisits a question filed behind a gate that will not open. SS6b's blanket "produces no feature" exception becomes **partial** |
 | R218 | Inspiration & history survey (Eno/Koan, No Man's Sky, Spore, Rogue, live coding, bytebeat) | [encyclopedia/R218-inspiration-and-history-survey.md](encyclopedia/R218-inspiration-and-history-survey.md) | ✅ Authored 2026-07-21 (user-list Phase 10 items 105-110, 113-115; classic GB soundtracks/modern chiptune, items 111-112, covered by R207/R209) |
 | R219 | Genre feasibility on 4-channel GBC PSG | [encyclopedia/R219-genre-feasibility-on-4-channel-gbc-psg.md](encyclopedia/R219-genre-feasibility-on-4-channel-gbc-psg.md) | ✅ Authored 2026-07-22 (MSTR-001 §9 thread — grounds which of the user's ~25 genre references are realistically expressible on this hardware) |
 | R220 | Style evolution, blending & song-form structure | [encyclopedia/R220-style-evolution-and-song-form-structure.md](encyclopedia/R220-style-evolution-and-song-form-structure.md) | ✅ Authored 2026-07-22 (MSTR-001 §9 thread — extends `BL-0010`/R211/R212's phrase/form gap; horizontal-resequencing/vertical-layering technique identified as a cheap, existing-parameter-driven answer for song-form + style-drift) |
 | R221 | Emotional/energy parameter mapping | [encyclopedia/R221-emotional-energy-parameter-mapping.md](encyclopedia/R221-emotional-energy-parameter-mapping.md) | ✅ Authored 2026-07-22 (MSTR-001 §9 thread — valence-arousal model mapped onto Driftune's existing tempo/density/scale/dissonance-score state) |
 | R222 | Visual evolution conventions | [encyclopedia/R222-visual-evolution-conventions.md](encyclopedia/R222-visual-evolution-conventions.md) | ✅ Authored 2026-07-26 (`BL-0034` — palette-swap-only day/night/seasonal theming is the established, hardware-precedented technique, Pokemon Gold/Silver cited; grounds `CAP-14`/R9's design half, VRAM-budget half still owed to `02-research-gbc-hardware`) |
 | R223 | Audio-visual synchronization conventions | [encyclopedia/R223-audio-visual-synchronization.md](encyclopedia/R223-audio-visual-synchronization.md) | ✅ Authored 2026-07-26 (`BL-0035` — pitch is the highest-confidence mapping dimension, green-channel-preferential intensity mapping, one-frame sync lag confirmed perceptually acceptable, corroborating `VR-0006`'s own prior finding) |
+| R224 | Listening-evaluation methodology: structured, per-parameter critique elicitation | [encyclopedia/R224-listening-evaluation-methodology.md](encyclopedia/R224-listening-evaluation-methodology.md) | ✅ Authored 2026-08-08 (`BL-0097` — grounds `09-content-review`'s first-ever question-set design: one manipulation-check + one semantic-differential rating per tunable parameter); **§7 addendum 2026-08-19 (`BL-0120`) — adds the holistic (non-parameter-scoped) dimension the original question set structurally excluded, plus the strong-beat-sonority measurement correction** |
+| R225 | Harmonic coordination: shared chord context across independent voices | [encyclopedia/R225-harmonic-coordination-shared-chord-context.md](encyclopedia/R225-harmonic-coordination-shared-chord-context.md) | ✅ Authored 2026-08-19 (`BL-0119` — re-grounds `R211` §5's now-overtaken "don't attempt chord-progression harmony" deferral, **which §9 of that topic now formally withdraws**, into a concrete SM83-tractable mechanism: a 1-3 byte shared chord-root context, a sparse tonic-biased transition table, root/fifth bass, chord-tone-on-strong-beat melody, cadence-as-chord-constraint; costed against newly-measured onset schedules — 95.1 % of frames execute no pitched-onset branch) |
 
 Superseded: [R200-generative-music-design.md](R200-generative-music-design.md) (content split
 across R201-R204, R206-R207).
@@ -77,6 +79,15 @@ shipped bias); **R214 §8** (`BL-0010` — L-systems for motif recurrence, deep-
 concrete bounded-depth/weighted-rule design constraint); **R219 §8** (`BL-0036` — Celtic/Seasonal/
 Holiday genre-coverage gap, Celtic joins the Folk/World tier, Holiday found high-confidence and
 uniquely cheap, Seasonal reclassified as a preset-rotation concern not a genre).
+
+**Addenda landed 2026-08-19** (`BL-0119`/`BL-0120`, the harmonic-coordination pass): **R211 §9** —
+the first *withdrawal* addendum in the R200 tier (§5's "do not attempt chord-progression harmony"
+bullet struck, replacement position pointed at R225), following R101 §8.5/R102 §3b's
+supersede-don't-erase discipline; **R212 §7** cross-link recording R225 §3f as a partial reversal of
+its cadence negative result; **R224 §7** — the holistic, non-parameter-scoped review dimension plus
+the strong-beat-sonority metric correction (research half of `BL-0120`; the `09-content-review`
+skill-definition half is explicitly **not** closed and is out of every pipeline stage's write
+scope).
 
 > **Forward-trace convention (`MSTR-001` C10) — established 2026-07-26 (`BL-0067`).** Every topic
 > carries a `## 6b. Forward trace` section naming the shipped code it fed, or an explicitly-named
@@ -99,7 +110,9 @@ uniquely cheap, Seasonal reclassified as a preset-rotation concern not a genre).
 >   approaches considered and set aside), `R306`, `R308`.
 > - **Orientation/history topics** — `R112` and `R218`, exactly the category `MSTR-001` v1.3
 >   predicted would turn up.
-> - **Confirms an existing non-goal** — `R217`.
+> - **Confirms an existing non-goal** — ~~`R217`~~ **`R217` moved to *Partial* 2026-08-21**: seven of its eight surveyed
+>   items still confirm existing non-goals, but **song regeneration produced a feature** — `ADR-0006` → `FR-1070` → the
+>   Select handler. See that topic's SS3a.
 > - **Recommendation deliberately rejected, for a recorded reason** — `R213` (`DIV` boot seeding
 >   not adopted; the fixed `LFSR_SEED` is what makes every test run a fixed-seed regression run,
 >   `R305` §5).

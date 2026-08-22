@@ -58,7 +58,10 @@ None of chord/bass/countermelody/phrase-generation is implemented — `IP-0001` 
 only (R201).
 
 ## 5. Implementation Guidance
-- **v1/v2 scope (IP-0002/0003) should not attempt chord-progression-driven harmony** — it's a
+
+> **⚠️ The first bullet below is WITHDRAWN as of 2026-08-19 (`BL-0119`). See [§9](#9-addendum--2026-08-19-r211-5s-first-bullet-is-withdrawn-bl-0119) and, for the replacement position, [R225](R225-harmonic-coordination-shared-chord-context.md). It is retained here, struck, rather than deleted — this project supersedes, it does not erase (`R101` §8.5, `R102` §3b precedent).**
+
+- ~~**v1/v2 scope (IP-0002/0003) should not attempt chord-progression-driven harmony**~~ — it's a
   bigger structural addition (a shared harmonic-context WRAM field all channels read) than the
   independent-per-channel-walk model GDS-03 already committed to. Named as a real, larger v3+
   candidate, not silently adopted.
@@ -76,7 +79,9 @@ No current `IP-xxxx` depends on this topic directly; informs future backlog scop
 ✅ **TRACED**, via its addendum rather than its original body. The original melodic/harmonic survey fed no code directly. **§8 (2026-07-26, `BL-0037`) grounds `DELTA_TABLE`'s already-shipped weighting** — a lookup-table bias that had been in `music_engine.py` since `IP-0001` with *no* research behind it, which this topic supplied retroactively — and the topic then fed `ADS-100`/`ADS-102`/`FS-109` and shipped as `IP-1090`'s weighted variant selection (`VERIFIED`). Architecture: `GDS-04`. Tests: `T16`. Noted honestly: this is a trace earned by a later addendum, not by the topic as first authored.
 
 ## 7. Related Topics
-R201 (melody, already adopted technique), R202 (rhythm/percussion), R115 (noise channel), R212
+R225 (2026-08-19 — the replacement position for this topic's withdrawn §5 first bullet: a shared
+chord-context mechanism, costed against the measured per-frame budget), R201 (melody, already
+adopted technique), R202 (rhythm/percussion), R115 (noise channel), R212
 (song-structure/tension — the phrase-level gap this topic names is the same gap that section
 covers from the "form" angle), R220 (2026-07-22 — found a cheap song-form-structure partial
 answer via horizontal-resequencing/vertical-layering; this topic's motif-recurrence half remains
@@ -126,3 +131,47 @@ uncited, design choice.
   this exact mechanism — a differently-weighted lookup table, not new arithmetic — consistent with
   this project's established "extend the table, not the mechanism" pattern (`CHMIX_MASKS`,
   `ARPEGGIO_OFFSETS`, `MOTIF_TABLE`).
+
+## 9. Addendum — 2026-08-19: §5's first bullet is WITHDRAWN (`BL-0119`)
+
+**What is withdrawn.** §5's first bullet — "v1/v2 scope (IP-0002/0003) should not attempt
+chord-progression-driven harmony… a bigger structural addition (a shared harmonic-context WRAM
+field all channels read) than the independent-per-channel-walk model GDS-03 already committed to."
+
+**Why, and what specifically was wrong with it.** The *scoping* call was correct when made in
+2026-07: at `IP-0002`/`IP-0003` there were no shipped channels to coordinate, no measured budget,
+and no evidence that the independent-walk model would fail. What has since been falsified is the
+bullet's implicit premise that the cost of a shared harmonic context is large and the cost of its
+absence is small. Both are now measured, and both point the other way:
+
+- **The cost of its absence is the project's largest quality gap.** `BL-0119` measured the shipped
+  ROM's vertical interval distribution as near-uniform (the signature of independent random
+  processes) with **36.1 % harsh pairs**, and traced the user's own "the music doesn't sound good
+  yet" verdict directly to it. `R225` §3h adds that pulse A and pulse B are phase-locked and strike
+  *simultaneously on every onset*, which foregrounds every clash at an attack transient.
+- **The cost of the mechanism is small, and smaller than this topic assumed.** `R225` §3h measured
+  that **95.1 % of frames execute no pitched-onset branch at all**, so an onset-scoped rule is
+  nearly free on the per-frame budget `R101` §8.5 found exhausted; and `R225` §3g establishes that
+  the chord-tone mechanism itself — `ARPEGGIO_OFFSETS = [0, 2, 4, 2]`, a stack of scale-degree
+  thirds — **has already shipped** (`IP-1060`) and is already inside that budget. The missing piece
+  is one shared root byte, not a new subsystem.
+- **"A shared harmonic-context WRAM field" was named here as the reason not to do it.** It is now
+  the recommendation. `GDS-07` records the next free WRAM address as `0xC077`, with gaps at `0xC040`-`0xC04F`
+  and `0xC062`-`0xC067`; WRAM was never the constraint.
+
+**What is NOT withdrawn.** §3's concepts stand and are this project's earliest correct statement of
+the mechanism — the small functional-harmony transition table (tonic→{dominant, subdominant},
+dominant→{tonic}), the "table lookup, not learned model" discipline, and the bass-follows-chord-root
+convention all survive intact and are now citation-grounded and costed in `R225` §3b/§3d. §8's
+weighted-lookup-table technique is the exact mechanism `R225` §5c recommends reusing for the
+transition table. §3's phrase-level negative result also stands as written for *motif development*;
+the narrower *cadence* half is partially reversed in `R225` §3f, and only because a chord context
+now exists to cadence onto.
+
+**Replacement position:** [`R225` — Harmonic Coordination: A Shared Chord Context Across
+Independent Voices](R225-harmonic-coordination-shared-chord-context.md).
+
+### Addendum sources
+- `BL-0119` (`docs/pipeline/backlog.md`) — the live measurement of the shipped ROM.
+- `R225` §3g/§3h/§5 — the mechanism, the onset-schedule measurement, and the cost analysis.
+- `R101` §8.5, `BL-0113`/`IP-9040` — the per-frame budget reality any replacement had to survive.

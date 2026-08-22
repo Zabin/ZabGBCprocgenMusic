@@ -78,6 +78,29 @@ consistent (contradictions are Review findings) · traceable ("implied by
 the architecture" is not a citation) · complete (every Step-0 capability has ≥1 FR, or the gap is
 a Review finding).
 
+**Placeholder-promotion guard (mandatory before baselining any requirement that constrains a
+specific value).** Established 2026-08-20 after an audit found an acknowledged-arbitrary value had
+been silently promoted into a protected guarantee. Before writing a requirement whose subject is a
+concrete value — a preset, a threshold, a table row, a constant — **grep the backlog for an open
+entry declaring that value untuned, first-guess, or placeholder** (this project's standing
+`BL-0005`-class marker). If one exists, you may not baseline a requirement that freezes it as-is.
+Choose one, explicitly, in the requirement's own Notes field:
+
+- **State it relationally, not historically.** Constrain how the value must relate to *other*
+  values — an invariant that stays true whatever the value is tuned to — rather than freezing
+  whatever it currently happens to be. This is almost always the right answer.
+- **Resolve the placeholder first** (route to the owning stage), then baseline.
+- **Baseline it deliberately as provisional**, naming the backlog entry and the retune trigger in
+  Notes, so a later tuning pass knows the requirement moves with the value.
+
+*(Real case: `BL-0005` recorded the presets as first-guess placeholders from run #1. `FR-1260` was
+nonetheless baselined as a guarantee about preset 0's shipped sound, which then blocked a genuine
+improvement for an entire increment — the arbitrary value had acquired the authority of a
+requirement purely by being written down first. It was eventually corrected to the relational
+fixed-point form (`STYLE_TABLE` row 0 must agree with the boot preset, whatever both are tuned to),
+which is what it should have been from the start — but only after the **user** pushed back, not
+because any pipeline stage caught it.)*
+
 End with a `## Candidate Requirements` section for anything untraceable — same fields, explicitly
 excluded from the numbered baseline, marked `CANDIDATE — NOT BASELINED` in the matrix.
 
@@ -117,6 +140,10 @@ Test column can often be filled honestly from its named checks (T1.1…T10.x).
 - [ ] Every numbered requirement has a real Source Documents citation with a section.
 - [ ] No baseline requirement contradicts another or an ADR — violations pulled to Candidates or
       flagged in the Review, never silently kept.
+- [ ] The placeholder-promotion guard was run for every requirement constraining a concrete value:
+      the backlog was searched for an open untuned/first-guess entry covering it, and any hit is
+      resolved, stated relationally, or baselined as explicitly provisional with its retune trigger
+      named. No requirement freezes a value the project's own backlog calls arbitrary.
 - [ ] The Review reviewed the final 01/02 content and applied no fixes.
 - [ ] The matrix uses `UNASSIGNED` honestly; nothing originated a new fact, decision, or code.
 

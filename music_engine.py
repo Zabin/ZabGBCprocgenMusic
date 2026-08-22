@@ -163,7 +163,9 @@ CHORD_TOGGLE = 0xC079     # bit0: wave-channel root/fifth alternation.  bit1: pu
 # SCALE_IDX/OCTAVE_IDX change during an already-sounding note now lands at that channel's next
 # onset (<= ~0.5 s at default tempo) instead of mid-note. The onset write itself still uses the
 # values current at that onset, so nothing becomes less responsive than one note; what disappears
-# is a mid-note pitch lurch. init_engine repopulates both caches on boot AND Select (FR-1630) —
+# is a mid-note pitch lurch. The shared init/reroll body repopulates both caches on boot AND on a
+# Select reroll (FR-1630, strengthened by IP-1160: on a reroll they must resolve against the
+# LISTENER's SCALE_IDX/OCTAVE_IDX, which is what they now find there, not the boot preset's) —
 # without that, a reset would leave arp_tick playing back pitch material chosen before it, which
 # is precisely the uninitialized-state defect VR-1130 already found once in BLEND_STEP.
 ARP_CACHE_PA = 0xC07A     # 8 bytes: (lo, hi) x 4 arpeggio steps
@@ -291,8 +293,10 @@ CHANNEL_ROLES = {'pa': 'melody', 'pb': 'harmony', 'wv': 'bass'}
 # sustained bass role, R207).
 ARP_CACHES = {'pa': ARP_CACHE_PA, 'pb': ARP_CACHE_PB}
 
-# IP-8030 (BL-0089): CHMIX_MASKS, STYLE_TABLE, SONG_TABLE, N_SONG_PHASES, ARPEGGIO_OFFSETS,
+# IP-8030 (BL-0089): CHMIX_MASKS, STYLE_TABLE, SONG_TABLE, N_SONG_PHASES,
 # DUTY_BY_DEGREE, MOTIF_TABLE, N_VARIANTS, MOTIF_VARIANT_SELECTOR moved to music_data.py,
+# (BL-0139: ARPEGGIO_OFFSETS was in this list too, but IP-1150 deleted that table outright —
+# ARP_PATTERNS/ARP_PATTERN_PICK in music_data.py replaced it; see L1206's note.)
 # imported above, alongside every other curated content table. DENSITY_K, NOISE_STEPS,
 # NOISE_STEP_TABLE, _euclidean_pattern moved to patterns.py, imported above.
 ARP_SUBTICK_RELOAD = 6  # frames per chord-tone
@@ -1577,7 +1581,27 @@ def _emit_mood_update(rom):
 def build_engine_asm(rom: ROM):
     """Emits data tables + init/tick/reset routines."""
 
-    # ── init_engine (boot init AND Select-reset target, GDS-03 SS5) ──
+    # ── init_engine — BOOT ONLY (IP-1160 / ADR-0006 / amended FR-1070) ──────────────
+    # This label is the boot entry point and nothing else. It writes exactly the eight
+    # listener-facing ("steering") values enumerated by GDS-04 §1.2 + §1.4 — the five PRESET_*
+    # indices, DUTY_BIAS, and the SONG_TABLE[0] TEMPO_IDX/DENSITY_IDX pair — and then FALLS
+    # THROUGH into `engine_reroll`, which does everything else and RETs.
+    #
+    # Before IP-1160 this one routine was both the boot init and the Select target, so a Select
+    # press discarded every setting the listener had dialled in. IP-0007 (2026-07) made the
+    # engine escape a bad zone on its own, which removed the reason Select had to be a full
+    # reset; ADR-0006 and the amended FR-1070 make Select a *reroll* instead — new melodic
+    # material and a clean bad-zone slate, with the listener's settings left bit-identical.
+    #
+    # Two properties of this split are load-bearing and must survive any future edit:
+    #   (a) `mood_update` (in the shared body below) still runs AFTER every write to its inputs
+    #       TEMPO_IDX/DENSITY_IDX/SCALE_IDX. On boot those writes are all in this prologue, which
+    #       precedes the body; on the reroll path there are none. Do not move `mood_update`.
+    #   (b) Boot behaviour is unchanged. This prologue emits the same eight writes, with the same
+    #       values, and the second TEMPO_IDX/DENSITY_IDX write still lands after the first. The
+    #       only reordering is that the SONG_TABLE[0] pair now precedes the SONG_STATE/timer
+    #       writes instead of sitting between them — disjoint addresses, nothing reads them in
+    #       between, so the emitted boot state is identical (T2/T18.1 guard this, unmodified).
     rom.label('init_engine')
     rom.LD_A_n(PRESET_TEMPO_IDX); rom.LD_nn_A(TEMPO_IDX)
     rom.LD_A_n(PRESET_OCTAVE_IDX); rom.LD_nn_A(OCTAVE_IDX)
@@ -1588,6 +1612,25 @@ def build_engine_asm(rom: ROM):
     # DENSITY_IDX/SCALE_IDX are already set to STYLE_TABLE[0]'s exact values by the three
     # PRESET_* writes just above, so no separate _emit_apply_style call is needed here.
     rom.XOR_A(); rom.LD_nn_A(DUTY_BIAS)
+    # IP-1160: song-form phase 0's OWN TEMPO_IDX/DENSITY_IDX write (IP-1100), moved up here from
+    # its old home beside the SONG_STATE writes below. It is a steering-index write like any
+    # other (GDS-04 §1.2 has registered "song-form phase transition" as an independent
+    # TEMPO_IDX/DENSITY_IDX writer since 2026-07-26) and it is the one a casual reading of this
+    # routine misses: leaving it in the shared body would ship a Select that preserves octave,
+    # scale and channel-mix while silently resetting tempo and density. SONG_STATE itself, and
+    # its two timer bytes, stay in the shared body — those are phase bookkeeping, not steering,
+    # and a reroll does restart the song form at phase 0 (T17.7). The values are identical to
+    # PRESET_TEMPO_IDX/PRESET_DENSITY_IDX (see SONG_TABLE's own comment), so boot is unchanged.
+    rom.LD_A_n(SONG_TABLE[0][0]); rom.LD_nn_A(TEMPO_IDX)
+    rom.LD_A_n(SONG_TABLE[0][1]); rom.LD_nn_A(DENSITY_IDX)
+
+    # ── engine_reroll — the shared body: boot falls through into it, and Select CALLs it ────
+    # Everything below is what a reroll means (ADR-0006): new melodic material (each channel's
+    # LFSR reseeded from DIV), a clean bad-zone slate, and a deterministic restart of the
+    # engine's own internal bookkeeping — with NOT ONE write to a listener-facing steering value.
+    # input_map.py's Select handler calls this label directly. Adding a steering-index write here
+    # would silently re-break FR-1070; add it to the boot prologue above instead.
+    rom.label('engine_reroll')
     # IP-1130 (VR-1130 F1 remediation): BLEND_STEP resets to 4 (settled/no-active-blend sentinel)
     # on both boot and Select-reset. Without this, BLEND_STEP's uninitialized-WRAM value (0 on
     # first boot; whatever an interrupted blend last left it at, on Select) leaves blend_tick free
@@ -1628,22 +1671,23 @@ def build_engine_asm(rom: ROM):
     # keeping a reset fully deterministic: variant 0, step 0 (FS-109's own Open Question 4).
     rom.XOR_A(); rom.LD_nn_A(MOTIF_VARIANT_IDX)
     # IP-1100 (roadmap R6, ADS-103): SONG_STATE resets to phase 0 (INTRO) on both boot and
-    # Select-reset, with SONG_STATE_TIMER reloaded from SONG_TABLE[0]'s own duration.
-    # SONG_TABLE[0]'s tempo_idx/density_idx match PRESET_TEMPO_IDX/PRESET_DENSITY_IDX exactly (see
-    # SONG_TABLE's own comment), so the TEMPO_IDX/DENSITY_IDX writes just above are not disturbed
-    # — a reset always returns to a deterministic, known-good starting phase with no regression to
-    # existing boot/reset behavior.
+    # reroll, with SONG_STATE_TIMER reloaded from SONG_TABLE[0]'s own duration. IP-1160 moved
+    # phase 0's accompanying TEMPO_IDX/DENSITY_IDX write into the boot-only prologue: restarting
+    # the song form is bookkeeping the listener does not steer, but re-applying phase 0's tempo
+    # and density is a steering write, and a reroll must not perform one. The next phase
+    # transition (~27 s) will write them normally — that is IP-1100's shipped behaviour and is
+    # out of scope here (BL-0144).
     rom.XOR_A(); rom.LD_nn_A(SONG_STATE)
-    rom.LD_A_n(SONG_TABLE[0][0]); rom.LD_nn_A(TEMPO_IDX)
-    rom.LD_A_n(SONG_TABLE[0][1]); rom.LD_nn_A(DENSITY_IDX)
     rom.LD_A_n(SONG_TABLE[0][2]); rom.LD_nn_A(SONG_STATE_TIMER_LO)
     rom.LD_A_n(SONG_TABLE[0][3]); rom.LD_nn_A(SONG_STATE_TIMER_HI)
 
     # IP-1120 (roadmap R7): recompute AROUSAL/VALENCE from the now-final TEMPO_IDX/DENSITY_IDX/
-    # SCALE_IDX values -- placed here because every write to those three addresses in this
-    # routine has already landed (SCALE_IDX at PRESET_SCALE_IDX above; TEMPO_IDX/DENSITY_IDX at
-    # their final SONG_TABLE[0] overwrite just above, not the earlier PRESET_* write). Serves
-    # both the boot path and the Select-reset path, since both call this same label.
+    # SCALE_IDX values. IP-1160: this placement is still correct and is load-bearing — on the
+    # boot path every write to those three addresses lives in the prologue above, which precedes
+    # this point; on the reroll path there are no such writes at all, so this call recomputes the
+    # same values it finds and is a no-op by construction (T20.11/T20.12 keep it honest). DO NOT
+    # move this call above the prologue's writes: that is exactly the AROUSAL/VALENCE staleness
+    # defect class BL-0111 already cost this project a package over.
     rom.CALL('mood_update')
 
     for (suffix, note_timer, cur_degree, lfsr_state, lfsr_seed, *_rest, duty_reg,

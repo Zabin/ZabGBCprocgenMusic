@@ -3,7 +3,7 @@ input_map.py — Driftune's joypad edge-detection and input->parameter mapping (
 
 Never writes a PSG register or a note-generation field directly — only the parameter indices
 (TEMPO_IDX/OCTAVE_IDX/SCALE_IDX/DENSITY_IDX/CHMIX_IDX) `music_engine.py` itself reads, plus
-calling `init_engine` for the Select reset (FR-1070). This keeps exactly one writer per hardware
+calling `engine_reroll` for the Select reroll (FR-1070). This keeps exactly one writer per hardware
 surface (GDS-03 SS1).
 """
 
@@ -77,12 +77,18 @@ def build_input_asm(rom: ROM):
     _emit_begin_blend(rom)
     rom.label('ai_start')
 
-    # Select: unconditional reset to the known-good preset (FR-1070), regardless of bad-zone
-    # state — init_engine (music_engine.py) is both the boot-init and the reset target.
+    # Select: unconditional REROLL (FR-1070 as amended 2026-08-21, ADR-0006), regardless of
+    # bad-zone state — `engine_reroll` (music_engine.py) reseeds every channel's LFSR from DIV
+    # for genuinely new melodic material and clears BAD_ZONE_FLAGS/DISSONANCE_SCORE/
+    # STALE_COUNT_*/ONSET_WINDOW_COUNT to course-correct out of a bad zone. It deliberately
+    # writes NONE of TEMPO_IDX/OCTAVE_IDX/SCALE_IDX/DENSITY_IDX/CHMIX_IDX/DUTY_BIAS: the
+    # listener's own settings survive the press. `init_engine` (the boot-only prologue that
+    # falls through into engine_reroll) is what build_rom.py's main calls once, and is NOT the
+    # target here — calling it would restore the pre-IP-1160 reset-everything behaviour.
     rom.LD_A_nn(JOY_NEW)
     rom.BIT_b_A(J_SELECT)
     rom.JR_Z('ai_no_select')
-    rom.CALL('init_engine')
+    rom.CALL('engine_reroll')
     rom.label('ai_no_select')
 
     rom.RET()
